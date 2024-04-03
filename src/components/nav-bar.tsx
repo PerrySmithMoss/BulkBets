@@ -38,37 +38,37 @@ export const NavBar: React.FC<Props> = ({}) => {
               <nav className="grid gap-6 text-lg font-medium">
                 <Link
                   href="#"
-                  className="flex items-center gap-2 text-lg font-semibold"
+                  className="flex items-center gap-2 font-bold text-2xl"
                 >
-                  <Package2 className="h-6 w-6" />
-                  <span className="sr-only">Acme Inc</span>
-                </Link>
-                <Link href="#" className="hover:text-foreground">
-                  Dashboard
-                </Link>
-                <Link
-                  href="#"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Orders
+                  <p>
+                    Bulk
+                    <span className="text-primary">Bets</span>
+                  </p>
+                  <span className="sr-only">IronBets</span>
                 </Link>
                 <Link
                   href="#"
-                  className="text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  Products
+                  Shows
                 </Link>
                 <Link
                   href="#"
-                  className="text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  Customers
+                  Divisions
                 </Link>
                 <Link
                   href="#"
-                  className="text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  Analytics
+                  Competitors
+                </Link>
+                <Link
+                  href="#"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Calendar
                 </Link>
               </nav>
             </SheetContent>
@@ -118,7 +118,7 @@ export const NavBar: React.FC<Props> = ({}) => {
               />
             </div>
           </form>
-          {isUserLoggedIn ? (
+          <div className="xs:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -139,14 +139,39 @@ export const NavBar: React.FC<Props> = ({}) => {
                 <DropdownMenuItem>Logout</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          </div>
+          {isUserLoggedIn ? (
+            <div className="hidden xs:block">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="rounded-full"
+                  >
+                    <CircleUser className="h-5 w-5" />
+                    <span className="sr-only">Toggle user menu</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>Settings</DropdownMenuItem>
+                  <DropdownMenuItem>Support</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>Logout</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           ) : (
             <div className="hidden xs:flex items-center gap-3">
-              {/* log in/log out */}
               <Button variant="outline">Log in</Button>
               <Button>Register</Button>
             </div>
           )}
-          <ThemeToggle />
+          <div className="hidden xxs:block">
+            <ThemeToggle />
+          </div>
         </div>
       </header>
     </div>
