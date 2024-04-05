@@ -1,7 +1,9 @@
+"use client";
+
 import React from "react";
-import { ThemeToggle } from "./ui/theme-toggle";
+import { ThemeToggle } from "./theme-toggle";
 import Link from "next/link";
-import { CircleUser, Menu, Package2, Search } from "lucide-react";
+import { CircleUser, Menu, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,12 +15,28 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { headers } from "next/headers";
+import { usePathname } from "next/navigation";
 
 const isUserLoggedIn = false;
 
 interface Props {}
 
 export const NavBar: React.FC<Props> = ({}) => {
+  const pathName = usePathname();
+
+  const getNavigationClassName = (href: string) => {
+    let className = "transition-colors hover:text-foreground";
+
+    if (pathName.includes(href)) {
+      className += " " + "text-foreground";
+    } else {
+      className += " " + "text-muted-foreground";
+    }
+
+    return className;
+  };
+
   return (
     <div className="flex flex-col w-full">
       <header className="sticky top-0 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 md:px-6">
@@ -46,28 +64,19 @@ export const NavBar: React.FC<Props> = ({}) => {
                   </p>
                   <span className="sr-only">IronBets</span>
                 </Link>
-                <Link
-                  href="#"
-                  className="text-muted-foreground transition-colors hover:text-foreground"
-                >
+                <Link href="#" className={getNavigationClassName("/")}>
                   Shows
                 </Link>
-                <Link
-                  href="#"
-                  className="text-muted-foreground transition-colors hover:text-foreground"
-                >
+                <Link href="#" className={getNavigationClassName("divisions")}>
                   Divisions
                 </Link>
                 <Link
                   href="#"
-                  className="text-muted-foreground transition-colors hover:text-foreground"
+                  className={getNavigationClassName("competitors")}
                 >
                   Competitors
                 </Link>
-                <Link
-                  href="#"
-                  className="text-muted-foreground transition-colors hover:text-foreground"
-                >
+                <Link href="#" className={getNavigationClassName("calendar")}>
                   Calendar
                 </Link>
               </nav>
@@ -82,28 +91,16 @@ export const NavBar: React.FC<Props> = ({}) => {
           </Link>
         </div>
         <nav className="hidden flex-col gap-6 font-medium [@media(min-width:820px)]:flex [@media(min-width:820px)]:flex-row [@media(min-width:820px)]:items-center [@media(min-width:820px)]:gap-5 [@media(min-width:820px)]:text-sm lg:gap-6">
-          <Link
-            href="#"
-            className="text-muted-foreground transition-colors hover:text-foreground"
-          >
+          <Link href="#" className={getNavigationClassName("/")}>
             Shows
           </Link>
-          <Link
-            href="#"
-            className="text-muted-foreground transition-colors hover:text-foreground"
-          >
+          <Link href="#" className={getNavigationClassName("divisions")}>
             Divisions
           </Link>
-          <Link
-            href="#"
-            className="text-muted-foreground transition-colors hover:text-foreground"
-          >
+          <Link href="#" className={getNavigationClassName("competitors")}>
             Competitors
           </Link>
-          <Link
-            href="#"
-            className="text-muted-foreground transition-colors hover:text-foreground"
-          >
+          <Link href="#" className={getNavigationClassName("calendar")}>
             Calendar
           </Link>
         </nav>
