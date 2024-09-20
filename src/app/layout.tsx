@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils/cn";
 import { Inter as FontSans } from "next/font/google";
 import { NavBar } from "@/components/nav-bar";
 import { ThemeProvider } from "@/components/theme-provider";
+import { DialogManager } from "@/components/dialog-manager";
+import { DialogProvider } from "@/contexts/dialog-context";
 
 const fontSans = FontSans({
   subsets: ["latin"],
@@ -35,8 +37,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <NavBar />
-          {children}
+          <DialogProvider>
+            <NavBar />
+            <DialogManager />
+            {children}
+          </DialogProvider>
         </ThemeProvider>
       </body>
     </html>
