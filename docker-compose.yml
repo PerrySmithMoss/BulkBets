@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16.3
+    container_name: bulk_bets
+    environment:
+      POSTGRES_DB: bulk_bets
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adminpassword
+    networks:
+      - server
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./scripts:/docker-entry_point-init_db.sql
+    ports:
+      - "5432:5432"
+
+volumes:
+  db-data:
+
+networks:
+  server:
+    driver: bridge
