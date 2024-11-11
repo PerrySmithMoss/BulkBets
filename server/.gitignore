@@ -2,21 +2,63 @@
 *.exe
 *.exe~
 *.dll
+*.out
 *.so
 *.dylib
-
-# Test binary, built with `go test -c`
 *.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# Go build artifacts
+/bin/
+/pkg/
+/dist/
+/build/
+*.o
+*.a
 
-# Go workspace file
-go.work
-go.work.sum
+# Vendor directory (if you are using Go modules, you may want to include it for reproducibility)
+vendor/
 
-# env file
+# Environment & config files
 .env
+*.local
+.env.*     # Catch environment-specific or temporary .env files
+config.yaml # Add any other configuration files containing secrets
+
+# Logs and debugging
+build-errors.log
+*.log
+*.trace
+*.prof
+*.bench
+
+# IDE/editor files
+# VS Code
+.vscode/
+/.vscode/*
+
+# JetBrains (e.g., GoLand)
+.idea/
+*.iml
+
+# macOS system files
+.DS_Store
+
+# Node.js dependencies (for mixed projects that may include JavaScript or frontend code)
+node_modules/
+
+# Temporary files
+*.swp
+*~
+
+# Coverage and testing
+coverage.out
+coverage/
+*.coverprofile
+
+# Docker and container files
+docker-compose.override.yml
+*.pid
+
+# Generated API docs or OpenAPI files (if applicable)
+docs/generated/

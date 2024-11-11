@@ -16,13 +16,21 @@ import {
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { usePathname } from "next/navigation";
-
-const isUserLoggedIn = false;
+import { useDialog } from "@/contexts/dialog-context";
+import { Dialog } from "@/types/dialog";
+import { Logo } from "./logo";
+import { useUser } from "@/contexts/user-context";
 
 interface Props {}
 
 export const NavBar: React.FC<Props> = ({}) => {
   const pathName = usePathname();
+  const { openDialog } = useDialog();
+  const user = useUser();
+
+  const handleLogIn = () => {
+    openDialog(Dialog.LogIn);
+  };
 
   const getNavigationClassName = (href: string) => {
     let className = "transition-colors hover:text-foreground";
@@ -55,16 +63,7 @@ export const NavBar: React.FC<Props> = ({}) => {
                 </SheetTrigger>
                 <SheetContent side="left">
                   <nav className="grid gap-6 text-lg font-medium">
-                    <Link
-                      href="#"
-                      className="flex items-center gap-2 font-bold text-2xl"
-                    >
-                      <p>
-                        Bulk
-                        <span className="text-primary">Bets</span>
-                      </p>
-                      <span className="sr-only">IronBets</span>
-                    </Link>
+                    <Logo />
                     <Link href="#" className={getNavigationClassName("/")}>
                       Shows
                     </Link>
@@ -147,7 +146,7 @@ export const NavBar: React.FC<Props> = ({}) => {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              {isUserLoggedIn ? (
+              {user ? (
                 <div className="hidden xs:block">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -172,7 +171,9 @@ export const NavBar: React.FC<Props> = ({}) => {
                 </div>
               ) : (
                 <div className="hidden xs:flex items-center gap-3">
-                  <Button variant="outline">Log in</Button>
+                  <Button onClick={handleLogIn} variant="outline">
+                    Log in
+                  </Button>
                 </div>
               )}
               <div className="hidden xxs:block">

@@ -1,12 +1,17 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
-	"github.com/PerrySmithMoss/BulkBets/server/internal/db"
-	"github.com/PerrySmithMoss/BulkBets/server/internal/env"
-	"github.com/PerrySmithMoss/BulkBets/server/internal/store"
 	"github.com/joho/godotenv"
+	"github.com/rs/cors"
+
+	"github.com/PerrySmithMoss/BulkBets/server/config"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/auth"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/auth/oauth"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/db"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/store"
 )
 
 func main() {
@@ -15,21 +20,16 @@ func main() {
 		log.Fatalf("Error loading .env file")
 	}
 
-	cfg := config{
-		port: env.GetString("PORT", ":8080"),
-		db: dbConfig{
-			addr:         env.GetString("DB_ADDR", "postgres://admin:adminpassword@localhost/bulk_bets?sslmode=disable"),
-			maxOpenConns: env.GetInt("DB_MAX_OPEN_CONNS", 30),
-			maxIdleConns: env.GetInt("DB_MAX_IDLE_CONNS", 30),
-			maxIdleTime:  env.GetString("DB_MAX_IDLE_TIME", "15m"),
-		},
-	}
+	cfg := config.GetConfig()
+
+	postgresqlDbAddr := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s",
+		cfg.DB.DBUser, cfg.DB.DBPassword, cfg.DB.DBHost, cfg.DB.DBName, cfg.DB.DBSslMode)
 
 	db, err := db.New(
-		cfg.db.addr,
-		cfg.db.maxOpenConns,
-		cfg.db.maxIdleConns,
-		cfg.db.maxIdleTime,
+		postgresqlDbAddr,
+		cfg.DB.DBMaxOpenConnections,
+		cfg.DB.DBMaxIdleConnections,
+		cfg.DB.DBMaxIdleTime,
 	)
 	if err != nil {
 		log.Panic(err)
@@ -38,14 +38,42 @@ func main() {
 	defer db.Close()
 	log.Printf("DB connection established 👍")
 
+	corsHandler := cors.New(cors.Options{
+		AllowedOrigins:   cfg.Cors.AllowedOrigins,
+		AllowedMethods:   cfg.Cors.AllowedMethods,
+		AllowedHeaders:   cfg.Cors.AllowedHeaders,
+		AllowCredentials: cfg.Cors.AllowCredentials,
+	})
+
 	store := store.NewStorage(db)
 
-	app := &application{
-		config: cfg,
-		store:  store,
+	oauth := oauth.InitOAuthConfigs(cfg)
+
+	accessTokenAuthenticator := auth.NewJWTAuthenticator(
+		cfg.Auth.Token.AccessToken.Secret,
+		cfg.Auth.Token.AccessToken.Iss,
+		cfg.Auth.Token.AccessToken.Iss,
+	)
+
+	refreshTokenAuthenticator := auth.NewJWTAuthenticator(
+		cfg.Auth.Token.RefreshToken.Secret,
+		cfg.Auth.Token.RefreshToken.Iss,
+		cfg.Auth.Token.RefreshToken.Iss,
+	)
+
+	authenticator := &auth.TokenAuthenticator{
+		AccessTokenAuthenticator:  accessTokenAuthenticator,
+		RefreshTokenAuthenticator: refreshTokenAuthenticator,
 	}
 
-	mux := app.mount()
+	app := &application{
+		cfg:           cfg,
+		store:         store,
+		authenticator: authenticator,
+		oauth:         oauth,
+		cors:          corsHandler,
+	}
+	hdl := app.mount()
 
-	log.Fatal(app.run(mux))
+	log.Fatal(app.run(hdl))
 }

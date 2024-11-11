@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompetitorTable } from "@/components/competitor-table";
 
-export default function Home() {
+export default async function Home() {
   return (
     <div className="max-w-[1450px] my-0 mx-auto flex items-stretch">
       <div className="grid w-full md:grid-cols-[250px_1fr] lg:grid-cols-[300px_1fr]">

@@ -37,7 +37,7 @@ export const CompetitorTable: React.FC<Props> = ({ competitors }) => {
         <TableRow className="bg-muted hover:bg-muted">
           <TableHead>Competitor</TableHead>
           <TableHead>Country</TableHead>
-          <TableHead className="text-center">Odds</TableHead>
+          <TableHead className="text-center">X</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>

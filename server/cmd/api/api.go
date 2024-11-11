@@ -1,31 +1,27 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/rs/cors"
 
+	"github.com/PerrySmithMoss/BulkBets/server/config"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/auth"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/auth/oauth"
 	"github.com/PerrySmithMoss/BulkBets/server/internal/store"
 )
 
 type application struct {
-	config config
-	store  store.Storage
-}
-
-type config struct {
-	port string
-	db   dbConfig
-}
-
-type dbConfig struct {
-	addr         string
-	maxOpenConns int
-	maxIdleConns int
-	maxIdleTime  string
+	cfg           config.Config
+	store         store.Storage
+	authenticator *auth.TokenAuthenticator
+	oauth         oauth.OAuthConfigs
+	cors          *cors.Cors
 }
 
 func (app *application) mount() http.Handler {
@@ -43,22 +39,38 @@ func (app *application) mount() http.Handler {
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Get("/health", app.healthCheckHandler)
+
+		r.Route("/oauth2", func(r chi.Router) {
+			r.Get("/{provider}", app.oauthHandler)
+			r.Get("/{provider}/callback", app.oauth2CallbackHandler)
+		})
+
+		r.Route("/users", func(r chi.Router) {
+			r.Use(app.DeserialiseUserMiddleware)
+			r.Use(app.RequireUserMiddleware)
+			r.Get("/me", app.currentUserHandler)
+		})
+
+		r.Route("/auth", func(r chi.Router) {
+			r.Get("/token/refresh", app.tokenRenewalHandler)
+		})
 	})
 
-	return r
+	return app.cors.Handler(r)
 }
 
-func (app *application) run(mux http.Handler) error {
+func (app *application) run(hdl http.Handler) error {
+	appAddr := fmt.Sprintf(":%s", app.cfg.App.AppPort)
+
 	srv := &http.Server{
-		Addr:         app.config.port,
-		Handler:      mux,
+		Addr:         appAddr,
+		Handler:      hdl,
 		WriteTimeout: time.Second * 30,
 		ReadTimeout:  time.Second * 15,
 		IdleTimeout:  time.Minute,
 	}
 
-	log.Printf("Server started at %s",
-		app.config.port)
+	log.Printf("Server listening on %s:%s\n", app.cfg.App.AppHost, app.cfg.App.AppPort)
 
 	return srv.ListenAndServe()
 }
