@@ -18,7 +18,7 @@ func (app *application) currentUserHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	user, err := app.store.UserRepository.GetByID(r.Context(), userID)
+	user, err := app.store.UserRepository.GetUserByID(r.Context(), userID)
 
 	if err != nil {
 		switch err {

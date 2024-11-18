@@ -19,7 +19,7 @@ import (
 
 // OAuth handler creates an unique OAuth URL using the client ID and client secret.
 // It then redirects the user to the OAuth provider website to complete the login.
-func (app *application) oauthHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) oauth2Handler(w http.ResponseWriter, r *http.Request) {
 	providerName := chi.URLParam(r, "provider")
 	oauthConfig, isValid := app.oauth.OAuth2[providerName]
 	if !isValid {
@@ -27,10 +27,8 @@ func (app *application) oauthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// url := oauthConfig.AuthCodeURL(app.cfg.Auth.OAuth.AuthStateToken, oauth2.AccessTypeOffline)
 	url := oauthConfig.AuthCodeURL(app.cfg.Auth.OAuth.AuthStateToken, oauth2.AccessTypeOffline) + "&prompt=select_account"
 
-	// http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 	w.Header().Set("Content-Type", "application/json")
 	response := map[string]string{"oauthUrl": url}
 
@@ -93,6 +91,7 @@ func (app *application) oauth2CallbackHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// TODO: set user's default currency based on oauth userInfo or pass from client?
 	user := app.store.UserRepository.Builder().
 		SetFirstName(userInfo.FirstName).
 		SetLastName(userInfo.LastName).
@@ -243,7 +242,7 @@ func (app *application) tokenRenewalHandler(w http.ResponseWriter, r *http.Reque
 		}
 
 		ctx := r.Context()
-		user, err := app.store.UserRepository.GetByID(ctx, userIdClaim)
+		user, err := app.store.UserRepository.GetUserByID(ctx, userIdClaim)
 		if err != nil {
 			log.Printf("No user with ID %s found", userIdClaim)
 			http.Error(w, "User unauthorised.", http.StatusUnauthorized)

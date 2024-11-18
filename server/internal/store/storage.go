@@ -13,22 +13,27 @@ var (
 	QueryTimeoutDuration = time.Second * 5
 )
 
-// UserRepository interface with the method signatures
 type UserRepository interface {
-	GetByID(ctx context.Context, userId string) (*User, error)
+	GetUserByID(ctx context.Context, userId string) (*User, error)
 	Create(ctx context.Context, user *User) error
 	Upsert(ctx context.Context, user *User) error
 	SetRefreshTokenVersion(ctx context.Context, refreshTokenVersion int64, userId string) (int64, error)
 	Builder() *UserBuilder
 }
 
+type ShowRepository interface {
+	GetShowByID(ctx context.Context, showId int) (*ShowDetails, error)
+}
+
 type Storage struct {
 	UserRepository UserRepository
+	ShowRepository ShowRepository
 }
 
 func NewStorage(db *sql.DB) Storage {
 	return Storage{
 		UserRepository: NewUsersStore(db),
+		ShowRepository: NewShowsStore(db),
 	}
 }
 
