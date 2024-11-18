@@ -243,7 +243,7 @@ func (s *UsersStore) Upsert(ctx context.Context, user *User) error {
 	})
 }
 
-func (s *UsersStore) GetByID(ctx context.Context, userId string) (*User, error) {
+func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, error) {
 	query := `
 			SELECT id, first_name, last_name, email, is_email_verified, email_verified_at, profile_image, google_id, x_id, github_id, refresh_token_version, created_at, updated_at
 			FROM users
