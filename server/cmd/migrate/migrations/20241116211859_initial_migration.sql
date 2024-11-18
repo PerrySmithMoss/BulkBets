@@ -6,7 +6,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TYPE user_status AS ENUM ('active', 'inactive', 'banned');
 CREATE TYPE show_status AS ENUM ('upcoming', 'ongoing', 'completed', 'canceled');
 CREATE TYPE division_status AS ENUM ('scheduled', 'ongoing', 'completed', 'canceled');
-CREATE TYPE division_participant_status AS ENUM ('registered', 'disqualified', 'active', 'pulled_out');
+CREATE TYPE division_participant_status AS ENUM ('registered', 'disqualified', 'active', 'pulled out', 'fulfilled');
+CREATE TYPE bet_types AS ENUM ('win', 'place');
 CREATE TYPE bet_status AS ENUM ('pending', 'won', 'lost', 'void', 'cancelled');
 CREATE TYPE transaction_status AS ENUM ('pending', 'completed', 'failed', 'reversed');
 
@@ -29,6 +30,19 @@ CREATE TABLE currencies (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+INSERT INTO currencies (code, name, symbol, is_active, exchange_rate, last_updated)
+VALUES
+    ('USD', 'United States Dollar', '$', FALSE, 1.000000, NOW()),
+    ('EUR', 'Euro', '€', FALSE, 0.850000, NOW()),
+    ('GBP', 'British Pound', '£', TRUE, 0.750000, NOW()),
+    ('JPY', 'Japanese Yen', '¥', FALSE, 110.000000, NOW()),
+    ('AUD', 'Australian Dollar', 'A$', FALSE, 1.300000, NOW()),
+    ('CAD', 'Canadian Dollar', 'C$', FALSE, 1.250000, NOW()),
+    ('CHF', 'Swiss Franc', 'CHF', FALSE, 0.920000, NOW()),
+    ('CNY', 'Chinese Yuan', '¥', FALSE, 6.400000, NOW()),
+    ('SEK', 'Swedish Krona', 'kr', FALSE, 8.600000, NOW()),
+    ('NZD', 'New Zealand Dollar', 'NZ$', FALSE, 1.400000, NOW());
+
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     first_name VARCHAR(255) NOT NULL,
@@ -40,7 +54,7 @@ CREATE TABLE users (
     profile_image VARCHAR(255),
     refresh_token_version BIGINT DEFAULT 1 NOT NULL,
     balance DECIMAL(10,2) DEFAULT 0.00 CHECK (balance >= 0.00),
-    default_currency CHAR(3) REFERENCES currencies(code) DEFAULT 'USD',
+    default_currency CHAR(3) REFERENCES currencies(code) DEFAULT 'GBP',
     last_login TIMESTAMPTZ,
     status user_status DEFAULT 'active',
     google_id VARCHAR(255),
@@ -80,7 +94,6 @@ CREATE TABLE divisions (
     show_id BIGINT REFERENCES shows(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
     category VARCHAR(50),
-    distance INTEGER, 
     start_time TIMESTAMPTZ NOT NULL,
     status division_status DEFAULT 'scheduled',
     version INTEGER DEFAULT 1,
@@ -118,10 +131,10 @@ CREATE TABLE division_participants (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Bet types (e.g., win, place, show)
+-- Bet types (e.g., win, place)
 CREATE TABLE bet_types (
     id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,
+    name bet_types NOT NULL,
     description TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

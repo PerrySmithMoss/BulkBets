@@ -1,5 +1,6 @@
 include .env
 MIGRATIONS_PATH = ./cmd/migrate/migrations
+SEEDS_PATH = ./cmd/migrate/seeds
 
 .PHONY: test
 test:
@@ -13,19 +14,48 @@ goose-status:
 
 .PHONY: goose-create
 goose-create:
-	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(MIGRATIONS_PATH) $(filter-out goose,$(MAKECMDGOALS))
+	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(MIGRATIONS_PATH) create $(filter-out $@,$(MAKECMDGOALS))
 
+# .PHONY: goose-create
+# goose-create:
+# 	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(SEEDS_PATH) create $(filter-out $@,$(MAKECMDGOALS))
+
+# ! Used for migrations
 .PHONY: goose-up
 goose-up:
 	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(MIGRATIONS_PATH) up
 
+# ! Used for seeds
+# .PHONY: goose-up
+# goose-up:
+# 	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(SEEDS_PATH) -no-versioning up
+
+# ! Used for migrations
 .PHONY: goose-down
 goose-down:
 	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(MIGRATIONS_PATH) down
 
+# ! Used for seeds
+# .PHONY: goose-down
+# goose-down:
+# 	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(SEEDS_PATH) -no-versioning down
+
 .PHONY: goose-reset
 goose-reset:
 	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(MIGRATIONS_PATH) reset
+
+# Goose seeds
+.PHONY: seed-create
+seed-create:
+	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(SEEDS_PATH) create $(filter-out $@,$(MAKECMDGOALS))
+
+.PHONY: seed-up
+seed-up:
+	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(SEEDS_PATH) up -no-versioning
+
+.PHONY: seed-down
+seed-down:
+	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(SEEDS_PATH) down -no-versioning
 
 # Migrate package migrations
 .PHONY: migrate-create
