@@ -4,6 +4,7 @@ import { Dialog } from "@/types/dialog";
 import { LogInDialog } from "./dialogs/log-in-dialog";
 import { useDialog } from "@/contexts/dialog-context";
 import { RegisterUserDialog } from "./dialogs/register-user-dialog";
+import { PlaceBetDialog } from "./dialogs/place-bet-dialog";
 
 export const DialogManager: React.FC = () => {
   const { activeDialog, closeDialog } = useDialog();
@@ -20,6 +21,10 @@ export const DialogManager: React.FC = () => {
         activeDialog={activeDialog}
         onOpenChange={closeDialog}
         open={activeDialog === Dialog.RegisterUser}
+      />
+      <PlaceBetDialog
+        onOpenChange={closeDialog}
+        open={activeDialog === Dialog.PlaceBet}
       />
     </>
   );

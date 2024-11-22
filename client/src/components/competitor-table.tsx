@@ -9,28 +9,36 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDialog } from "@/contexts/dialog-context";
-import { Competitor } from "@/types/competitor";
+import { useUser } from "@/contexts/user-context";
+import { decimalToFraction, decimalToPercentage } from "@/lib/utils/math";
+import { BetType } from "@/types/api/bets/bet-type";
+import { Competitor } from "@/types/api/competitors/competitors";
 import { Dialog } from "@/types/dialog";
-
-const isUserLoggedIn = false;
+import { useRouter } from "next/navigation";
 
 interface Props {
+  showId: number;
+  divisionId: number;
   competitors: Competitor[];
 }
 
-export const CompetitorTable: React.FC<Props> = ({ competitors }) => {
+export const CompetitorTable: React.FC<Props> = ({
+  showId,
+  divisionId,
+  competitors,
+}) => {
   const { openDialog } = useDialog();
+  const user = useUser();
 
   const handlePlaceBet = (competitor: Competitor) => {
-    // need to pop up with log in dialog if user is not logged in,
-    // otherwise show the betting screen
-    if (!isUserLoggedIn) {
-      console.log("user is not logged in ");
+    if (!user) {
       openDialog(Dialog.LogInToBet);
       return;
     }
-    console.log("user is logged in");
+
+    openDialog(Dialog.PlaceBet);
   };
+
   return (
     <Table>
       <TableHeader>
@@ -43,13 +51,25 @@ export const CompetitorTable: React.FC<Props> = ({ competitors }) => {
       <TableBody>
         {competitors.map((competitor, index) => (
           <TableRow key={index} className="hover:bg-background">
-            <TableCell className="font-medium">{competitor.name}</TableCell>
-            <TableCell>{competitor.country}</TableCell>
+            <TableCell className="font-medium">
+              {competitor.first_name} {competitor.last_name}
+            </TableCell>
+            <TableCell>
+              {competitor.nationality}, {competitor.residency}{" "}
+            </TableCell>
             <TableCell
               className="text-cta border-l text-center cursor-pointer hover:bg-muted/50"
               onClick={() => handlePlaceBet(competitor)}
             >
-              {competitor.odds.fractional} {`(${competitor.odds.percentage}%)`}
+              {`${decimalToFraction(
+                competitor.odds?.find((odds) => odds.bet_type === BetType.Win)
+                  ?.odds_value
+              )}`}{" "}
+              {`(${decimalToPercentage(
+                competitor.odds?.find((odds) => odds.bet_type === BetType.Win)
+                  ?.odds_value,
+                true
+              )})`}
             </TableCell>
           </TableRow>
         ))}
