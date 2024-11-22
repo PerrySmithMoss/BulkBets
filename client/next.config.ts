@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
         // but if you don't, then it will redirect it to http://localhost:3001/profile
         // AND THE GREAT THING IS, they reach the middleware.ts file which is all we want.
         source: "/api/:path*",
-        destination: `${process.env.API_URL}/:path*`,
+        destination: `${process.env.API_URL}/api/:path*`,
       },
     ];
   },

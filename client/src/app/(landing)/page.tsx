@@ -12,8 +12,10 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompetitorTable } from "@/components/competitor-table";
+import { fetchShowById } from "@/lib/api/shows/fetch-show-by-id";
 
 export default async function Home() {
+  const olympiaShow = await fetchShowById(1);
   return (
     <div className="max-w-[1450px] my-0 mx-auto flex items-stretch">
       <div className="grid w-full md:grid-cols-[250px_1fr] lg:grid-cols-[300px_1fr]">
@@ -172,162 +174,50 @@ export default async function Home() {
               />
             </div>
           </form>
-          <div className="flex flex-col gap-4">
-            <h1 className="text-lg font-semibold md:text-2xl">
-              Pro Muscle Italy Pro
-            </h1>
-            <Tabs defaultValue="mens-bodybuilding">
-              <TabsList>
-                <TabsTrigger value="mens-bodybuilding">
-                  Men&apos;s Bodybuilding
-                </TabsTrigger>
-                <TabsTrigger value="mens-physique">
-                  Men&apos;s Physique
-                </TabsTrigger>
-                <TabsTrigger value="womens-bikini">
-                  Women&apos;s Bikini
-                </TabsTrigger>
-              </TabsList>
-              <div className="mt-6">
-                <TabsContent value="mens-bodybuilding">
-                  <Card className="bg-background">
-                    <CardContent className="flex px-0 pb-0">
-                      <CompetitorTable
-                        competitors={italyProMaleBodybuildingCompetitors}
-                      />
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-                <TabsContent value="mens-physique">
-                  <Card className="bg-background">
-                    <CardHeader className="py-2 pl-3 bg-muted rounded-t-md">
-                      <CardTitle className="text-xs">Sun 8th Sep</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex items-center px-1 pb-4 justify-evenly"></CardContent>
-                  </Card>
-                </TabsContent>
-                <TabsContent value="womens-bikini">
-                  <Card className="bg-background">
-                    <CardHeader className="py-2 pl-3 bg-muted rounded-t-md">
-                      <CardTitle className="text-xs">Sun 8th Sep</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex items-center px-1 pb-4 justify-evenly"></CardContent>
-                  </Card>
-                </TabsContent>
-              </div>
-            </Tabs>
-          </div>
+          {olympiaShow ? (
+            <div className="flex flex-col gap-4">
+              <h1 className="text-lg font-semibold md:text-2xl">
+                {olympiaShow.show.name}
+              </h1>
+              <Tabs
+                // Todo: find better/more reliable way of doing this
+                defaultValue={`${olympiaShow.divisions?.at(0)?.id}-${
+                  olympiaShow.divisions?.at(0)?.name
+                }`}
+              >
+                <TabsList>
+                  {olympiaShow.divisions?.map((division) => (
+                    <TabsTrigger
+                      key={`${division.id}-${division.name}`}
+                      value={`${division.id}-${division.name}`}
+                    >
+                      {division.name}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                <div className="mt-6">
+                  {olympiaShow.divisions?.map((division) => (
+                    <TabsContent
+                      key={`${division.id}-${division.name}`}
+                      value={`${division.id}-${division.name}`}
+                    >
+                      <Card className="bg-background">
+                        <CardContent className="flex px-0 pb-0">
+                          <CompetitorTable
+                            showId={olympiaShow.show.id}
+                            divisionId={division.id}
+                            competitors={olympiaShow.competitors[division.id]}
+                          />
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                  ))}
+                </div>
+              </Tabs>
+            </div>
+          ) : null}
         </main>
       </div>
     </div>
   );
 }
-
-// could assign odds based on the actual scoring that judges give in
-// pre-judging & finals (lowest score wins)
-const italyProMaleBodybuildingCompetitors = [
-  {
-    name: "Ahmad Alrefaei",
-    country: "Kuwait",
-    odds: {
-      percentage: "2",
-      fractional: "1/50",
-    },
-  },
-  {
-    name: "Morgan Aste",
-    country: "France",
-    odds: {
-      percentage: "3",
-      fractional: "3/100",
-    },
-  },
-  {
-    name: "Alie Edward",
-    country: "France",
-    odds: {
-      percentage: "2",
-      fractional: "1/50",
-    },
-  },
-  {
-    name: "Enrico Hoffmann",
-    country: "United Arab Emirates",
-    odds: {
-      percentage: "6",
-      fractional: "3/50",
-    },
-  },
-  {
-    name: "Hunter Labrada",
-    country: "Tomball, Texas",
-    odds: {
-      percentage: "35",
-      fractional: "11/20",
-    },
-  },
-  {
-    name: "Lorenzo Leeuwe",
-    country: "Netherlands",
-    odds: {
-      percentage: "7",
-      fractional: "7/100",
-    },
-  },
-  {
-    name: "Josh Maley",
-    country: "United Kingdom",
-    odds: {
-      percentage: "3",
-      fractional: "3/100",
-    },
-  },
-  {
-    name: "Diogo Nunes",
-    country: "Italy",
-    odds: {
-      percentage: "4",
-      fractional: "1/25",
-    },
-  },
-  {
-    name: "Dario Paolozzi",
-    country: "Netherlands",
-    odds: {
-      percentage: "5",
-      fractional: "1/20",
-    },
-  },
-  {
-    name: "Andrea Presti",
-    country: "Italy",
-    odds: {
-      percentage: "15",
-      fractional: "1/4",
-    },
-  },
-  {
-    name: "Bruno Santos",
-    country: "Brazil",
-    odds: {
-      percentage: "10",
-      fractional: "1/10",
-    },
-  },
-  {
-    name: "Nathan Styles",
-    country: "United Kingdom",
-    odds: {
-      percentage: "1",
-      fractional: "1/100",
-    },
-  },
-  {
-    name: "Chris Ziller",
-    country: "Netherlands",
-    odds: {
-      percentage: "7",
-      fractional: "7/100",
-    },
-  },
-];

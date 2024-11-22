@@ -1,7 +1,5 @@
 "use client";
 
-import * as React from "react";
-
 import { cn } from "@/lib/utils/cn";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -14,16 +12,18 @@ import {
   FaTwitter,
 } from "react-icons/fa6";
 import { OAuthProviders } from "@/types/auth/oauth";
+import { API_ROUTES } from "@/lib/api/constants";
+import { useState } from "react";
 
 interface Props extends React.HTMLAttributes<HTMLDivElement> {}
 
 export function RegisterUserForm({ className, ...props }: Props) {
-  const [isLoading, setIsLoading] = React.useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const registerWithOAuth = async (provider: OAuthProviders) => {
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/v1/oauth2/${provider}`
+        `${process.env.NEXT_PUBLIC_API_URL}/${API_ROUTES.AUTH.OAUTH2}/${provider}`
       );
 
       if (!res.ok) {

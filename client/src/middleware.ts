@@ -1,9 +1,10 @@
 import { NextResponse, NextRequest } from "next/server";
+import { API_ROUTES } from "./lib/api/constants";
 
 async function refreshTokens(refreshToken: string) {
   try {
     const response = await fetch(
-      `${process.env.API_URL}/v1/auth/token/refresh`,
+      `${process.env.API_URL}/${API_ROUTES.AUTH.REFRESH_TOKENS}`,
       {
         method: "GET",
         headers: {
