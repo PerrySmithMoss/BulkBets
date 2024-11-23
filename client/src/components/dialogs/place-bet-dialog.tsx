@@ -9,6 +9,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardContent,
@@ -18,12 +19,20 @@ import {
 import { MdClose } from "react-icons/md";
 import { Input } from "../ui/input";
 import { cn } from "@/lib/utils/cn";
-import { useRef, useState } from "react";
+import {
+  ChangeEvent,
+  FocusEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { ChevronUp } from "lucide-react";
 import { useDialog } from "@/contexts/dialog-context";
 import { Dialog } from "@/types/dialog";
 import { decimalToFraction } from "@/lib/utils/math";
 import { RxCross1 } from "react-icons/rx";
+import { Label } from "../ui/label";
 
 interface Props {
   open: boolean;
@@ -40,20 +49,23 @@ const bets = [
   },
 ];
 
-const MAX_STAKE = 1000;
+const MAX_STAKE = 10000;
 
 export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
+  const totalStake = bets.reduce((sum, bet) => sum + bet.stake, 0);
+  const potentialWinnings = bets.reduce(
+    (sum, bet) => sum + bet.stake * bet.odds,
+    0
+  );
+  const latestBet = bets[bets.length - 1];
   const { openDialog } = useDialog();
   const [isExpanded, setIsExpanded] = useState(false);
   const [stakeDisplayValue, setStakeDisplayValue] = useState("");
   const [stakeRawValue, setStakeRawValue] = useState("");
   const [isEditingStake, setIsEditingStake] = useState(false);
+  const [rememberStake, setRememberStake] = useState(false);
   const stakeRef = useRef<HTMLInputElement | null>(null);
-
-  const handleSetStakeClick = () => {
-    setIsEditingStake(true);
-    setTimeout(() => stakeRef.current?.focus(), 0); // Focus input after state update
-  };
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const formatAsCurrency = (value: string) => {
     // Remove any non-numeric characters except decimal point
@@ -91,8 +103,11 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     setStakeDisplayValue(formatAsCurrency(cleanValue));
   };
 
-  const handleBlur = () => {
-    if (!stakeRawValue) return;
+  const handleStakeBlur = useCallback((): void => {
+    if (!stakeRawValue) {
+      setIsEditingStake(!isEditingStake);
+      return;
+    }
 
     // Add .00 if no decimal places exist
     let formattedValue = stakeRawValue;
@@ -105,15 +120,51 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     }
 
     setStakeRawValue(formattedValue);
-    setStakeDisplayValue(formatAsCurrency(formattedValue));
+    const displayValue = formatAsCurrency(formattedValue);
+    setStakeDisplayValue(displayValue);
+
+    if (!stakeRawValue) {
+      setIsEditingStake(false);
+    }
+  }, [isEditingStake, stakeRawValue]);
+
+  const handleBlur = (event: FocusEvent<HTMLInputElement>): void => {
+    // Only handle blur if clicking outside the container
+    if (
+      containerRef.current &&
+      !containerRef.current.contains(event.relatedTarget)
+    ) {
+      handleStakeBlur();
+    }
   };
 
-  const totalStake = bets.reduce((sum, bet) => sum + bet.stake, 0);
-  const potentialWinnings = bets.reduce(
-    (sum, bet) => sum + bet.stake * bet.odds,
-    0
-  );
-  const latestBet = bets[bets.length - 1];
+  const handleSetStakeClick = () => {
+    setIsEditingStake(true);
+    setTimeout(() => stakeRef.current?.focus(), 0); // Focus input after state update
+  };
+
+  const handleRememberStakeChange = (checked: boolean) => {
+    setRememberStake(checked);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node) &&
+        isEditingStake
+      ) {
+        handleStakeBlur();
+      }
+    };
+
+    // Using mousedown instead of click to ensure it fires before blur
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isEditingStake, stakeRawValue, handleStakeBlur]);
 
   if (bets.length === 0) return null;
 
@@ -125,7 +176,13 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
             <RxCross1 className="cursor-pointer mt-[5px] text-secondary h-3.5 w-3.5" />
             <div>
               <div>
-                <h3 className="text-primary font-bold">{latestBet.team}</h3>
+                <h3 className="text-primary font-bold">
+                  {bets.length > 1 ? (
+                    <div>{bets.length} Selections</div>
+                  ) : (
+                    <div>{latestBet.team}</div>
+                  )}
+                </h3>
                 <div className="text-sm text-secondary font-semibold">
                   To Win
                 </div>
@@ -152,32 +209,50 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         </div>
 
         <div className="flex">
-          <div className="w-1/2 h-[50px] bg-muted flex items-center py-4 px-3 rounded-bl border-r">
+          <div
+            ref={containerRef}
+            className="relative w-1/2 h-[50px] bg-muted flex items-center py-4 px-3 rounded-bl border-r"
+          >
             {isEditingStake ? (
-              <div className="flex flex-col gap-1">
-                <label htmlFor="stake-input" className="text-white text-[11px]">
-                  Stake
-                </label>
-                <div className="relative flex items-center">
-                  {/* <span className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary font-bold text-white"> */}
-                  <span className="absolute left-0 font-bold text-cta text-[17px]">
-                    £
-                  </span>
-                  <Input
-                    type="text"
-                    ref={stakeRef}
-                    value={stakeDisplayValue}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    aria-label="Stake amount"
-                    className="w-full pl-3.5 pr-2 text-[19px] text-cta h-3 bg-secondary rounded-sm border-none outline-none focus:ring-0 focus-visible:ring-0 focus:outline-none focus-visible:ring-offset-0 focus-visible:border-none focus-visible:ring-transparent placeholder:text-muted-foreground"
+              <div>
+                <div className="flex flex-col gap-1 w-full">
+                  <label
+                    htmlFor="stake-input"
+                    className="text-white text-[11px]"
+                  >
+                    Stake
+                  </label>
+                  <div className="relative flex items-center w-full">
+                    <span className="absolute left-0 font-bold text-cta text-[17px]">
+                      £
+                    </span>
+                    <Input
+                      type="text"
+                      ref={stakeRef}
+                      value={stakeDisplayValue}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      aria-label="Stake amount"
+                      className="w-full pl-3.5 pr-2 text-[19px] text-cta h-3 bg-secondary rounded-sm border-none outline-none focus:ring-0 focus-visible:ring-0 focus:outline-none focus-visible:ring-offset-0 focus-visible:border-none focus-visible:ring-transparent placeholder:text-muted-foreground"
+                    />
+                  </div>
+                </div>
+                <div className="hover:opacity-100 group transition-opacity absolute right-0 top-1 px-3 pt-1 pb-1.5 flex items-center justify-center flex-col gap-1 opacity-30">
+                  <Label className="text-[11px]" htmlFor="remember-stake">
+                    Remember
+                  </Label>
+                  <Switch
+                    id="remember-stake"
+                    checked={rememberStake}
+                    onCheckedChange={handleRememberStakeChange}
+                    className="h-3 w-[24px] data-[state=unchecked]:bg-[#585858]"
                   />
                 </div>
               </div>
             ) : (
               <div
                 onClick={handleSetStakeClick}
-                className="font-extrabold text-cta cursor-pointer"
+                className="font-extrabold text-cta cursor-pointer w-full"
               >
                 Set Stake
               </div>
@@ -186,11 +261,10 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
 
           <Button
             className={cn(
-              "w-1/2 h-[50px] flex font-extrabold justify-center items-center py-4 px-3 rounded-none rounded-br",
-              { "bg-primary": parseFloat(stakeRawValue) > 0 },
+              "w-1/2 h-[50px] flex font-extrabold bg-primary hover:bg-[#52c466] justify-center items-center py-4 px-3 rounded-none rounded-br",
               {
-                "bg-muted-foreground text-secondary":
-                  parseFloat(stakeRawValue) === 0,
+                "bg-muted-foreground text-secondary hover:bg-muted-foreground":
+                  !stakeRawValue,
               }
             )}
           >
