@@ -3,9 +3,10 @@ import "./globals.css";
 import { Inter as FontSans } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { DialogManager } from "@/components/dialog-manager";
-import { DialogProvider } from "@/contexts/dialog-context";
+import { DialogProvider } from "@/store/dialog/dialog-context";
 import { fetchCurrentUser } from "@/lib/api/users/fetch-current-user";
-import { UserProvider } from "@/contexts/user-context";
+import { UserProvider } from "@/store/user/user-context";
+import { BetProvider } from "@/store/betting";
 
 const fontSans = FontSans({
   subsets: ["latin"],
@@ -36,8 +37,10 @@ export default async function RootLayout({
         >
           <UserProvider user={user}>
             <DialogProvider>
-              <DialogManager />
-              {children}
+              <BetProvider>
+                <DialogManager />
+                {children}
+              </BetProvider>
             </DialogProvider>
           </UserProvider>
         </ThemeProvider>

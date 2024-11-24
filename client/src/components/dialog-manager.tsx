@@ -2,7 +2,7 @@
 
 import { Dialog } from "@/types/dialog";
 import { LogInDialog } from "./dialogs/log-in-dialog";
-import { useDialog } from "@/contexts/dialog-context";
+import { useDialog } from "@/store/dialog/dialog-context";
 import { RegisterUserDialog } from "./dialogs/register-user-dialog";
 import { PlaceBetDialog } from "./dialogs/place-bet-dialog";
 

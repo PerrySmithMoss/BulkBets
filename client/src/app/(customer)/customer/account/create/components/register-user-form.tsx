@@ -11,7 +11,7 @@ import {
   FaApple,
   FaTwitter,
 } from "react-icons/fa6";
-import { OAuthProviders } from "@/types/auth/oauth";
+import { OAuthProviders } from "@/types/oauth";
 import { API_ROUTES } from "@/lib/api/constants";
 import { useState } from "react";
 

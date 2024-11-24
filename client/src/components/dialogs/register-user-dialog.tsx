@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Dialog as DialogType } from "@/types/dialog";
-import { useDialog } from "@/contexts/dialog-context";
+import { useDialog } from "@/store/dialog/dialog-context";
 import { useRouter } from "next/navigation";
 import { RegisterUserForm } from "@/app/(customer)/customer/account/create/components/register-user-form";
 

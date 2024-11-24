@@ -16,10 +16,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { usePathname } from "next/navigation";
-import { useDialog } from "@/contexts/dialog-context";
+import { useDialog } from "@/store/dialog/dialog-context";
 import { Dialog } from "@/types/dialog";
 import { Logo } from "./logo";
-import { useUser } from "@/contexts/user-context";
+import { useUser } from "@/store/user/user-context";
 
 interface Props {}
 

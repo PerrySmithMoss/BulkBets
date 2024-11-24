@@ -19,9 +19,9 @@ import {
 } from "react-icons/fa6";
 import { Label } from "@/components/ui/label";
 import { Dialog as DialogType } from "@/types/dialog";
-import { useDialog } from "@/contexts/dialog-context";
+import { useDialog } from "@/store/dialog/dialog-context";
 import { useRouter } from "next/navigation";
-import { OAuthProviders } from "@/types/auth/oauth";
+import { OAuthProviders } from "@/types/oauth";
 import { API_ROUTES } from "@/lib/api/constants";
 import { useState } from "react";
 

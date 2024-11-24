@@ -8,8 +8,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useDialog } from "@/contexts/dialog-context";
-import { useUser } from "@/contexts/user-context";
+import { useDialog } from "@/store/dialog/dialog-context";
+import { useUser } from "@/store/user/user-context";
 import { decimalToFraction, decimalToPercentage } from "@/lib/utils/math";
 import { BetType } from "@/types/api/bets/bet-type";
 import { Competitor } from "@/types/api/competitors/competitors";
@@ -65,11 +65,15 @@ export const CompetitorTable: React.FC<Props> = ({
                 competitor.odds?.find((odds) => odds.bet_type === BetType.Win)
                   ?.odds_value
               )}`}{" "}
-              {`(${decimalToPercentage(
-                competitor.odds?.find((odds) => odds.bet_type === BetType.Win)
-                  ?.odds_value,
-                true
-              )})`}
+              {competitor.odds?.find((odds) => odds.bet_type === BetType.Win)
+                ?.odds_value
+                ? `(${decimalToPercentage(
+                    competitor.odds?.find(
+                      (odds) => odds.bet_type === BetType.Win
+                    )?.odds_value,
+                    true
+                  )})`
+                : ""}
             </TableCell>
           </TableRow>
         ))}

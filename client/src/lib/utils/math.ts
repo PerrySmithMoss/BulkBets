@@ -2,7 +2,7 @@ export function decimalToFraction(
   decimalOdds: number | null | undefined
 ): string {
   if (decimalOdds == null) {
-    return "Invalid input";
+    return "N/A";
   }
 
   if (decimalOdds <= 1) {
