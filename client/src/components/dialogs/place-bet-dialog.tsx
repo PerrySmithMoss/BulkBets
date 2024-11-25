@@ -27,26 +27,23 @@ import { decimalToFraction } from "@/lib/utils/math";
 import { RxCross1 } from "react-icons/rx";
 import { Label } from "../ui/label";
 import { MAX_BETTING_STAKE, useBet, useBetActions } from "@/store/betting";
+import { findMostRecentBet, getBetTypeDisplay } from "@/lib/utils/betting";
+import { formatAsCurrency } from "@/lib/utils/currency";
+import { BetDialogAlert } from "../alerts/bet-dialog-alert";
 
 interface Props {
   open: boolean;
   onOpenChange: () => void;
 }
 
-const bets = [
-  {
-    id: 1,
-    team: "Samson Dauda",
-    market: "Mr. Olympia 2024",
-    odds: 1.6,
-    stake: 10,
-  },
-];
-
 export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
-  const { openDialog } = useDialog();
+  const { alert } = useBetActions();
   const { state } = useBet();
-  const {} = useBetActions();
+  const { activeBets, alertMsg } = state;
+  const [visibleAlert, setVisibleAlert] = useState<string | null>(
+    alertMsg || null
+  );
+  const latestBet = findMostRecentBet(activeBets);
   const [isExpanded, setIsExpanded] = useState(false);
   const [stakeDisplayValue, setStakeDisplayValue] = useState("");
   const [stakeRawValue, setStakeRawValue] = useState("");
@@ -55,30 +52,7 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
   const stakeRef = useRef<HTMLInputElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const totalStake = bets.reduce((sum, bet) => sum + bet.stake, 0);
-  const potentialWinnings = bets.reduce(
-    (sum, bet) => sum + bet.stake * bet.odds,
-    0
-  );
-  const latestBet = bets[bets.length - 1];
-
-  const formatAsCurrency = (value: string) => {
-    // Remove any non-numeric characters except decimal point
-    const cleanValue = value.replace(/[^\d.]/g, "");
-
-    // Ensure only one decimal point
-    const parts = cleanValue.split(".");
-    const wholePart = parts[0];
-    const decimalPart = parts[1] || "";
-
-    // Add commas to the whole number part
-    const formattedWholePart = wholePart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-
-    // Combine with decimal part (limited to 2 places)
-    return decimalPart
-      ? `${formattedWholePart}.${decimalPart.slice(0, 2)}`
-      : formattedWholePart;
-  };
+  const memoizedAlert = useCallback(alert, [alert]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -161,36 +135,66 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     };
   }, [isEditingStake, stakeRawValue, handleStakeBlur]);
 
-  if (state.activeBets.length === 0) return null;
+  useEffect(() => {
+    if (alertMsg) {
+      setVisibleAlert(alertMsg);
+
+      // Set a timer to remove the alert after 3 seconds
+      const timer = setTimeout(() => {
+        setVisibleAlert(null);
+        memoizedAlert("");
+      }, 3000);
+
+      // Cleanup the timer if the component unmounts or alertMsg changes
+      return () => clearTimeout(timer);
+    }
+  }, [alertMsg, memoizedAlert]);
+
+  if (activeBets.length === 0) return null;
 
   return (
     <div className="fixed bottom-10 right-1/2 left-1/2 transform -translate-x-1/2 rounded-b max-w-[450px] w-full z-50">
-      <div className="border-b-white px-3 pt-3 pb-4 flex justify-between bg-secondary-foreground rounded-t">
+      {alertMsg && <BetDialogAlert alertMsg={alertMsg} />}
+      <div
+        className={cn(
+          "border-b-white px-3 pt-3 pb-4 flex justify-between bg-secondary-foreground rounded-t",
+          {
+            "rounded-t-none": alertMsg,
+          }
+        )}
+      >
         <div className="flex gap-2">
           <RxCross1 className="cursor-pointer mt-[5px] text-secondary h-3.5 w-3.5" />
           <div>
             <div>
               <h3 className="text-primary font-bold">
-                {bets.length > 1 ? (
-                  <div>{bets.length} Selections</div>
+                {activeBets.length > 1 ? (
+                  <div>{activeBets.length} Selections</div>
                 ) : (
-                  <div>{latestBet.team}</div>
+                  <div>
+                    {latestBet?.competitor.first_name}{" "}
+                    {latestBet?.competitor.last_name}
+                  </div>
                 )}
               </h3>
-              <div className="text-sm text-secondary font-semibold">To Win</div>
-              <div className="text-sm text-secondary">{latestBet.market}</div>
+              <div className="text-sm text-secondary font-semibold">
+                {getBetTypeDisplay(latestBet?.betType)}
+              </div>
+              <div className="text-sm text-secondary">
+                {latestBet?.show.name}
+              </div>
             </div>
           </div>
         </div>
         <div className="flex gap-3">
           <div>
             <p className="text-secondary font-medium">
-              {decimalToFraction(latestBet.odds)}
+              {decimalToFraction(latestBet?.odds)}
             </p>
           </div>
           <div className="border-l-[#e4e4e7] border-l pl-3 flex justify-center items-center">
             <ChevronUp
-              onClick={() => openDialog(Dialog.PlaceBet)}
+              // onClick={() => openDialog(Dialog.PlaceBet)}
               className={cn(
                 "transform cursor-pointer transition-transform text-secondary h-5 w-5",
                 isExpanded && "rotate-180"
@@ -261,6 +265,7 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         </Button>
       </div>
     </div>
+
     // Old UI
     // <Drawer open={open} onOpenChange={onOpenChange}>
     //   <div className="fixed bottom-10 right-1/2 left-1/2 transform -translate-x-1/2 rounded-b max-w-[450px] w-full z-50">

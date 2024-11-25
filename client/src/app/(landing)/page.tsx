@@ -204,8 +204,8 @@ export default async function Home() {
                       <Card className="bg-background">
                         <CardContent className="flex px-0 pb-0">
                           <CompetitorTable
-                            showId={olympiaShow.show.id}
-                            divisionId={division.id}
+                            show={olympiaShow.show}
+                            division={division}
                             competitors={olympiaShow.competitors[division.id]}
                           />
                         </CardContent>

@@ -11,6 +11,7 @@ export const initialState: BettingState = {
   totalStake: 0,
   potentialWinnings: 0,
   rememberBets: false,
+  alertMsg: "",
 };
 
 // wrap reducer to handle persistence
@@ -29,7 +30,23 @@ export const bettingReducer = (
   action: BettingAction
 ): BettingState => {
   switch (action.type) {
-    case BettingActionType.AddBet: {
+    case BettingActionType.StartBet: {
+      const newBets = [...state.activeBets, action.payload];
+      const newTotalStake = newBets.reduce((sum, bet) => sum + bet.amount, 0);
+      const newPotentialWinnings = newBets.reduce(
+        (sum, bet) => sum + calculatePotentialWinnings(bet.amount, bet.odds),
+        0
+      );
+
+      return {
+        ...state,
+        activeBets: newBets,
+        totalStake: newTotalStake,
+        potentialWinnings: newPotentialWinnings,
+      };
+    }
+
+    case BettingActionType.PlaceBet: {
       const newBets = [...state.activeBets, action.payload];
       const newTotalStake = newBets.reduce((sum, bet) => sum + bet.amount, 0);
       const newPotentialWinnings = newBets.reduce(
@@ -88,6 +105,12 @@ export const bettingReducer = (
 
     case BettingActionType.SyncState:
       return action.payload;
+
+    case BettingActionType.Alert:
+      return {
+        ...state,
+        alertMsg: action.payload,
+      };
 
     default:
       return state;

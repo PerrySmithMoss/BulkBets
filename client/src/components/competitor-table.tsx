@@ -14,29 +14,47 @@ import { decimalToFraction, decimalToPercentage } from "@/lib/utils/math";
 import { BetType } from "@/types/api/bets/bet-type";
 import { Competitor } from "@/types/api/competitors/competitors";
 import { Dialog } from "@/types/dialog";
-import { useRouter } from "next/navigation";
+import { useBet, useBetActions } from "@/store/betting";
+import { Show } from "@/types/api/show/show";
+import { Division } from "@/types/api/division/division";
+import { useCallback } from "react";
 
 interface Props {
-  showId: number;
-  divisionId: number;
+  show: Show;
+  division: Division;
   competitors: Competitor[];
 }
 
 export const CompetitorTable: React.FC<Props> = ({
-  showId,
-  divisionId,
+  show,
+  division,
   competitors,
 }) => {
   const { openDialog } = useDialog();
   const user = useUser();
+  const { state } = useBet();
+  const { activeBets } = state;
+  const { startBet, alert } = useBetActions();
 
-  const handlePlaceBet = (competitor: Competitor) => {
+  const memoizedAlert = useCallback(alert, [alert]);
+
+  const handleStartBet = (competitor: Competitor) => {
     if (!user) {
       openDialog(Dialog.LogInToBet);
       return;
     }
 
-    openDialog(Dialog.PlaceBet);
+    const divisionBetExists = activeBets.find(
+      (bet) => bet.division.id === division.id
+    );
+
+    if (divisionBetExists) {
+      // user should not be allowed to place multiple bets on competitors in the same division
+      memoizedAlert("Maximum of 1 to win per division already made.");
+      return;
+    }
+
+    startBet(show, division, competitor);
   };
 
   return (
@@ -59,7 +77,7 @@ export const CompetitorTable: React.FC<Props> = ({
             </TableCell>
             <TableCell
               className="text-cta border-l text-center cursor-pointer hover:bg-muted/50"
-              onClick={() => handlePlaceBet(competitor)}
+              onClick={() => handleStartBet(competitor)}
             >
               {`${decimalToFraction(
                 competitor.odds?.find((odds) => odds.bet_type === BetType.Win)

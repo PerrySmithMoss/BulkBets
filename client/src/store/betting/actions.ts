@@ -3,36 +3,36 @@ import { Competitor } from "@/types/api/competitors/competitors";
 import { ActiveBet, BettingActionType } from "@/types/betting";
 import { useBet } from "./context";
 import { STORAGE_KEY } from "./constants";
+import { Show } from "@/types/api/show/show";
+import { Division } from "@/types/api/division/division";
 
 export const useBetActions = () => {
   const { dispatch } = useBet();
 
-  const placeBet = (
-    showId: number,
-    divisionId: number,
-    competitor: Competitor,
-    betType: BetType,
-    amount: number
-  ) => {
-    const odds = competitor.odds?.find(
-      (o) => o.bet_type === betType
+  const startBet = (show: Show, division: Division, competitor: Competitor) => {
+    // we only offer bet type of 'Win' atm
+    const winningOdds = competitor.odds?.find(
+      (odds) => odds.bet_type === BetType.Win
     )?.odds_value;
-    if (!odds) {
+
+    if (!winningOdds) {
       throw new Error("Invalid bet type or odds not found");
     }
 
     const newBet: ActiveBet = {
       id: `${Date.now()}-${Math.random()}`,
-      showId,
-      divisionId,
-      competitorId: competitor.id,
-      betType,
-      odds,
-      amount,
+      show: show,
+      division: division,
+      competitor: competitor,
+      odds: winningOdds,
+      // hard coded as we only offer bet type of 'Win' atm
+      betType: BetType.Win,
+      // initialise as 0 as no stake has been set
+      amount: 0,
       timestamp: new Date().toISOString(),
     };
 
-    dispatch({ type: BettingActionType.AddBet, payload: newBet });
+    dispatch({ type: BettingActionType.StartBet, payload: newBet });
   };
 
   const removeBet = (betId: string) => {
@@ -53,10 +53,15 @@ export const useBetActions = () => {
     };
   };
 
+  const alert = (alertMsg: string) => {
+    dispatch({ type: BettingActionType.Alert, payload: alertMsg });
+  };
+
   return {
-    placeBet,
+    startBet,
     removeBet,
     updateBetAmount,
     clearAllBets,
+    alert,
   };
 };
