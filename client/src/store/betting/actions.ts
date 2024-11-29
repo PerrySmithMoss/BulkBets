@@ -20,7 +20,7 @@ export const useBetActions = () => {
     }
 
     const newBet: ActiveBet = {
-      id: `${Date.now()}-${Math.random()}`,
+      _id: `${Date.now()}-${Math.random()}`,
       show: show,
       division: division,
       competitor: competitor,
@@ -29,7 +29,7 @@ export const useBetActions = () => {
       betType: BetType.Win,
       // initialise as 0 as no stake has been set
       amount: 0,
-      timestamp: new Date().toISOString(),
+      _timestamp: new Date().toISOString(),
     };
 
     dispatch({ type: BettingActionType.StartBet, payload: newBet });
@@ -46,11 +46,16 @@ export const useBetActions = () => {
     });
   };
 
+  const updateStakeMultiplier = (rawStakeMultiplierValue: string) => {
+    dispatch({
+      type: BettingActionType.UpdateStakeMultiplier,
+      payload: rawStakeMultiplierValue,
+    });
+  };
+
   const clearAllBets = () => {
-    return () => {
-      localStorage.removeItem(STORAGE_KEY);
-      dispatch({ type: BettingActionType.ClearAllBets });
-    };
+    localStorage.removeItem(STORAGE_KEY);
+    dispatch({ type: BettingActionType.ClearAllBets });
   };
 
   const alert = (alertMsg: string) => {
@@ -61,6 +66,7 @@ export const useBetActions = () => {
     startBet,
     removeBet,
     updateBetAmount,
+    updateStakeMultiplier,
     clearAllBets,
     alert,
   };

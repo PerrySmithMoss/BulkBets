@@ -1,17 +1,43 @@
-export const formatAsCurrency = (value: string) => {
-  // Remove any non-numeric characters except decimal point
-  const cleanValue = value.replace(/[^\d.]/g, "");
+export const formatAsCurrency = (value: string | number): string => {
+  // Convert the value to a string to ensure compatibility
+  const stringValue = String(value).trim();
 
-  // Ensure only one decimal point
+  // Return early for empty strings to allow clearing the input
+  if (stringValue === "") return "";
+
+  // Remove non-numeric characters except the first decimal point
+  let cleanValue = stringValue
+    .replace(/[^0-9.]/g, "") // Remove non-numeric characters except "."
+    .replace(/(\..*?)\./g, "$1"); // Keep only the first decimal point
+
+  // Split into whole and decimal parts
   const parts = cleanValue.split(".");
-  const wholePart = parts[0];
-  const decimalPart = parts[1] || "";
+  let wholePart = parts[0] || "0"; // Default to "0" if the input starts with a decimal
+  let decimalPart = parts[1] || ""; // No decimals if not present
 
-  // Add commas to the whole number part
+  // Handle leading zeros in the whole part
+  wholePart = wholePart.replace(/^0+(?!$)/, ""); // Remove leading zeros unless the value is "0"
+
+  // Format the whole number part with commas
   const formattedWholePart = wholePart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
-  // Combine with decimal part (limited to 2 places)
-  return decimalPart
-    ? `${formattedWholePart}.${decimalPart.slice(0, 2)}`
-    : formattedWholePart;
+  // Trim decimal part to two places if applicable
+  if (decimalPart.length > 2) {
+    decimalPart = decimalPart.slice(0, 2);
+  }
+
+  // Handle special case where input is a decimal point only
+  if (stringValue === ".") return "0.";
+
+  // Return formatted result
+  if (decimalPart) {
+    return `${formattedWholePart}.${decimalPart}`;
+  }
+
+  // Handle inputs with trailing decimal point
+  if (stringValue.endsWith(".")) {
+    return `${formattedWholePart}.`;
+  }
+
+  return formattedWholePart;
 };

@@ -20,7 +20,7 @@ export const findMostRecentBet = (bets: ActiveBet[]): ActiveBet | null => {
   }
 
   return bets.reduce((mostRecent, currentBet) => {
-    return new Date(currentBet.timestamp) > new Date(mostRecent.timestamp)
+    return new Date(currentBet._timestamp) > new Date(mostRecent._timestamp)
       ? currentBet
       : mostRecent;
   });

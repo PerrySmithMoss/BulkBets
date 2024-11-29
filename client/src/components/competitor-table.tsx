@@ -36,7 +36,7 @@ export const CompetitorTable: React.FC<Props> = ({
   const { activeBets } = state;
   const { startBet, alert } = useBetActions();
 
-  const memoizedAlert = useCallback(alert, [alert]);
+  const memoizedBetSlipAlert = useCallback(alert, [alert]);
 
   const handleStartBet = (competitor: Competitor) => {
     if (!user) {
@@ -50,7 +50,7 @@ export const CompetitorTable: React.FC<Props> = ({
 
     if (divisionBetExists) {
       // user should not be allowed to place multiple bets on competitors in the same division
-      memoizedAlert("Maximum of 1 to win per division already made.");
+      memoizedBetSlipAlert("Maximum of 1 to win per division already made.");
       return;
     }
 

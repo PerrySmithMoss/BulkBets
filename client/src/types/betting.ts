@@ -4,18 +4,20 @@ import { Division } from "./api/division/division";
 import { Show } from "./api/show/show";
 
 export interface ActiveBet {
-  id: string;
+  _id: string;
   show: Show;
   division: Division;
   competitor: Competitor;
   betType: BetType;
   odds: number;
   amount: number;
-  timestamp: string;
+  _timestamp: string;
 }
 
 export interface BettingState {
   activeBets: ActiveBet[];
+  stakeMultiplierRawValue: string;
+  stakeMultiplierDisplayValue: string;
   totalStake: number;
   potentialWinnings: number;
   rememberBets: boolean;
@@ -27,6 +29,7 @@ export enum BettingActionType {
   PlaceBet = "PLACE_BET",
   RemoveBet = "REMOVE_BET",
   UpdateBetAmount = "UPDATE_BET_AMOUNT",
+  UpdateStakeMultiplier = "UPDATE_STAKE_MULTIPLIER",
   ClearAllBets = "CLEAR_ALL_BETS",
   SyncState = "SYNC_STATE",
   Alert = "ALERT",
@@ -39,6 +42,10 @@ export type BettingAction =
   | {
       type: BettingActionType.UpdateBetAmount;
       payload: { betId: string; amount: number };
+    }
+  | {
+      type: BettingActionType.UpdateStakeMultiplier;
+      payload: string;
     }
   | { type: BettingActionType.ClearAllBets }
   | { type: BettingActionType.SyncState; payload: BettingState }

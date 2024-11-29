@@ -11,6 +11,7 @@ import {
   ReactNode,
   useReducer,
   useEffect,
+  useState,
 } from "react";
 import {
   bettingReducer,
@@ -29,11 +30,9 @@ interface BetProviderProps {
 }
 
 export const BetProvider = ({ children }: BetProviderProps) => {
+  const [isReady, setIsReady] = useState(false);
   const persistedReducer = createPersistedReducer(bettingReducer);
-  const [state, dispatch] = useReducer(
-    persistedReducer,
-    loadState() || initialState
-  );
+  const [state, dispatch] = useReducer(persistedReducer, initialState);
 
   // Sync state across tabs/windows
   useEffect(() => {
@@ -51,6 +50,20 @@ export const BetProvider = ({ children }: BetProviderProps) => {
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
+
+  // hydrate client with local storage data
+  useEffect(() => {
+    const storedState = loadState();
+    if (storedState) {
+      dispatch({ type: BettingActionType.SyncState, payload: storedState });
+    }
+    setIsReady(true); // Only after initializing the state
+  }, []);
+
+  if (!isReady) {
+    // avoid rendering until client is hydrated with local storage data
+    return null;
+  }
 
   return (
     <BetContext.Provider value={{ state, dispatch }}>
