@@ -16,8 +16,8 @@ import {
   useBetActions,
 } from "@/store/betting";
 import { findMostRecentBet, getBetTypeDisplay } from "@/lib/utils/betting";
-import { formatAsCurrency } from "@/lib/utils/currency";
 import { BetDialogAlert } from "../alerts/bet-dialog-alert";
+import { formatCurrency } from "@/lib/utils/currency";
 
 interface Props {
   open: boolean;
@@ -27,11 +27,13 @@ interface Props {
 export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
   const { alert, clearAllBets, updateStakeMultiplier } = useBetActions();
   const { state } = useBet();
+  console.log("state: ", state);
   const {
     activeBets,
     alertMsg,
     stakeMultiplierDisplayValue,
     stakeMultiplierRawValue,
+    potentialReturn,
   } = state;
   const [visibleAlert, setVisibleAlert] = useState<string | null>(
     alertMsg || null
@@ -217,15 +219,17 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
               {decimalToFraction(latestBet?.odds)}
             </p>
           </div>
-          <div className="border-l-[#e4e4e7] border-l pl-3 flex justify-center items-center">
-            <ChevronUp
-              // onClick={() => openDialog(Dialog.PlaceBet)}
-              className={cn(
-                "transform cursor-pointer transition-transform text-secondary h-5 w-5",
-                isExpanded && "rotate-180"
-              )}
-            />
-          </div>
+          {activeBets.length > 1 && (
+            <div className="border-l-[#e4e4e7] border-l pl-3 flex justify-center items-center">
+              <ChevronUp
+                // onClick={() => openDialog(Dialog.PlaceBet)}
+                className={cn(
+                  "transform cursor-pointer transition-transform text-secondary h-5 w-5",
+                  isExpanded && "rotate-180"
+                )}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -279,7 +283,7 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
 
         <Button
           className={cn(
-            "w-1/2 h-[50px] flex font-extrabold bg-primary hover:bg-[#52c466] justify-center items-center py-4 px-3 rounded-none rounded-br",
+            "w-1/2 h-[50px] flex flex-col gap-0.5 font-extrabold bg-primary hover:bg-[#52c466] justify-center items-center py-4 px-3 rounded-none rounded-br",
             {
               "bg-muted-foreground text-secondary hover:bg-muted-foreground":
                 !stakeMultiplierRawValue ||
@@ -287,7 +291,12 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
             }
           )}
         >
-          Place Bet
+          <div className="text-base leading-5 font-extrabold">Place Bet</div>
+          {activeBets.length > 0 && (
+            <div className="text-[11px] leading-[13px] font-bold">
+              To Return {formatCurrency(potentialReturn)}
+            </div>
+          )}
         </Button>
       </div>
     </div>

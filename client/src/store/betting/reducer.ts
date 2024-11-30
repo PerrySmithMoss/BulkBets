@@ -5,7 +5,7 @@ import {
   BettingState,
 } from "@/types/betting";
 import { saveState } from "./storage";
-import { formatAsCurrency } from "@/lib/utils/currency";
+import { formatInputAsCurrency, roundCurrency } from "@/lib/utils/currency";
 
 export const initialState: BettingState = {
   activeBets: [],
@@ -13,6 +13,7 @@ export const initialState: BettingState = {
   stakeMultiplierRawValue: "",
   stakeMultiplierDisplayValue: "",
   potentialWinnings: 0,
+  potentialReturn: 0,
   rememberBets: false,
   alertMsg: "",
 };
@@ -125,26 +126,23 @@ export const bettingReducer = (
 
     case BettingActionType.UpdateStakeMultiplier: {
       const rawValue = action.payload;
-      const displayValue = formatAsCurrency(rawValue);
-      const currentPotentialWinnings = state.potentialWinnings;
+      const parsedRawValue = parseFloat(rawValue);
+      const displayValue = formatInputAsCurrency(rawValue);
+      const odds = state.activeBets.map((bet) => bet.odds);
 
-      const activeBetsStake = state.activeBets.reduce(
-        (sum, bet) => sum + bet.amount,
-        0
+      const potentialReturn = roundCurrency(
+        odds.reduce((prev, curr) => {
+          return prev * curr;
+        }, parsedRawValue)
       );
-      const totalStake = parseFloat(activeBetsStake + rawValue);
-      // const newPotentialWinnings = totalStake.reduce(
-      //   (sum, bet) => sum + calculatePotentialWinnings(bet.amount, bet.odds),
-      //   0
-      // );
+      const potentialWinnings = roundCurrency(potentialReturn - parsedRawValue);
 
       return {
         ...state,
         stakeMultiplierRawValue: rawValue,
-        // TODO: figure out why decimal place isn't being being shown if user inputs decimal
         stakeMultiplierDisplayValue: displayValue,
-        totalStake: totalStake,
-        // potentialWinnings: newPotentialWinnings,
+        potentialReturn,
+        potentialWinnings,
       };
     }
 

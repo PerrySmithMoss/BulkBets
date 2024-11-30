@@ -20,6 +20,7 @@ export interface BettingState {
   stakeMultiplierDisplayValue: string;
   totalStake: number;
   potentialWinnings: number;
+  potentialReturn: number;
   rememberBets: boolean;
   alertMsg: string;
 }

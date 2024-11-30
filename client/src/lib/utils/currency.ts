@@ -1,4 +1,4 @@
-export const formatAsCurrency = (value: string | number): string => {
+export const formatInputAsCurrency = (value: string | number): string => {
   // Convert the value to a string to ensure compatibility
   const stringValue = String(value).trim();
 
@@ -40,4 +40,19 @@ export const formatAsCurrency = (value: string | number): string => {
   }
 
   return formattedWholePart;
+};
+
+export const formatCurrency = (
+  value: number,
+  locale: Intl.LocalesArgument = "en-GB",
+  currency: Intl.NumberFormatOptions["currency"] = "GBP"
+): string => {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: currency,
+  }).format(value);
+};
+
+export const roundCurrency = (value: number): number => {
+  return Math.round(value * 100) / 100;
 };
