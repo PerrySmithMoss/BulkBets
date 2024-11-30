@@ -16,6 +16,7 @@ goose-status:
 goose-create:
 	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(MIGRATIONS_PATH) create $(filter-out $@,$(MAKECMDGOALS))
 
+# ! Used for migrations
 # .PHONY: goose-create
 # goose-create:
 # 	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(SEEDS_PATH) create $(filter-out $@,$(MAKECMDGOALS))

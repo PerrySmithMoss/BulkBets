@@ -104,9 +104,9 @@ WHERE
 -- Seed Bet Types
 WITH inserted_bet_types AS (
     INSERT INTO bet_types (name, description) VALUES
-    ('Win', 'Bet on athlete to win first place'),
-    ('Place', 'Bet on athlete to finish in top 2'),
-    ('Show', 'Bet on athlete to finish in top 3')
+    ('win', 'Bet on athlete to win first place'),
+    ('place', 'Bet on athlete to finish in top 2'),
+    ('show', 'Bet on athlete to finish in top 3')
     RETURNING id, name
 )
 -- Seed Betting Limits using returned bet type IDs
@@ -114,19 +114,19 @@ INSERT INTO betting_limits (bet_type_id, min_bet, max_bet, max_payout, currency_
 SELECT 
     id,
     CASE name
-        WHEN 'Win' THEN 10.00
-        WHEN 'Place' THEN 10.00
-        WHEN 'Show' THEN 10.00
+        WHEN 'win' THEN 10.00
+        WHEN 'place' THEN 10.00
+        WHEN 'show' THEN 10.00
     END,
     CASE name
-        WHEN 'Win' THEN 1000.00
-        WHEN 'Place' THEN 800.00
-        WHEN 'Show' THEN 500.00
+        WHEN 'win' THEN 1000.00
+        WHEN 'place' THEN 800.00
+        WHEN 'show' THEN 500.00
     END,
     CASE name
-        WHEN 'Win' THEN 10000.00
-        WHEN 'Place' THEN 8000.00
-        WHEN 'Show' THEN 5000.00
+        WHEN 'win' THEN 10000.00
+        WHEN 'place' THEN 8000.00
+        WHEN 'show' THEN 5000.00
     END,
     'GBP'
 FROM inserted_bet_types;
@@ -146,18 +146,18 @@ SELECT
     op.dp_id,
     bt.id,
     CASE 
-        WHEN bt.name = 'Win' THEN 
+        WHEN bt.name = 'win' THEN 
             CASE op.first_name
-                WHEN 'Derek' THEN 2.50   -- Top contender
-                WHEN 'Hadi' THEN 2.75    -- Previous winner
-                WHEN 'Samson' THEN 3.00  -- Strong competitor
-                WHEN 'Brandon' THEN 4.50 -- Previous champion
-                WHEN 'Andrew' THEN 5.00  -- Rising star
-                WHEN 'Antoine' THEN 9.00   -- Consistent performer
-                WHEN 'Nick' THEN 5.50    -- Young, powerful
-                WHEN 'Blessing' THEN 7.00 -- Newcomer with potential
+                WHEN 'Derek' THEN 2.50 
+                WHEN 'Hadi' THEN 2.75   
+                WHEN 'Samson' THEN 3.00
+                WHEN 'Brandon' THEN 4.50
+                WHEN 'Andrew' THEN 5.00
+                WHEN 'Antoine' THEN 9.00
+                WHEN 'Nick' THEN 5.50
+                WHEN 'Blessing' THEN 7.00
             END
-        WHEN bt.name = 'Place' THEN 
+        WHEN bt.name = 'place' THEN 
             CASE op.first_name
                 WHEN 'Derek' THEN 1.75
                 WHEN 'Hadi' THEN 1.85
@@ -168,7 +168,7 @@ SELECT
                 WHEN 'Nick' THEN 2.40
                 WHEN 'Blessing' THEN 2.70
             END
-        WHEN bt.name = 'Show' THEN 
+        WHEN bt.name = 'show' THEN 
             CASE op.first_name
                 WHEN 'Derek' THEN 1.40
                 WHEN 'Hadi' THEN 1.45
@@ -178,6 +178,100 @@ SELECT
                 WHEN 'Antoine' THEN 1.75
                 WHEN 'Nick' THEN 1.55
                 WHEN 'Blessing' THEN 1.80
+            END
+    END,
+    CURRENT_TIMESTAMP
+FROM olympia_participants op
+CROSS JOIN bet_types bt;
+
+-- Seed Initial Odds for Classic Physique division participants
+WITH olympia_participants AS (
+    SELECT dp.id as dp_id, a.first_name
+    FROM division_participants dp
+    JOIN athletes a ON dp.athlete_id = a.id
+    JOIN divisions d ON dp.division_id = d.id
+    JOIN shows s ON d.show_id = s.id
+    WHERE s.name = '2024 Mr. Olympia' 
+    AND d.name = 'Classic Physique'
+)
+INSERT INTO odds (division_participant_id, bet_type_id, odds_value, timestamp)
+SELECT 
+    op.dp_id,
+    bt.id,
+    CASE 
+        WHEN bt.name = 'win' THEN 
+            CASE op.first_name
+                WHEN 'Chris' THEN 1.67
+                WHEN 'Urs' THEN 5.00 
+                WHEN 'Ramon' THEN 6.00 
+                WHEN 'Breon' THEN 13.00
+                WHEN 'Mike' THEN 26.00
+                WHEN 'Wesley' THEN 41.00   
+            END
+        WHEN bt.name = 'place' THEN 
+            CASE op.first_name
+                WHEN 'Chris' THEN 1.50
+                WHEN 'Urs' THEN 4.00
+                WHEN 'Ramon' THEN 4.00 
+                WHEN 'Breon' THEN 9.00
+                WHEN 'Mike' THEN 16.00
+                WHEN 'Wesley' THEN 21.00   
+            END
+        WHEN bt.name = 'show' THEN 
+            CASE op.first_name
+                WHEN 'Chris' THEN 1.25
+                WHEN 'Urs' THEN 2.00
+                WHEN 'Ramon' THEN 2.00 
+                WHEN 'Breon' THEN 6.00
+                WHEN 'Mike' THEN 9.00 
+                WHEN 'Wesley' THEN 13.00   
+            END
+    END,
+    CURRENT_TIMESTAMP
+FROM olympia_participants op
+CROSS JOIN bet_types bt;
+
+-- Seed Initial Odds for Women's Figure division participants
+WITH olympia_participants AS (
+    SELECT dp.id as dp_id, a.first_name
+    FROM division_participants dp
+    JOIN athletes a ON dp.athlete_id = a.id
+    JOIN divisions d ON dp.division_id = d.id
+    JOIN shows s ON d.show_id = s.id
+    WHERE s.name = '2024 Mr. Olympia' 
+    AND d.name = 'Women''s Figure'
+)
+INSERT INTO odds (division_participant_id, bet_type_id, odds_value, timestamp)
+SELECT 
+    op.dp_id,
+    bt.id,
+    CASE 
+        WHEN bt.name = 'win' THEN 
+            CASE op.first_name
+                WHEN 'Erin' THEN 4.00
+                WHEN 'Jessica' THEN 4.00 
+                WHEN 'Angela' THEN 8.00 
+                WHEN 'Whitney' THEN 25.00
+                WHEN 'Cydney' THEN 1.50
+                WHEN 'Missy' THEN 30.00 
+            END
+        WHEN bt.name = 'place' THEN 
+            CASE op.first_name
+                WHEN 'Erin' THEN 8.00
+                WHEN 'Jessica' THEN 3.00 
+                WHEN 'Angela' THEN 6.00
+                WHEN 'Whitney' THEN 15.00
+                WHEN 'Cydney' THEN 1.20
+                WHEN 'Missy' THEN 20.00    
+            END
+        WHEN bt.name = 'show' THEN 
+            CASE op.first_name
+                WHEN 'Erin' THEN 5.00
+                WHEN 'Jessica' THEN 2.50 
+                WHEN 'Angela' THEN 4.00 
+                WHEN 'Whitney' THEN 10.00
+                WHEN 'Cydney' THEN 1.10
+                WHEN 'Missy' THEN 12.00   
             END
     END,
     CURRENT_TIMESTAMP
@@ -201,12 +295,12 @@ WHERE division_participant_id IN (
 DELETE FROM betting_limits 
 WHERE bet_type_id IN (
     SELECT id FROM bet_types 
-    WHERE name IN ('Win', 'Place', 'Show')
+    WHERE name IN ('win', 'place', 'show')
 );
 
 -- Remove bet types
 DELETE FROM bet_types 
-WHERE name IN ('Win', 'Place', 'Show');
+WHERE name IN ('win', 'place', 'show');
 
 -- Remove division participants
 DELETE FROM division_participants 

@@ -7,7 +7,7 @@ CREATE TYPE user_status AS ENUM ('active', 'inactive', 'banned');
 CREATE TYPE show_status AS ENUM ('upcoming', 'ongoing', 'completed', 'canceled');
 CREATE TYPE division_status AS ENUM ('scheduled', 'ongoing', 'completed', 'canceled');
 CREATE TYPE division_participant_status AS ENUM ('registered', 'disqualified', 'active', 'pulled out', 'fulfilled');
-CREATE TYPE bet_types AS ENUM ('win', 'place');
+CREATE TYPE bet_type AS ENUM ('win', 'place', 'show');
 CREATE TYPE bet_status AS ENUM ('pending', 'won', 'lost', 'void', 'cancelled');
 CREATE TYPE transaction_status AS ENUM ('pending', 'completed', 'failed', 'reversed');
 
@@ -134,7 +134,7 @@ CREATE TABLE division_participants (
 -- Bet types (e.g., win, place)
 CREATE TABLE bet_types (
     id BIGSERIAL PRIMARY KEY,
-    name bet_types NOT NULL,
+    name bet_type NOT NULL,
     description TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -301,6 +301,7 @@ DROP FUNCTION IF EXISTS update_updated_at_column();
 
 -- Drop ENUM types
 DROP TYPE IF EXISTS transaction_status;
+DROP TYPE IF EXISTS bet_type;
 DROP TYPE IF EXISTS bet_status;
 DROP TYPE IF EXISTS division_participant_status;
 DROP TYPE IF EXISTS division_status;
