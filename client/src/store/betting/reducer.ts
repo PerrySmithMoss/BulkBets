@@ -1,4 +1,7 @@
-import { calculatePotentialWinnings } from "@/lib/utils/betting";
+import {
+  calculatePotentialWinnings,
+  roundOddsToFractional,
+} from "@/lib/utils/betting";
 import {
   BettingAction,
   BettingActionType,
@@ -10,6 +13,7 @@ import { formatInputAsCurrency, roundCurrency } from "@/lib/utils/currency";
 export const initialState: BettingState = {
   activeBets: [],
   totalStake: 0,
+  totalFractionalOdds: "",
   stakeMultiplierRawValue: "",
   stakeMultiplierDisplayValue: "",
   potentialWinnings: 0,
@@ -36,17 +40,35 @@ export const bettingReducer = (
   switch (action.type) {
     case BettingActionType.StartBet: {
       const newBets = [...state.activeBets, action.payload];
+      const odds = [
+        ...state.activeBets.map((bet) => bet.odds),
+        action.payload.odds,
+      ];
+      const totalDecimalOdds = odds.reduce((prev, curr) => prev * curr, 1);
+      console.log("totalDecimalOdds: ", totalDecimalOdds);
+      const totalFractionalOdds = roundOddsToFractional(totalDecimalOdds);
       const newTotalStake = newBets.reduce((sum, bet) => sum + bet.amount, 0);
       const newPotentialWinnings = newBets.reduce(
         (sum, bet) => sum + calculatePotentialWinnings(bet.amount, bet.odds),
         0
+      );
+      const potentialReturn = roundCurrency(
+        odds.reduce((prev, curr) => {
+          return prev * curr;
+        }, state.totalStake)
+      );
+      const potentialWinnings = roundCurrency(
+        potentialReturn - state.totalStake
       );
 
       return {
         ...state,
         activeBets: newBets,
         totalStake: newTotalStake,
-        potentialWinnings: newPotentialWinnings,
+        totalFractionalOdds,
+        // potentialWinnings: newPotentialWinnings,
+        potentialReturn,
+        potentialWinnings,
       };
     }
 
@@ -129,6 +151,8 @@ export const bettingReducer = (
       const parsedRawValue = parseFloat(rawValue);
       const displayValue = formatInputAsCurrency(rawValue);
       const odds = state.activeBets.map((bet) => bet.odds);
+      const totalDecimalOdds = odds.reduce((prev, curr) => prev * curr, 1);
+      const totalFractionalOdds = roundOddsToFractional(totalDecimalOdds);
 
       const potentialReturn = roundCurrency(
         odds.reduce((prev, curr) => {
@@ -141,19 +165,14 @@ export const bettingReducer = (
         ...state,
         stakeMultiplierRawValue: rawValue,
         stakeMultiplierDisplayValue: displayValue,
+        totalFractionalOdds,
         potentialReturn,
         potentialWinnings,
       };
     }
 
     case BettingActionType.ClearAllBets:
-      return {
-        ...state,
-        activeBets: [],
-        totalStake: 0,
-        potentialWinnings: 0,
-        alertMsg: "",
-      };
+      return initialState;
 
     case BettingActionType.SyncState:
       return action.payload;

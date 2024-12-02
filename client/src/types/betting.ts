@@ -19,6 +19,7 @@ export interface BettingState {
   stakeMultiplierRawValue: string;
   stakeMultiplierDisplayValue: string;
   totalStake: number;
+  totalFractionalOdds: string;
   potentialWinnings: number;
   potentialReturn: number;
   rememberBets: boolean;
