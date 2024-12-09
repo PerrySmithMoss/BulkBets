@@ -28,6 +28,8 @@ type User struct {
 	Password            password   `json:"-"`
 	ProfileImage        *string    `json:"profile_image"`
 	RefreshTokenVersion int64      `json:"refresh_token_version"`
+	DefaultCurrency     string     `json:"default_currency"`
+	Balance             float64    `json:"balance"`
 	CreatedAt           string     `json:"created_at"`
 	UpdatedAt           string     `json:"updated_at"`
 	// OAuth
@@ -245,7 +247,7 @@ func (s *UsersStore) Upsert(ctx context.Context, user *User) error {
 
 func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, error) {
 	query := `
-			SELECT id, first_name, last_name, email, is_email_verified, email_verified_at, profile_image, google_id, x_id, github_id, refresh_token_version, created_at, updated_at
+			SELECT id, first_name, last_name, email, is_email_verified, email_verified_at, profile_image, google_id, x_id, github_id, refresh_token_version, default_currency, balance, created_at, updated_at
 			FROM users
 			WHERE id = $1
 		`
@@ -275,6 +277,8 @@ func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, err
 		&xId,
 		&githubId,
 		&user.RefreshTokenVersion,
+		&user.DefaultCurrency,
+		&user.Balance,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
