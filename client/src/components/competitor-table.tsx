@@ -18,6 +18,7 @@ import { useBet, useBetActions } from "@/store/betting";
 import { Show } from "@/types/api/show/show";
 import { Division } from "@/types/api/division/division";
 import { useCallback } from "react";
+import { cn } from "@/lib/utils/cn";
 
 interface Props {
   show: Show;
@@ -67,34 +68,42 @@ export const CompetitorTable: React.FC<Props> = ({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {competitors.map((competitor, index) => (
-          <TableRow key={index} className="hover:bg-background">
-            <TableCell className="font-medium">
-              {competitor.first_name} {competitor.last_name}
-            </TableCell>
-            <TableCell>
-              {competitor.nationality}, {competitor.residency}{" "}
-            </TableCell>
-            <TableCell
-              className="text-cta border-l text-center cursor-pointer hover:bg-muted/50"
-              onClick={() => handleStartBet(competitor)}
-            >
-              {`${decimalToFraction(
-                competitor.odds?.find((odds) => odds.bet_type === BetType.Win)
-                  ?.odds_value
-              )}`}{" "}
-              {competitor.odds?.find((odds) => odds.bet_type === BetType.Win)
-                ?.odds_value
-                ? `(${decimalToPercentage(
-                    competitor.odds?.find(
-                      (odds) => odds.bet_type === BetType.Win
-                    )?.odds_value,
-                    true
-                  )})`
-                : ""}
-            </TableCell>
-          </TableRow>
-        ))}
+        {competitors.map((competitor) => {
+          const winOdds = competitor.odds?.find(
+            (odds) => odds.bet_type === BetType.Win
+          )?.odds_value;
+          const fractionOdds = winOdds ? decimalToFraction(winOdds) : null;
+          const percentageOdds = winOdds
+            ? decimalToPercentage(winOdds, true)
+            : null;
+
+          // Check if the competitor has active bets
+          const isActiveBet = activeBets.some(
+            (bet) => bet.competitor.id === competitor.id
+          );
+
+          return (
+            <TableRow key={competitor.id} className="hover:bg-background">
+              <TableCell className="font-medium">
+                {competitor.first_name} {competitor.last_name}
+              </TableCell>
+              <TableCell>
+                {competitor.nationality}, {competitor.residency}
+              </TableCell>
+              <TableCell
+                className={cn(
+                  "text-cta border-l text-center cursor-pointer hover:bg-muted/50",
+                  {
+                    "bg-card-foreground text-primary": isActiveBet,
+                  }
+                )}
+                onClick={() => handleStartBet(competitor)}
+              >
+                {fractionOdds && `${fractionOdds} (${percentageOdds})`}
+              </TableCell>
+            </TableRow>
+          );
+        })}
       </TableBody>
     </Table>
   );
