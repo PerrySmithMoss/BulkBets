@@ -35,13 +35,22 @@ export const CompetitorTable: React.FC<Props> = ({
   const user = useUser();
   const { state } = useBet();
   const { activeBets } = state;
-  const { startBet, alert } = useBetActions();
+  const { startBet, removeBet, alert } = useBetActions();
 
   const memoizedBetSlipAlert = useCallback(alert, [alert]);
 
   const handleStartBet = (competitor: Competitor) => {
     if (!user) {
       openDialog(Dialog.LogInToBet);
+      return;
+    }
+
+    const competitorBetExists = !!state.activeBets.find(
+      (bet) => bet.competitor.id === competitor.id
+    );
+
+    if (competitorBetExists) {
+      startBet(show, division, competitor);
       return;
     }
 
@@ -94,7 +103,8 @@ export const CompetitorTable: React.FC<Props> = ({
                 className={cn(
                   "text-cta border-l text-center cursor-pointer hover:bg-muted/50",
                   {
-                    "bg-card-foreground text-primary": isActiveBet,
+                    "bg-card-foreground text-primary hover:bg-card-foreground":
+                      isActiveBet,
                   }
                 )}
                 onClick={() => handleStartBet(competitor)}

@@ -1,10 +1,20 @@
 import { BetType } from "@/types/api/bets/bet-type";
 import { ActiveBet, BetTypeDisplayMap } from "@/types/betting";
+import { roundCurrency } from "./currency";
 
 export const getBetTypeDisplay = (betType: BetType | undefined | null) => {
   if (betType == null) return "";
 
   return BetTypeDisplayMap[betType];
+};
+
+export const getBetSelectionsDisplay = (numOfSelections: number): string => {
+  const specialCases: Record<number, string> = {
+    2: "Double",
+    3: "Treble",
+  };
+
+  return specialCases[numOfSelections] ?? `${numOfSelections} Fold`;
 };
 
 export const calculatePotentialWinnings = (
@@ -26,9 +36,48 @@ export const findMostRecentBet = (bets: ActiveBet[]): ActiveBet | null => {
   });
 };
 
-export const roundOddsToFractional = (decimalOdds: number): string => {
+/**
+ * Convert fractional odds to decimal odds.
+ * @param numerator - The numerator of the fractional odds.
+ * @param denominator - The denominator of the fractional odds.
+ * @returns The decimal odds.
+ */
+export const fractionalToDecimal = (
+  numerator: number,
+  denominator: number
+): number => {
+  return numerator / denominator + 1;
+};
+
+/**
+ * Convert decimal odds to fractional odds in simplified form.
+ * @param decimalOdds - The decimal odds to convert.
+ * @returns An object containing the simplified numerator and denominator.
+ */
+export const decimalToFraction = (
+  decimalOdds: number
+): { numerator: number; denominator: number } => {
+  const profitPortion = decimalOdds - 1; // Subtract 1 to get the profit portion
+  const precision = 10000; // To handle decimal precision
+  const numerator = Math.round(profitPortion * precision);
+  const denominator = precision;
+
+  // Simplify the fraction using the GCD
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+  const divisor = gcd(numerator, denominator);
+
+  return {
+    numerator: numerator / divisor,
+    denominator: denominator / divisor,
+  };
+};
+
+export const roundOddsToFractional = (
+  decimalOdds: number,
+  xTo1 = false
+): string => {
   // Ensure decimal odds are greater than 1 (odds below 1 don't make sense for betting)
-  if (decimalOdds <= 1) {
+  if (decimalOdds < 1) {
     throw new Error(
       "Decimal odds must be greater than 1 to convert to fractional."
     );
@@ -38,11 +87,11 @@ export const roundOddsToFractional = (decimalOdds: number): string => {
   const fractionalValue = decimalOdds - 1;
 
   // Multiply by 100 to work with 2 decimal places
-  const roundedFractionalValue = Math.round(fractionalValue * 100) / 100;
+  const roundedFractionalValue = Math.round(fractionalValue * 10000) / 10000;
 
   // Convert to fractional representation with a denominator of 1
-  const numerator = Math.round(roundedFractionalValue * 100); // Multiply to preserve precision
-  const denominator = 100; // Denominator is always 100 for 2 decimal places
+  const numerator = Math.round(roundedFractionalValue * 1000); // Multiply to preserve precision
+  const denominator = 1000; // Denominator is always 100 for 2 decimal places
 
   // Simplify the fraction (optional, if you want to reduce it)
   const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
@@ -51,6 +100,50 @@ export const roundOddsToFractional = (decimalOdds: number): string => {
   const simplifiedNumerator = numerator / divisor;
   const simplifiedDenominator = denominator / divisor;
 
+  if (xTo1) {
+    // Round the result to 2 decimal places and return as X/1 format
+    const odds = (simplifiedNumerator / simplifiedDenominator).toFixed(2);
+    return `${odds}/1`;
+  }
+
   // Return the fractional odds as a string
   return `${simplifiedNumerator}/${simplifiedDenominator}`;
+};
+
+export const calculateActiveBetTotals = (bets: ActiveBet[]) => {
+  if (bets.length === 0) {
+    return {
+      totalFractionalOdds: "",
+      totalStake: 0,
+      potentialReturn: 0,
+      potentialWinnings: 0,
+    };
+  }
+
+  const isMultipleBets = bets.length > 1;
+
+  // Extract decimal odds from the bets
+  const totalDecimalOdds = bets.reduce((product, bet) => product * bet.odds, 1);
+
+  // Convert decimal odds to fractional odds
+  const totalFractionalOdds = roundOddsToFractional(
+    totalDecimalOdds,
+    isMultipleBets
+  );
+
+  // Calculate the total stake, ensuring valid amounts are used
+  const totalStake = bets.reduce((sum, bet) => {
+    const amount = parseFloat(bet.amount || "0");
+    return sum + (isNaN(amount) ? 0 : amount); // Handle NaN gracefully
+  }, 0);
+
+  const potentialReturn = roundCurrency(totalDecimalOdds * totalStake);
+  const potentialWinnings = roundCurrency(potentialReturn - totalStake);
+
+  return {
+    totalFractionalOdds,
+    totalStake,
+    potentialReturn,
+    potentialWinnings,
+  };
 };

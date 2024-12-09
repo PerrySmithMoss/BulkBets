@@ -1,4 +1,5 @@
 import {
+  calculateActiveBetTotals,
   calculatePotentialWinnings,
   roundOddsToFractional,
 } from "@/lib/utils/betting";
@@ -9,6 +10,7 @@ import {
 } from "@/types/betting";
 import { saveState } from "./storage";
 import { formatInputAsCurrency, roundCurrency } from "@/lib/utils/currency";
+import { invalidStakeValues } from "./constants";
 
 export const initialState: BettingState = {
   activeBets: [],
@@ -38,45 +40,46 @@ export const bettingReducer = (
   action: BettingAction
 ): BettingState => {
   switch (action.type) {
+    // Clicking to place a bet or add to the list of bets
     case BettingActionType.StartBet: {
-      const newBets = [...state.activeBets, action.payload];
-      const odds = [
-        ...state.activeBets.map((bet) => bet.odds),
-        action.payload.odds,
-      ];
-      const totalDecimalOdds = odds.reduce((prev, curr) => prev * curr, 1);
-      console.log("totalDecimalOdds: ", totalDecimalOdds);
-      const totalFractionalOdds = roundOddsToFractional(totalDecimalOdds);
-      const newTotalStake = newBets.reduce((sum, bet) => sum + bet.amount, 0);
-      const newPotentialWinnings = newBets.reduce(
-        (sum, bet) => sum + calculatePotentialWinnings(bet.amount, bet.odds),
-        0
+      const isExistingCompetitorBet = state.activeBets.some(
+        (bet) => bet.competitor.id === action.payload.competitor.id
       );
-      const potentialReturn = roundCurrency(
-        odds.reduce((prev, curr) => {
-          return prev * curr;
-        }, state.totalStake)
-      );
-      const potentialWinnings = roundCurrency(
-        potentialReturn - state.totalStake
-      );
+
+      const newBets = isExistingCompetitorBet
+        ? // remove activeBets which contain existing competitors
+          state.activeBets.filter(
+            (bet) => bet.competitor.id !== action.payload.competitor.id
+          )
+        : [...state.activeBets, action.payload];
+
+      const {
+        totalFractionalOdds,
+        totalStake,
+        potentialReturn,
+        potentialWinnings,
+      } = calculateActiveBetTotals(newBets);
 
       return {
         ...state,
         activeBets: newBets,
-        totalStake: newTotalStake,
+        totalStake,
         totalFractionalOdds,
-        // potentialWinnings: newPotentialWinnings,
         potentialReturn,
         potentialWinnings,
       };
     }
 
+    // TODO: finalising the bet and paying??
     case BettingActionType.PlaceBet: {
       const newBets = [...state.activeBets, action.payload];
-      const newTotalStake = newBets.reduce((sum, bet) => sum + bet.amount, 0);
+      const newTotalStake = newBets.reduce(
+        (sum, bet) => sum + parseFloat(bet.amount),
+        0
+      );
       const newPotentialWinnings = newBets.reduce(
-        (sum, bet) => sum + calculatePotentialWinnings(bet.amount, bet.odds),
+        (sum, bet) =>
+          sum + calculatePotentialWinnings(parseFloat(bet.amount), bet.odds),
         0
       );
 
@@ -92,10 +95,25 @@ export const bettingReducer = (
       const newBets = state.activeBets.filter(
         (bet) => bet._id !== action.payload
       );
-      const newTotalStake = newBets.reduce((sum, bet) => sum + bet.amount, 0);
-      const newPotentialWinnings = newBets.reduce(
-        (sum, bet) => sum + calculatePotentialWinnings(bet.amount, bet.odds),
+      const newTotalStake = newBets.reduce(
+        (sum, bet) => sum + parseFloat(bet.amount),
         0
+      );
+      const newPotentialWinnings = newBets.reduce(
+        (sum, bet) =>
+          sum + calculatePotentialWinnings(parseFloat(bet.amount), bet.odds),
+        0
+      );
+      const odds = newBets.map((bet) => bet.odds);
+      const totalDecimalOdds = odds.reduce((prev, curr) => prev * curr, 1);
+      const totalFractionalOdds = roundOddsToFractional(totalDecimalOdds);
+      const potentialReturn = roundCurrency(
+        odds.reduce((prev, curr) => {
+          return prev * curr;
+        }, state.totalStake)
+      );
+      const potentialWinnings = roundCurrency(
+        potentialReturn - state.totalStake
       );
 
       return {
@@ -103,46 +121,50 @@ export const bettingReducer = (
         activeBets: newBets,
         totalStake: newTotalStake,
         potentialWinnings: newPotentialWinnings,
+        totalFractionalOdds,
+        potentialReturn,
       };
     }
 
     case BettingActionType.UpdateBetAmount: {
+      const parsedAmount = parseFloat(action.payload.amount);
+
       const newBets = state.activeBets.map((bet) =>
         bet._id === action.payload.betId
           ? { ...bet, amount: action.payload.amount }
           : bet
       );
-      const newTotalStake = newBets.reduce((sum, bet) => sum + bet.amount, 0);
-      const newPotentialWinnings = newBets.reduce(
-        (sum, bet) => sum + calculatePotentialWinnings(bet.amount, bet.odds),
-        0
+
+      const totalStake = newBets.reduce((sum, bet) => {
+        const betAmount = parseFloat(bet.amount || "0");
+        return sum + (isNaN(betAmount) ? 0 : betAmount);
+      }, 0);
+
+      const validOdds = newBets
+        .filter(
+          (bet) => bet.amount && !invalidStakeValues.includes(bet.amount.trim())
+        )
+        .map((bet) => bet.odds || 1);
+
+      const totalDecimalOdds = validOdds.reduce(
+        (product, odds) => product * odds,
+        1
       );
+      const totalFractionalOdds = roundOddsToFractional(totalDecimalOdds);
+
+      const potentialReturn =
+        validOdds.length > 0
+          ? roundCurrency(totalDecimalOdds * parsedAmount)
+          : 0;
+      const potentialWinnings = roundCurrency(potentialReturn - parsedAmount);
 
       return {
         ...state,
         activeBets: newBets,
-        totalStake: newTotalStake,
-        potentialWinnings: newPotentialWinnings,
-      };
-    }
-
-    case BettingActionType.UpdateBetAmount: {
-      const newBets = state.activeBets.map((bet) =>
-        bet._id === action.payload.betId
-          ? { ...bet, amount: action.payload.amount }
-          : bet
-      );
-      const newTotalStake = newBets.reduce((sum, bet) => sum + bet.amount, 0);
-      const newPotentialWinnings = newBets.reduce(
-        (sum, bet) => sum + calculatePotentialWinnings(bet.amount, bet.odds),
-        0
-      );
-
-      return {
-        ...state,
-        activeBets: newBets,
-        totalStake: newTotalStake,
-        potentialWinnings: newPotentialWinnings,
+        totalStake,
+        potentialWinnings,
+        totalFractionalOdds,
+        potentialReturn,
       };
     }
 

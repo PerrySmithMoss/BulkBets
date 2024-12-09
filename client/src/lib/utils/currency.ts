@@ -56,3 +56,25 @@ export const formatCurrency = (
 export const roundCurrency = (value: number): number => {
   return Math.round(value * 100) / 100;
 };
+
+export const currencySymbolMap: Map<string, string> = new Map([
+  ["GBP", "£"], // British Pound
+  ["USD", "$"], // US Dollar
+  ["EUR", "€"], // Euro
+  ["JPY", "¥"], // Japanese Yen
+  ["AUD", "A$"], // Australian Dollar
+  ["CAD", "C$"], // Canadian Dollar
+  ["CHF", "CHF"], // Swiss Franc
+  ["CNY", "¥"], // Chinese Yuan
+  ["INR", "₹"], // Indian Rupee
+  ["NZD", "NZ$"], // New Zealand Dollar
+  ["ZAR", "R"], // South African Rand
+  ["KRW", "₩"], // South Korean Won
+  ["SEK", "kr"], // Swedish Krona
+  ["NOK", "kr"], // Norwegian Krone
+  ["DKK", "kr"], // Danish Krone
+]);
+
+export const getCurrencySymbol = (currencyCode: string): string => {
+  return currencySymbolMap.get(currencyCode) || "";
+};

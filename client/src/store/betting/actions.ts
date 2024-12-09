@@ -27,8 +27,8 @@ export const useBetActions = () => {
       odds: winningOdds,
       // hard coded as we only offer bet type of 'Win' atm
       betType: BetType.Win,
-      // initialise as 0 as no stake has been set
-      amount: 0,
+      // initialise as empty string as no stake has been set
+      amount: "",
       _timestamp: new Date().toISOString(),
     };
 
@@ -39,7 +39,7 @@ export const useBetActions = () => {
     dispatch({ type: BettingActionType.RemoveBet, payload: betId });
   };
 
-  const updateBetAmount = (betId: string, amount: number) => {
+  const updateBetAmount = (betId: string, amount: string) => {
     dispatch({
       type: BettingActionType.UpdateBetAmount,
       payload: { betId, amount },

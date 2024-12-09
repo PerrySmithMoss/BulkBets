@@ -10,7 +10,7 @@ export interface ActiveBet {
   competitor: Competitor;
   betType: BetType;
   odds: number;
-  amount: number;
+  amount: string;
   _timestamp: string;
 }
 
@@ -43,7 +43,7 @@ export type BettingAction =
   | { type: BettingActionType.RemoveBet; payload: string }
   | {
       type: BettingActionType.UpdateBetAmount;
-      payload: { betId: string; amount: number };
+      payload: { betId: string; amount: string };
     }
   | {
       type: BettingActionType.UpdateStakeMultiplier;

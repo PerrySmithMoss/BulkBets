@@ -9,6 +9,8 @@ export interface User {
   emailVerifiedAt?: Timestamp | null;
   profileImage?: string | null;
   refreshTokenVersion: number;
+  balance: number;
+  defaultCurrency: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
   googleId?: string | null;
