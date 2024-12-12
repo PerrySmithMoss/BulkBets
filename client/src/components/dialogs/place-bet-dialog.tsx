@@ -498,10 +498,10 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                   <div>
                     <Input
                       type="text"
-                      // TODO:
-                      // value={bet.amount || ""}
-                      // onChange={(e) => handleBetAmountChange(e, bet._id)}
-                      // onBlur={(e) => handleBetAmountBlur(e, bet._id)}
+                      ref={stakeRef}
+                      value={stakeMultiplierDisplayValue}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
                       aria-label="Stake amount"
                       placeholder="Stake"
                       className="w-28 h-[38px] text-sm text-right rounded-sm bg-white outline-none focus:ring-0 focus-visible:ring-0 focus:outline-none focus-visible:ring-offset-0 focus-visible:ring-transparent placeholder:text-muted-foreground text-card"

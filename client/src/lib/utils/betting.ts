@@ -122,7 +122,7 @@ export const calculateSingularBetReturn = (bets: ActiveBet[]): number => {
       console.warn(`Invalid bet data for bet ID: ${bet._id}. Skipping...`);
       return totalReturn;
     }
-    const betReturn = parseFloat(bet.amount) * (bet.odds + 1);
+    const betReturn = parseFloat(bet.amount) * bet.odds;
     return totalReturn + betReturn;
   }, 0);
 };
@@ -153,7 +153,7 @@ export const calculateAccumulatorBetReturn = (
       );
       return product;
     }
-    return product * (bet.odds + 1);
+    return product * bet.odds;
   }, 1);
 
   return stake * totalOdds;
@@ -170,6 +170,7 @@ export const calculateBetSlipTotals = (betSlip: BetSlipState) => {
   }
 
   const isMultipleBets = activeBets.length > 1;
+
   const totalDecimalOdds = activeBets.reduce((product, bet) => {
     if (bet.odds <= 0) {
       console.warn(

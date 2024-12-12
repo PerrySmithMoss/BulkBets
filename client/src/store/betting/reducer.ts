@@ -153,11 +153,16 @@ export const bettingReducer = (
         stakeMultiplierDisplayValue: displayValue,
       };
 
-      const { totalFractionalOdds, potentialReturn, potentialWinnings } =
-        calculateBetSlipTotals(newBetSlip);
+      const {
+        totalStake,
+        totalFractionalOdds,
+        potentialReturn,
+        potentialWinnings,
+      } = calculateBetSlipTotals(newBetSlip);
 
       return {
         ...newBetSlip,
+        totalStake,
         totalFractionalOdds,
         potentialReturn,
         potentialWinnings,
