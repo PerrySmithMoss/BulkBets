@@ -3,7 +3,7 @@
 import {
   BettingAction,
   BettingActionType,
-  BettingState,
+  BetSlipState,
 } from "@/types/betting";
 import {
   createContext,
@@ -22,7 +22,7 @@ import { loadState } from "./storage";
 import { STORAGE_KEY } from "./constants";
 
 const BetContext = createContext<
-  { state: BettingState; dispatch: React.Dispatch<BettingAction> } | undefined
+  { state: BetSlipState; dispatch: React.Dispatch<BettingAction> } | undefined
 >(undefined);
 
 interface BetProviderProps {

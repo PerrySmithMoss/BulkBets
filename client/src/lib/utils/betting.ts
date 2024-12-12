@@ -1,5 +1,5 @@
 import { BetType } from "@/types/api/bets/bet-type";
-import { ActiveBet, BetTypeDisplayMap } from "@/types/betting";
+import { ActiveBet, BetSlipState, BetTypeDisplayMap } from "@/types/betting";
 import { roundCurrency } from "./currency";
 
 export const getBetTypeDisplay = (betType: BetType | undefined | null) => {
@@ -110,34 +110,91 @@ export const roundOddsToFractional = (
   return `${simplifiedNumerator}/${simplifiedDenominator}`;
 };
 
-export const calculateActiveBetTotals = (bets: ActiveBet[]) => {
-  if (bets.length === 0) {
-    return {
-      totalFractionalOdds: "",
-      totalStake: 0,
-      potentialReturn: 0,
-      potentialWinnings: 0,
-    };
+export const calculateSingularBetReturn = (bets: ActiveBet[]): number => {
+  const validateBet = (bet: ActiveBet) => {
+    const amount = parseFloat(bet.amount || "0");
+    const odds = bet.odds;
+    return amount > 0 && odds > 0;
+  };
+
+  return bets.reduce((totalReturn, bet) => {
+    if (!validateBet(bet)) {
+      console.warn(`Invalid bet data for bet ID: ${bet._id}. Skipping...`);
+      return totalReturn;
+    }
+    const betReturn = parseFloat(bet.amount) * (bet.odds + 1);
+    return totalReturn + betReturn;
+  }, 0);
+};
+
+export const calculateAccumulatorBetReturn = (
+  betSlip: BetSlipState
+): number => {
+  const { activeBets, stakeMultiplierRawValue } = betSlip;
+
+  // Validate and parse stake
+  const stake = stakeMultiplierRawValue
+    ? parseFloat(stakeMultiplierRawValue)
+    : 0;
+  if (isNaN(stake) || stake < 0) {
+    throw new Error(`Invalid stake multiplier: ${stakeMultiplierRawValue}`);
   }
 
-  const isMultipleBets = bets.length > 1;
+  // if (activeBets.length === 0) {
+  //   console.warn("No active bets in the bet slip.");
+  //   return 0;
+  // }
 
-  // Extract decimal odds from the bets
-  const totalDecimalOdds = bets.reduce((product, bet) => product * bet.odds, 1);
+  // Calculate total odds
+  const totalOdds = activeBets.reduce((product, bet) => {
+    if (bet.odds <= 0) {
+      console.warn(
+        `Skipping invalid odds (${bet.odds}) for bet ID: ${bet._id}`
+      );
+      return product;
+    }
+    return product * (bet.odds + 1);
+  }, 1);
 
-  // Convert decimal odds to fractional odds
+  return stake * totalOdds;
+};
+
+export const calculateBetSlipTotals = (betSlip: BetSlipState) => {
+  const { activeBets, stakeMultiplierRawValue } = betSlip;
+
+  const stakeMultiplier = stakeMultiplierRawValue
+    ? parseFloat(stakeMultiplierRawValue)
+    : 0;
+  if (isNaN(stakeMultiplier) || stakeMultiplier < 0) {
+    throw new Error(`Invalid stake multiplier: ${stakeMultiplierRawValue}`);
+  }
+
+  const isMultipleBets = activeBets.length > 1;
+  const totalDecimalOdds = activeBets.reduce((product, bet) => {
+    if (bet.odds <= 0) {
+      console.warn(
+        `Skipping invalid odds (${bet.odds}) for bet ID: ${bet._id}`
+      );
+      return product;
+    }
+    return product * bet.odds;
+  }, 1);
+
   const totalFractionalOdds = roundOddsToFractional(
     totalDecimalOdds,
     isMultipleBets
   );
 
-  // Calculate the total stake, ensuring valid amounts are used
-  const totalStake = bets.reduce((sum, bet) => {
+  const totalStake = activeBets.reduce((sum, bet) => {
     const amount = parseFloat(bet.amount || "0");
-    return sum + (isNaN(amount) ? 0 : amount); // Handle NaN gracefully
-  }, 0);
+    return sum + (isNaN(amount) ? 0 : amount);
+  }, stakeMultiplier);
 
-  const potentialReturn = roundCurrency(totalDecimalOdds * totalStake);
+  const totalSingularBetReturn = calculateSingularBetReturn(activeBets);
+  const totalAccumulatorBetReturn = calculateAccumulatorBetReturn(betSlip);
+  const potentialReturn = roundCurrency(
+    totalSingularBetReturn + totalAccumulatorBetReturn
+  );
   const potentialWinnings = roundCurrency(potentialReturn - totalStake);
 
   return {

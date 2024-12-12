@@ -10,11 +10,13 @@ export interface ActiveBet {
   competitor: Competitor;
   betType: BetType;
   odds: number;
+  // TODO: Change this to number to avoid having
+  // the parse later down the line?
   amount: string;
   _timestamp: string;
 }
 
-export interface BettingState {
+export interface BetSlipState {
   activeBets: ActiveBet[];
   stakeMultiplierRawValue: string;
   stakeMultiplierDisplayValue: string;
@@ -50,7 +52,7 @@ export type BettingAction =
       payload: string;
     }
   | { type: BettingActionType.ClearAllBets }
-  | { type: BettingActionType.SyncState; payload: BettingState }
+  | { type: BettingActionType.SyncState; payload: BetSlipState }
   | { type: BettingActionType.Alert; payload: string };
 
 export const BetTypeDisplayMap: Record<BetType, string> = {

@@ -1,7 +1,7 @@
-import { BettingState } from "@/types/betting";
+import { BetSlipState } from "@/types/betting";
 import { STORAGE_KEY } from "./constants";
 
-export const loadState = (): BettingState | undefined => {
+export const loadState = (): BetSlipState | undefined => {
   if (typeof window === "undefined") return undefined;
 
   try {
@@ -16,7 +16,7 @@ export const loadState = (): BettingState | undefined => {
   }
 };
 
-export const saveState = (state: BettingState) => {
+export const saveState = (state: BetSlipState) => {
   if (typeof window === "undefined") return;
 
   try {

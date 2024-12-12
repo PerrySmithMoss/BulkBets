@@ -298,7 +298,7 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
             <div>
               <div className="flex justify-between w-full pr-3">
                 {activeBets.length > 1 ? (
-                  <h3 className="text-secondary font-extrabold text-[15px]">
+                  <h3 className="text-secondary font-extrabold text-base">
                     {getBetSelectionsDisplay(activeBets.length)}
                   </h3>
                 ) : (
@@ -321,7 +321,7 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                     {activeBets.map((bet, index, arr) => (
                       <div
                         key={bet._id}
-                        className="text-primary text-[13px] font-bold"
+                        className="text-primary text-sm font-bold"
                       >
                         {bet.competitor.first_name} {bet.competitor.last_name}
                         {arr.length !== index + 1 && ","}
