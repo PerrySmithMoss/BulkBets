@@ -58,6 +58,9 @@ func (app *application) mount() http.Handler {
 		})
 
 		r.Route("/auth", func(r chi.Router) {
+			r.Use(app.DeserialiseUserMiddleware)
+			r.Use(app.RequireUserMiddleware)
+			r.Delete("/logout", app.logoutUserHandler)
 			r.Get("/token/refresh", app.tokenRenewalHandler)
 		})
 	})

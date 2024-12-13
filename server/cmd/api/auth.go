@@ -333,10 +333,49 @@ func (app *application) tokenRenewalHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (app *application) logoutUserHandler(w http.ResponseWriter, r *http.Request) {
-	// TODO: increment the user.refreshTokenVersion
-	// safety feature which will increment the user's refresh token version - so anyone using an
-	// access token linked to the user will be denied access to the API as soon as the token expires
-	// e.g if access token has 8 minutes left the user will have access until that 8 mins runs out
-	// only way to get around this would be to change the access_token_secret - but that would log all users
-	// on the platform out...
+	ctx := r.Context()
+
+	userID, ok := r.Context().Value(userCtx).(string)
+	if !ok || userID == "" {
+		writeJSONError(w, http.StatusUnauthorized, "Unauthorised")
+		return
+	}
+
+	// TODO extract this into util func?
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    "",
+		HttpOnly: true,
+		Secure:   app.cfg.App.AppEnv == "production",
+		SameSite: http.SameSiteLaxMode,
+		// SameSite: http.SameSiteNoneMode, // uncomment in prod
+		Path:    "/",
+		Expires: time.Unix(0, 0),
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		HttpOnly: true,
+		Secure:   app.cfg.App.AppEnv == "production",
+		SameSite: http.SameSiteLaxMode,
+		// SameSite: http.SameSiteNoneMode, // uncomment in prod
+		Path:    "/",
+		Expires: time.Unix(0, 0),
+	})
+
+	user, err := app.store.UserRepository.GetUserByID(ctx, userID)
+	if err != nil {
+		log.Printf("No user with ID %s found", userID)
+		writeJSONError(w, http.StatusUnauthorized, "Unauthorised")
+		return
+	}
+
+	_, err = app.store.UserRepository.SetRefreshTokenVersion(r.Context(), user.RefreshTokenVersion+1, userID)
+	if err != nil {
+		log.Printf("Failed to update refresh token version for user ID %s: %v", userID, err)
+		writeJSONError(w, http.StatusInternalServerError, "Failed to log out")
+		return
+	}
+
+	app.jsonResponse(w, http.StatusNoContent, nil)
 }

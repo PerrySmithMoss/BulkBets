@@ -20,16 +20,22 @@ import { useDialog } from "@/store/dialog/dialog-context";
 import { Dialog } from "@/types/dialog";
 import { Logo } from "./logo";
 import { useUser } from "@/store/user/user-context";
+import { logoutUser } from "@/lib/api/auth/logout-user";
 
 interface Props {}
 
 export const NavBar: React.FC<Props> = ({}) => {
   const pathName = usePathname();
   const { openDialog } = useDialog();
-  const user = useUser();
+  const { user, setUser } = useUser();
 
   const handleLogIn = () => {
     openDialog(Dialog.LogIn);
+  };
+
+  const handleLogout = async () => {
+    await logoutUser(user?.id);
+    setUser(null);
   };
 
   const getNavigationClassName = (href: string) => {
@@ -165,7 +171,12 @@ export const NavBar: React.FC<Props> = ({}) => {
                       <DropdownMenuItem>Settings</DropdownMenuItem>
                       <DropdownMenuItem>Support</DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem>Logout</DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="cursor-pointer"
+                        onClick={handleLogout}
+                      >
+                        Logout
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

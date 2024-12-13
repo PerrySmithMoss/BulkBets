@@ -35,14 +35,14 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <UserProvider user={user}>
-            <DialogProvider>
-              <BetProvider>
+          <BetProvider>
+            <UserProvider initialUser={user}>
+              <DialogProvider>
                 <DialogManager />
                 {children}
-              </BetProvider>
-            </DialogProvider>
-          </UserProvider>
+              </DialogProvider>
+            </UserProvider>
+          </BetProvider>
         </ThemeProvider>
       </body>
     </html>
