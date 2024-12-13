@@ -20,7 +20,7 @@ export const useBetActions = () => {
     }
 
     const newBet: ActiveBet = {
-      _id: `${Date.now()}-${Math.random()}`,
+      _id: `${Date.now()}}`,
       show: show,
       division: division,
       competitor: competitor,

@@ -21,17 +21,18 @@ import {
   roundOddsToFractional,
 } from "@/lib/utils/betting";
 import { BetDialogAlert } from "../alerts/bet-dialog-alert";
-import { formatCurrency, getCurrencySymbol } from "@/lib/utils/currency";
+import {
+  formatCurrency,
+  getCurrencySymbol,
+  isValidNumber,
+} from "@/lib/utils/currency";
 import { useUser } from "@/store/user/user-context";
 import { Badge } from "../ui/badge";
 import { Overlay } from "../overlay";
 
-interface Props {
-  open: boolean;
-  onOpenChange: () => void;
-}
+interface Props {}
 
-export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
+export const PlaceBetDialog: React.FC<Props> = ({}) => {
   const user = useUser();
   const {
     alert,
@@ -50,6 +51,9 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     stakeMultiplierRawValue,
     potentialReturn,
   } = state;
+  const containsBetsWithStake = activeBets.some((bet) =>
+    isValidNumber(bet.amount)
+  );
   const [visibleAlert, setVisibleAlert] = useState<string | null>(
     alertMsg || null
   );
@@ -290,30 +294,45 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
         )}
       >
         <div className="flex gap-2 w-full">
-          <RxCross1
-            onClick={handleRemoveAllBets}
-            className="cursor-pointer mt-[4px] text-secondary h-3.5 w-3.5"
-          />
+          {!containsBetsWithStake && (
+            <RxCross1
+              onClick={handleRemoveAllBets}
+              className="cursor-pointer mt-[5px] text-secondary h-3.5 w-3.5"
+            />
+          )}
           <div className="w-full">
             <div>
               <div className="flex justify-between w-full pr-3">
-                {activeBets.length > 1 ? (
-                  <h3 className="text-secondary font-extrabold text-base">
-                    {getBetSelectionsDisplay(activeBets.length)}
-                  </h3>
-                ) : (
+                {activeBets.length === 1 ? (
                   <h3 className="text-primary font-bold">
                     {latestBet?.competitor.first_name}{" "}
                     {latestBet?.competitor.last_name}
                   </h3>
+                ) : containsBetsWithStake ? (
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex text-[13px] mt-0.5 justify-center items-center w-5 h-5 rounded-full bg-primary text-secondary font-extrabold">
+                      {activeBets.length}
+                    </div>
+                    <div>
+                      <div className="text-secondary font-extrabold text-[15px] leading-5">
+                        Selections
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <h3 className="text-secondary font-extrabold text-base">
+                    {getBetSelectionsDisplay(activeBets.length)}
+                  </h3>
                 )}
-                <div>
-                  <p className="text-secondary font-medium text-[15px]">
-                    {state.totalFractionalOdds}
-                  </p>
-                </div>
+                {!containsBetsWithStake && (
+                  <div>
+                    <p className="text-secondary font-medium text-[15px]">
+                      {state.totalFractionalOdds}
+                    </p>
+                  </div>
+                )}
               </div>
-              <div className="text-sm text-secondary font-semibold">
+              <div className="text-sm text-secondary font-semibold mt-0.5">
                 {activeBets.length === 1 ? (
                   <>{getBetTypeDisplay(latestBet?.betType)}</>
                 ) : (
@@ -330,23 +349,25 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                   </div>
                 )}
               </div>
-              <div className="text-sm text-secondary">
-                {activeBets.length === 1 ? (
-                  <>{latestBet?.show.name}</>
-                ) : (
-                  <div className="flex gap-1 items-center mt-3 flex-wrap">
-                    {activeBets.map((bet) => (
-                      <Badge
-                        key={bet._id}
-                        variant="secondary"
-                        className="px-1.5 text-[11px] leading-[14px] hover:bg-secondary"
-                      >
-                        {bet.division.category}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {!containsBetsWithStake && (
+                <div className="text-sm text-secondary">
+                  {activeBets.length === 1 ? (
+                    <>{latestBet?.show.name}</>
+                  ) : (
+                    <div className="flex gap-1 items-center mt-3 flex-wrap">
+                      {activeBets.map((bet) => (
+                        <Badge
+                          key={bet._id}
+                          variant="secondary"
+                          className="px-1.5 text-[11px] leading-[14px] hover:bg-secondary"
+                        >
+                          {bet.division.category}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -378,7 +399,7 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
           <div className="w-full">
             <div>
               <div className="flex justify-between w-full">
-                <div className="flex gap-1.5">
+                <div className="flex items-center gap-1.5">
                   <div className="flex text-[13px] mt-0.5 justify-center items-center w-5 h-5 rounded-full bg-primary text-secondary font-extrabold">
                     {activeBets.length}
                   </div>
@@ -418,8 +439,8 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
             </div>
           </div>
         </div>
-        <div className="bg-[#f0f0f0] px-2 pb-4 overflow-x-hidden overflow-y-auto relative">
-          <div className="flex gap-1 items-center mt-4 flex-wrap">
+        <div className="bg-[#f0f0f0] px-2 py-3 overflow-x-hidden overflow-y-auto relative">
+          <div className="flex gap-1 items-center flex-wrap">
             {activeBets.map((bet) => (
               <Badge
                 key={bet._id}
@@ -431,7 +452,7 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
             ))}
           </div>
 
-          <div className="px-3 mt-4 py-4 border bg-secondary-foreground border-[#e4e4e7]">
+          <div className="px-3 py-4 mt-3 border bg-secondary-foreground border-[#e4e4e7]">
             <div className="flex gap-3 w-full">
               <div className="flex flex-col gap-3 w-full flex-[1_1_100%]">
                 {activeBets.map((bet) => (
@@ -546,80 +567,80 @@ export const PlaceBetDialog: React.FC<Props> = ({ open, onOpenChange }) => {
             )}
           </Button>
         ) : (
-          <div className="flex">
-            <div
-              ref={stakeMultiplierContainerRef}
-              className="relative w-1/2 h-[50px] bg-muted flex items-center py-4 px-3 rounded-bl border-r"
-            >
-              <div>
-                {isEditingStake && (
-                  <div className="flex flex-col gap-1 w-full">
-                    <label
-                      htmlFor="stake-input"
-                      className="text-white text-[11px]"
-                    >
-                      Stake
-                    </label>
-                    <div className="relative flex items-center w-full">
-                      <span className="absolute left-0 font-bold text-cta text-[17px]">
-                        £
-                      </span>
-                      <Input
-                        type="text"
-                        ref={stakeRef}
-                        value={stakeMultiplierDisplayValue}
-                        onChange={handleChange}
-                        onBlur={handleBlur}
-                        aria-label="Stake amount"
-                        className="w-full pl-3.5 pr-2 text-[19px] text-cta h-3 bg-secondary rounded-sm border-none outline-none focus:ring-0 focus-visible:ring-0 focus:outline-none focus-visible:ring-offset-0 focus-visible:border-none focus-visible:ring-transparent placeholder:text-muted-foreground"
-                      />
+          !containsBetsWithStake && (
+            <div className="flex">
+              <div
+                ref={stakeMultiplierContainerRef}
+                className="relative w-1/2 h-[50px] bg-muted flex items-center py-4 px-3 rounded-bl border-r"
+              >
+                <div>
+                  {isEditingStake && (
+                    <div className="flex flex-col gap-1 w-full">
+                      <label
+                        htmlFor="stake-input"
+                        className="text-white text-[11px]"
+                      >
+                        Stake
+                      </label>
+                      <div className="relative flex items-center w-full">
+                        <span className="absolute left-0 font-bold text-cta text-[17px]">
+                          £
+                        </span>
+                        <Input
+                          type="text"
+                          ref={stakeRef}
+                          value={stakeMultiplierDisplayValue}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          aria-label="Stake amount"
+                          className="w-full pl-3.5 pr-2 text-[19px] text-cta h-3 bg-secondary rounded-sm border-none outline-none focus:ring-0 focus-visible:ring-0 focus:outline-none focus-visible:ring-offset-0 focus-visible:border-none focus-visible:ring-transparent placeholder:text-muted-foreground"
+                        />
+                      </div>
                     </div>
+                  )}
+                  <div className="hover:opacity-100 group transition-opacity absolute right-0 top-1 px-3 pt-1 pb-1.5 flex items-center justify-center flex-col gap-1 opacity-30">
+                    <Label className="text-[11px]" htmlFor="remember-stake">
+                      Remember
+                    </Label>
+                    <Switch
+                      id="remember-stake"
+                      checked={rememberStake}
+                      onCheckedChange={handleRememberStakeChange}
+                      className="h-3 w-[24px] data-[state=unchecked]:bg-[#585858]"
+                    />
+                  </div>
+                </div>
+                {!isEditingStake && (
+                  <div
+                    onClick={handleSetStakeClick}
+                    className="font-extrabold text-cta cursor-pointer w-full"
+                  >
+                    Set Stake
                   </div>
                 )}
-                <div className="hover:opacity-100 group transition-opacity absolute right-0 top-1 px-3 pt-1 pb-1.5 flex items-center justify-center flex-col gap-1 opacity-30">
-                  <Label className="text-[11px]" htmlFor="remember-stake">
-                    Remember
-                  </Label>
-                  <Switch
-                    id="remember-stake"
-                    checked={rememberStake}
-                    onCheckedChange={handleRememberStakeChange}
-                    className="h-3 w-[24px] data-[state=unchecked]:bg-[#585858]"
-                  />
-                </div>
               </div>
-              {!isEditingStake && (
-                <div
-                  onClick={handleSetStakeClick}
-                  className="font-extrabold text-cta cursor-pointer w-full"
-                >
-                  Set Stake
-                </div>
-              )}
-            </div>
 
-            <Button
-              className={cn(
-                "w-1/2 h-[50px] flex flex-col gap-0.5 bg-primary hover:bg-[#52c466] justify-center items-center py-4 px-3 rounded-none rounded-br",
-                {
-                  "bg-muted-foreground text-secondary hover:bg-muted-foreground cursor-not-allowed":
-                    !stakeMultiplierRawValue ||
-                    invalidStakeValues.includes(stakeMultiplierDisplayValue),
-                }
-              )}
-            >
-              <div className="text-white text-base font-extrabold">
-                Place Bet
-              </div>
-              {activeBets.length > 0 &&
-                stakeMultiplierRawValue &&
-                potentialReturn > 0 && (
-                  <div className="text-[11px] leading-[13px] font-bold">
-                    To Return {formatCurrency(potentialReturn)}
-                  </div>
+              <Button
+                className={cn(
+                  "w-1/2 h-[50px] flex flex-col gap-0.5 bg-primary hover:bg-[#52c466] justify-center items-center py-4 px-3 rounded-none rounded-br",
+                  {
+                    "bg-muted-foreground text-secondary hover:bg-muted-foreground cursor-not-allowed":
+                      !stakeMultiplierRawValue ||
+                      invalidStakeValues.includes(stakeMultiplierDisplayValue),
+                  }
                 )}
-            </Button>
-          </div>
+              >
+                <div className="text-base font-extrabold">Place Bet</div>
+                {activeBets.length > 0 &&
+                  stakeMultiplierRawValue &&
+                  potentialReturn > 0 && (
+                    <div className="text-[11px] leading-[13px] font-bold">
+                      To Return {formatCurrency(potentialReturn)}
+                    </div>
+                  )}
+              </Button>
+            </div>
+          )
         )}
       </div>
       {isExpanded && <Overlay />}

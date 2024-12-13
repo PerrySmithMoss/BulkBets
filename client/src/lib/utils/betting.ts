@@ -114,15 +114,14 @@ export const calculateSingularBetReturn = (bets: ActiveBet[]): number => {
   const validateBet = (bet: ActiveBet) => {
     const amount = parseFloat(bet.amount || "0");
     const odds = bet.odds;
-    return amount > 0 && odds > 0;
+    return amount >= 0 && odds > 0;
   };
 
   return bets.reduce((totalReturn, bet) => {
     if (!validateBet(bet)) {
-      console.warn(`Invalid bet data for bet ID: ${bet._id}. Skipping...`);
       return totalReturn;
     }
-    const betReturn = parseFloat(bet.amount) * bet.odds;
+    const betReturn = parseFloat(bet.amount || "0") * bet.odds;
     return totalReturn + betReturn;
   }, 0);
 };
@@ -139,11 +138,6 @@ export const calculateAccumulatorBetReturn = (
   if (isNaN(stake) || stake < 0) {
     throw new Error(`Invalid stake multiplier: ${stakeMultiplierRawValue}`);
   }
-
-  // if (activeBets.length === 0) {
-  //   console.warn("No active bets in the bet slip.");
-  //   return 0;
-  // }
 
   // Calculate total odds
   const totalOdds = activeBets.reduce((product, bet) => {
