@@ -29,11 +29,14 @@ import {
 import { useUser } from "@/store/user/user-context";
 import { Badge } from "../ui/badge";
 import { Overlay } from "../overlay";
+import { useDialog } from "@/store/dialog/dialog-context";
+import { Dialog } from "@/types/dialog";
 
 interface Props {}
 
 export const PlaceBetDialog: React.FC<Props> = ({}) => {
   const user = useUser();
+  const { openDialog, activeDialog } = useDialog();
   const {
     alert,
     removeBet,
@@ -59,6 +62,8 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
   );
   const latestBet = findMostRecentBet(activeBets);
   const [isExpanded, setIsExpanded] = useState(false);
+  const isInsufficientFundsDialogOpen =
+    activeDialog === Dialog.NoFundsInAccount;
   const [isEditingStake, setIsEditingStake] = useState(false);
   const [rememberStake, setRememberStake] = useState(false);
   const stakeRef = useRef<HTMLInputElement | null>(null);
@@ -217,6 +222,15 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     }
 
     updateBetAmount(betId, formattedValue);
+  };
+
+  const handlePlaceBet = () => {
+    if (user && user.balance < totalStake) {
+      setIsExpanded(false);
+      openDialog(Dialog.NoFundsInAccount);
+    }
+
+    // TODO: send bet to API (/v1/bets)
   };
 
   useEffect(() => {
@@ -548,6 +562,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
         {isExpanded && renderExpandedBetSlip()}
         {isExpanded ? (
           <Button
+            onClick={handlePlaceBet}
             className={cn(
               "w-full h-[50px] flex flex-col gap-0.5 bg-primary hover:bg-[#52c466] justify-center items-center py-4 px-3 rounded-none rounded-br",
               {
@@ -621,6 +636,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
               </div>
 
               <Button
+                onClick={handlePlaceBet}
                 className={cn(
                   "w-1/2 h-[50px] flex flex-col gap-0.5 bg-primary hover:bg-[#52c466] justify-center items-center py-4 px-3 rounded-none rounded-br",
                   {
