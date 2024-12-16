@@ -40,6 +40,13 @@ func (app *application) mount() http.Handler {
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", app.healthCheckHandler)
 
+		r.Route("/auth", func(r chi.Router) {
+			r.Use(app.DeserialiseUserMiddleware)
+
+			r.Get("/token/refresh", app.tokenRenewalHandler)
+			r.Delete("/logout", app.logoutUserHandler)
+		})
+
 		r.Route("/oauth2", func(r chi.Router) {
 			r.Get("/{provider}", app.oauth2Handler)
 			r.Get("/{provider}/callback", app.oauth2CallbackHandler)
@@ -57,11 +64,10 @@ func (app *application) mount() http.Handler {
 			r.Get("/{id}", app.showDetailsHandler)
 		})
 
-		r.Route("/auth", func(r chi.Router) {
+		r.Route("/bets", func(r chi.Router) {
 			r.Use(app.DeserialiseUserMiddleware)
 			r.Use(app.RequireUserMiddleware)
-			r.Delete("/logout", app.logoutUserHandler)
-			r.Get("/token/refresh", app.tokenRenewalHandler)
+			r.Post("/", app.createBetHandler)
 		})
 	})
 

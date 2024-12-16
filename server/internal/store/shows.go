@@ -28,6 +28,7 @@ type Division struct {
 }
 
 type Odds struct {
+	BetTypeId int64   `json:"bet_type_id"`
 	BetType   string  `json:"bet_type"`
 	OddsValue float64 `json:"odds_value"`
 }
@@ -122,6 +123,7 @@ func (s *ShowsStore) GetShowByID(ctx context.Context, showId int) (*ShowDetails,
 			(
 				SELECT jsonb_agg(
 					jsonb_build_object(
+					'bet_type_id', bt.id, 
 					'bet_type', bt.name, 
 					'odds_value', o.odds_value
 					)

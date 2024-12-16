@@ -178,9 +178,11 @@ CREATE TABLE bets (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     division_participant_id UUID REFERENCES division_participants(id) ON DELETE CASCADE,
     bet_type_id BIGSERIAL REFERENCES bet_types(id),
+    -- The total amount (singular bets + accumulator bets) the user set's as stake
     amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
     currency_code CHAR(3) REFERENCES currencies(code),
     odds_at_time DECIMAL(10,2) NOT NULL CHECK (odds_at_time > 0),
+    -- Winnings = potential return - amount (stake) 
     potential_payout DECIMAL(10,2) NOT NULL CHECK (potential_payout >= 0),
     status bet_status DEFAULT 'pending',
     cancelled_at TIMESTAMPTZ,
@@ -189,6 +191,15 @@ CREATE TABLE bets (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     settled_at TIMESTAMPTZ
+);
+
+-- Links accumulator bets to singular bets. 
+CREATE TABLE accumulator_bet_components (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    accumulator_bet_id UUID NOT NULL REFERENCES bets(id) ON DELETE CASCADE,
+    singular_bet_id UUID NOT NULL REFERENCES bets(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (accumulator_bet_id, singular_bet_id)
 );
 
 -- Transactions table for user balance changes
@@ -284,6 +295,7 @@ DROP INDEX IF EXISTS idx_users_email;
 -- Drop tables in correct order (dependent tables first)
 DROP TABLE IF EXISTS transactions;
 DROP TABLE IF EXISTS odds_history;
+DROP TABLE IF EXISTS accumulator_bet_components;
 DROP TABLE IF EXISTS bets;
 DROP TABLE IF EXISTS odds;
 DROP TABLE IF EXISTS betting_limits;

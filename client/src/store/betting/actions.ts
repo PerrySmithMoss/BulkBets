@@ -13,7 +13,7 @@ export const useBetActions = () => {
     // we only offer bet type of 'Win' atm
     const winningOdds = competitor.odds?.find(
       (odds) => odds.bet_type === BetType.Win
-    )?.odds_value;
+    );
 
     if (!winningOdds) {
       throw new Error("Invalid bet type or odds not found");
@@ -24,7 +24,8 @@ export const useBetActions = () => {
       show: show,
       division: division,
       competitor: competitor,
-      odds: winningOdds,
+      betTypeId: winningOdds.bet_type_id,
+      odds: winningOdds.odds_value,
       // hard coded as we only offer bet type of 'Win' atm
       betType: BetType.Win,
       // initialise as empty string as no stake has been set

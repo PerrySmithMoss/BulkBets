@@ -31,7 +31,6 @@ export const logoutUser = async (
 
     return true;
   } catch (error) {
-    // Catch any unexpected errors
     const errorMessage = `Unexpected error during logout: ${
       error instanceof Error ? error.message : "Unknown error"
     }`;

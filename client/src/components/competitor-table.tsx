@@ -32,7 +32,7 @@ export const CompetitorTable: React.FC<Props> = ({
   competitors,
 }) => {
   const { openDialog } = useDialog();
-  const user = useUser();
+  const { user } = useUser();
   const { state } = useBet();
   const { activeBets } = state;
   const { startBet, removeBet, alert } = useBetActions();

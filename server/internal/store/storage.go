@@ -25,15 +25,21 @@ type ShowRepository interface {
 	GetShowByID(ctx context.Context, showId int) (*ShowDetails, error)
 }
 
+type OddsRepository interface {
+	FetchOdds(ctx context.Context, keys []OddsKey) (map[OddsKey]float64, error)
+}
+
 type Storage struct {
 	UserRepository UserRepository
 	ShowRepository ShowRepository
+	OddsRepository OddsRepository
 }
 
 func NewStorage(db *sql.DB) Storage {
 	return Storage{
 		UserRepository: NewUsersStore(db),
 		ShowRepository: NewShowsStore(db),
+		OddsRepository: NewOddsStore(db),
 	}
 }
 

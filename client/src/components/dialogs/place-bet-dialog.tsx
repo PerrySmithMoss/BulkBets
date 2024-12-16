@@ -31,11 +31,12 @@ import { Badge } from "../ui/badge";
 import { Overlay } from "../overlay";
 import { useDialog } from "@/store/dialog/dialog-context";
 import { Dialog } from "@/types/dialog";
+import { placeBet } from "@/lib/api/bets/place-bet";
 
 interface Props {}
 
 export const PlaceBetDialog: React.FC<Props> = ({}) => {
-  const user = useUser();
+  const { user } = useUser();
   const { openDialog, activeDialog } = useDialog();
   const {
     alert,
@@ -224,13 +225,16 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     updateBetAmount(betId, formattedValue);
   };
 
-  const handlePlaceBet = () => {
-    if (user && user.balance < totalStake) {
-      setIsExpanded(false);
-      openDialog(Dialog.NoFundsInAccount);
-    }
+  const handlePlaceBet = async () => {
+    // ! TODO: remove when we have ability to deposit funds
+    // if (user && user.balance < totalStake) {
+    //   setIsExpanded(false);
+    //   openDialog(Dialog.NoFundsInAccount);
+    //   return;
+    // }
 
-    // TODO: send bet to API (/v1/bets)
+    // ? TODO figure out why I am getting 400 status (bad request)
+    await placeBet(state);
   };
 
   useEffect(() => {

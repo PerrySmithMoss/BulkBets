@@ -9,6 +9,7 @@ export interface ActiveBet {
   division: Division;
   competitor: Competitor;
   betType: BetType;
+  betTypeId: number;
   odds: number;
   // TODO: Change this to number to avoid having
   // the parse later down the line?
