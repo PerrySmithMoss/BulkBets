@@ -54,7 +54,12 @@ func GetBetOdds(bets []ActiveBet) []float64 {
 	return odds
 }
 
-func CalculateSingularBetReturn(bets []ActiveBet) float64 {
+func CalculateBetPotentialReturn(bet ActiveBet) float64 {
+	potentialReturn := bet.Amount * bet.Odds
+	return math.Round(potentialReturn*100) / 100 // Round to two decimal places
+}
+
+func CalculateSingularBetsTotalReturn(bets []ActiveBet) float64 {
 	var totalReturn float64
 	for _, bet := range bets {
 		if !validateBet(bet) {
@@ -65,7 +70,7 @@ func CalculateSingularBetReturn(bets []ActiveBet) float64 {
 	return math.Round(totalReturn*100) / 100 // Round to two decimal places
 }
 
-func CalculateAccumulatorBetReturn(betSlip BetSlip) (float64, error) {
+func CalculateAccumulatorBetTotalReturn(betSlip BetSlip) (float64, error) {
 	if len(betSlip.ActiveBets) == 0 {
 		return 0, fmt.Errorf("no bets in the slip")
 	}
@@ -97,8 +102,8 @@ func CalculateBetSlipTotals(betSlip BetSlip) (BetSlipTotals, error) {
 	betsAmount := CalculateTotalBetsAmount(betSlip.ActiveBets)
 	totalStake := betsAmount + betSlip.StakeMultiplier
 
-	totalSingularBetReturn := CalculateSingularBetReturn(betSlip.ActiveBets)
-	totalAccumulatorBetReturn, err := CalculateAccumulatorBetReturn(betSlip)
+	totalSingularBetReturn := CalculateSingularBetsTotalReturn(betSlip.ActiveBets)
+	totalAccumulatorBetReturn, err := CalculateAccumulatorBetTotalReturn(betSlip)
 	if err != nil {
 		return BetSlipTotals{}, fmt.Errorf("error calculating accumulator return: %w", err)
 	}

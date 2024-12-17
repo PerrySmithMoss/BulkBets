@@ -22,9 +22,9 @@ goose-create:
 # 	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(SEEDS_PATH) create $(filter-out $@,$(MAKECMDGOALS))
 
 # ! Used for migrations
-# .PHONY: goose-up
-# goose-up:
-# 	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(MIGRATIONS_PATH) up
+.PHONY: goose-up
+goose-up:
+	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(MIGRATIONS_PATH) up
 
 # ! Used for migrations
 .PHONY: goose-down
@@ -35,7 +35,6 @@ goose-down:
 .PHONY: goose-up
 goose-up:
 	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(SEEDS_PATH) -no-versioning up
-
 
 # ! Used for seeds
 # .PHONY: goose-down

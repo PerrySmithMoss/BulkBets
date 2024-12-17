@@ -184,9 +184,7 @@ func (s *UsersStore) Upsert(ctx context.Context, user *User) error {
 		RETURNING id, created_at, updated_at, refresh_token_version
 		`
 
-		ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
-		defer cancel()
-
+		// 1. Create user
 		var passwordHash *string
 		if user.Password.IsSet() {
 			passwordHash = &user.Password.hash
@@ -241,16 +239,43 @@ func (s *UsersStore) Upsert(ctx context.Context, user *User) error {
 			}
 		}
 
+		// 2. Create corresponding balance entry
+		//   TODO: extract into user_balances store
+		_, err = tx.Exec(`
+		  INSERT INTO user_balances (user_id, balance, version) 
+		  VALUES ($1, 0.00, 0)
+		  ON CONFLICT (user_id) DO NOTHING
+	  	`, user.Id)
+		if err != nil {
+			return err
+		}
+
 		return nil
 	})
 }
 
 func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, error) {
 	query := `
-			SELECT id, first_name, last_name, email, is_email_verified, email_verified_at, profile_image, google_id, x_id, github_id, refresh_token_version, default_currency, balance, created_at, updated_at
-			FROM users
-			WHERE id = $1
-		`
+		SELECT 
+			u.id, 
+			u.first_name, 
+			u.last_name, 
+			u.email, 
+			u.is_email_verified, 
+			u.email_verified_at, 
+			u.profile_image, 
+			u.google_id, 
+			u.x_id, 
+			u.github_id, 
+			u.refresh_token_version, 
+			u.default_currency, 
+			COALESCE(ub.balance, 0.00) AS balance,
+			u.created_at, 
+			u.updated_at
+		FROM users u
+		LEFT JOIN user_balances ub ON u.id = ub.user_id
+		WHERE u.id = $1
+	`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
@@ -297,8 +322,6 @@ func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, err
 	user.GoogleId = googleId
 	user.GithubId = githubId
 	user.XId = xId
-
-	// log.Printf("User fetched: %+v", user)
 
 	return user, nil
 }

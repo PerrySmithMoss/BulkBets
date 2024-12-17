@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
 	"github.com/PerrySmithMoss/BulkBets/server/internal/store"
 	"github.com/go-playground/validator/v10"
 )
@@ -16,11 +17,25 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 	var betSlip bets.BetSlip
 	if err := json.NewDecoder(r.Body).Decode(&betSlip); err != nil {
 		log.Printf("Error %v: ", err)
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		writeJSONError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
 
 	// Validate request betSlip
+	if len(betSlip.ActiveBets) == 0 {
+		writeJSONError(w, http.StatusBadRequest, "At least one active bet is required")
+	}
+
+	isValidStakeMultiplier := currency.IsNumber(betSlip.StakeMultiplier)
+
+	if !isValidStakeMultiplier || betSlip.StakeMultiplier <= 0 {
+		writeJSONError(w, http.StatusBadRequest, "Stake Multiplier must be valid number and greater than 0")
+	}
+
+	if isValidStakeMultiplier && len(betSlip.ActiveBets) < 2 {
+		writeJSONError(w, http.StatusBadRequest, "An accumulator bet requires at least two bets")
+	}
+
 	if err := validate.Struct(betSlip); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -51,6 +66,7 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 	// Check if the amount of each bet is within the betting limits?
 
 	totalStake := bets.CalculateTotalStake(betSlip.StakeMultiplier, betSlip.ActiveBets)
+
 	// Check if user has enough funds to make bet
 	if user.Balance < totalStake {
 		writeJSONError(w, http.StatusForbidden, "Insufficient balance")
@@ -80,8 +96,10 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	newActiveBets := make([]bets.ActiveBet, len(betSlip.ActiveBets))
+
 	for i, bet := range betSlip.ActiveBets {
 		newBet := bet
+		potentialReturn := bets.CalculateBetPotentialReturn(bet)
 
 		key := store.OddsKey{
 			CompetitorId: bet.CompetitorId,
@@ -89,8 +107,10 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 		}
 		if odds, found := oddsMap[key]; found {
 			newBet.Odds = odds
+			newBet.PotentialPayout = potentialReturn
 		} else {
 			newBet.Odds = 0.0
+			newBet.PotentialPayout = 0.00
 		}
 
 		newActiveBets[i] = newBet
@@ -104,19 +124,27 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 	// Calculate potential payout
 	// TODO: why are odds, potentialReturn and potentialWinnings wrong?
 	totals, err := bets.CalculateBetSlipTotals(betSlip)
-	log.Printf("totals %v", totals)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "Error parsing bet slip")
+		return
+	}
 
-	// Create bet record
-	// ? If a user places a mixed bet (singular + accumulator bets) we
-	// will need to create individual bet records for the singular
-	// bets and a bet record for the accumulator bet, right?
+	betSlip = bets.BetSlip{
+		ActiveBets:      newActiveBets,
+		StakeMultiplier: betSlip.StakeMultiplier,
+		OddsAtTime:      totals.TotalDecimalOdds,
+		PotentialPayout: totals.PotentialWinnings,
+	}
 
-	// ? TODO: Deduct bet amount from user's balance (probably best to do
-	// this with an event system (RabbitMQ/Kafka?), AND/OR create database
-	// trigger to do this...?
+	// Create bet record(s) and deduct stake placed on bet from user's balance
+	err = app.store.BetsRepository.CreateBet(ctx, &betSlip, user)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "Error while creating bet")
+		return
+	}
 
 	// create transaction (probably best to do this with an event
 	// system (RabbitMQ/Kafka?)
 
-	// return successful response
+	writeJSON(w, http.StatusCreated, nil)
 }

@@ -53,7 +53,6 @@ CREATE TABLE users (
     password_hash TEXT,
     profile_image VARCHAR(255),
     refresh_token_version BIGINT DEFAULT 1 NOT NULL,
-    balance DECIMAL(10,2) DEFAULT 0.00 CHECK (balance >= 0.00),
     default_currency CHAR(3) REFERENCES currencies(code) DEFAULT 'GBP',
     last_login TIMESTAMPTZ,
     status user_status DEFAULT 'active',
@@ -71,6 +70,14 @@ CREATE TABLE user_preferences (
     email_notifications BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE user_balances (
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    balance DECIMAL(10,2) DEFAULT 0.00 CHECK (balance >= 0.00),
+    -- for optimistic locking so we can combat race conditions 
+    -- & detect conflicting modifications
+    version INT NOT NULL DEFAULT 0
 );
 
 -- e.g., Arnold Classic, Mr. Olympia, Texas Pro 
@@ -304,6 +311,7 @@ DROP TABLE IF EXISTS division_participants;
 DROP TABLE IF EXISTS athletes;
 DROP TABLE IF EXISTS divisions;
 DROP TABLE IF EXISTS shows;
+DROP TABLE IF EXISTS user_balances;
 DROP TABLE IF EXISTS user_preferences;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS currencies;

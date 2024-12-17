@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"time"
+
+	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
 )
 
 var (
@@ -29,10 +31,15 @@ type OddsRepository interface {
 	FetchOdds(ctx context.Context, keys []OddsKey) (map[OddsKey]float64, error)
 }
 
+type BetsRepository interface {
+	CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *User) error
+}
+
 type Storage struct {
 	UserRepository UserRepository
 	ShowRepository ShowRepository
 	OddsRepository OddsRepository
+	BetsRepository BetsRepository
 }
 
 func NewStorage(db *sql.DB) Storage {
@@ -40,6 +47,7 @@ func NewStorage(db *sql.DB) Storage {
 		UserRepository: NewUsersStore(db),
 		ShowRepository: NewShowsStore(db),
 		OddsRepository: NewOddsStore(db),
+		BetsRepository: NewBetsStore(db),
 	}
 }
 
