@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
+	"github.com/google/uuid"
 )
 
 var (
@@ -35,19 +36,25 @@ type BetsRepository interface {
 	CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *User) error
 }
 
+type TransactionsRepository interface {
+	CreateBetTransaction(ctx context.Context, params CreateBetTransactionParams) (*uuid.UUID, error)
+}
+
 type Storage struct {
-	UserRepository UserRepository
-	ShowRepository ShowRepository
-	OddsRepository OddsRepository
-	BetsRepository BetsRepository
+	UserRepository         UserRepository
+	ShowRepository         ShowRepository
+	OddsRepository         OddsRepository
+	BetsRepository         BetsRepository
+	TransactionsRepository TransactionsRepository
 }
 
 func NewStorage(db *sql.DB) Storage {
 	return Storage{
-		UserRepository: NewUsersStore(db),
-		ShowRepository: NewShowsStore(db),
-		OddsRepository: NewOddsStore(db),
-		BetsRepository: NewBetsStore(db),
+		UserRepository:         NewUsersStore(db),
+		ShowRepository:         NewShowsStore(db),
+		OddsRepository:         NewOddsStore(db),
+		BetsRepository:         NewBetsStore(db),
+		TransactionsRepository: NewTransactionsStore(db),
 	}
 }
 

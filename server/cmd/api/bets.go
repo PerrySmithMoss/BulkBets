@@ -122,7 +122,6 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Calculate potential payout
-	// TODO: why are odds, potentialReturn and potentialWinnings wrong?
 	totals, err := bets.CalculateBetSlipTotals(betSlip)
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "Error parsing bet slip")
@@ -136,15 +135,12 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 		PotentialPayout: totals.PotentialWinnings,
 	}
 
-	// Create bet record(s) and deduct stake placed on bet from user's balance
 	err = app.store.BetsRepository.CreateBet(ctx, &betSlip, user)
 	if err != nil {
+		log.Printf("err: %v", err)
 		writeJSONError(w, http.StatusInternalServerError, "Error while creating bet")
 		return
 	}
-
-	// create transaction (probably best to do this with an event
-	// system (RabbitMQ/Kafka?)
 
 	writeJSON(w, http.StatusCreated, nil)
 }

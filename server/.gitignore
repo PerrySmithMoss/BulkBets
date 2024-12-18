@@ -22,8 +22,8 @@ vendor/
 # Environment & config files
 .env
 *.local
-.env.*     # Catch environment-specific or temporary .env files
-config.yaml # Add any other configuration files containing secrets
+.env.*
+config.yaml
 
 # Logs and debugging
 build-errors.log

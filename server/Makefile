@@ -32,9 +32,9 @@ goose-down:
 	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(MIGRATIONS_PATH) down
 
 # ! Used for seeds
-.PHONY: goose-up
-goose-up:
-	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(SEEDS_PATH) -no-versioning up
+# .PHONY: goose-up
+# goose-up:
+# 	@GOOSE_DRIVER=$(DB_DRIVER) GOOSE_DBSTRING=$(DB_ADDR) goose -dir $(SEEDS_PATH) -no-versioning up
 
 # ! Used for seeds
 # .PHONY: goose-down

@@ -7,7 +7,7 @@ CREATE TYPE user_status AS ENUM ('active', 'inactive', 'banned');
 CREATE TYPE show_status AS ENUM ('upcoming', 'ongoing', 'completed', 'canceled');
 CREATE TYPE division_status AS ENUM ('scheduled', 'ongoing', 'completed', 'canceled');
 CREATE TYPE division_participant_status AS ENUM ('registered', 'disqualified', 'active', 'pulled out', 'fulfilled');
-CREATE TYPE bet_type AS ENUM ('win', 'place', 'show');
+CREATE TYPE bet_type AS ENUM ('win', 'place', 'show', 'accumulator');
 CREATE TYPE bet_status AS ENUM ('pending', 'won', 'lost', 'void', 'cancelled');
 CREATE TYPE transaction_status AS ENUM ('pending', 'completed', 'failed', 'reversed');
 
@@ -179,7 +179,6 @@ CREATE TABLE odds_history (
     changed_by UUID REFERENCES users(id)
 );
 
--- User bets
 CREATE TABLE bets (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -200,7 +199,7 @@ CREATE TABLE bets (
     settled_at TIMESTAMPTZ
 );
 
--- Links accumulator bets to singular bets. 
+-- Links accumulator bets to singular bets
 CREATE TABLE accumulator_bet_components (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     accumulator_bet_id UUID NOT NULL REFERENCES bets(id) ON DELETE CASCADE,

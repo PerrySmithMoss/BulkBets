@@ -101,7 +101,6 @@ WHERE
     (a.first_name IN ('Erin', 'Jessica', 'Angela', 'Whitney', 'Cydney', 'Missy') 
         AND d.name = 'Women''s Figure' AND d.show_name = '2024 Mr. Olympia');
 
--- Seed Bet Types
 WITH inserted_bet_types AS (
     INSERT INTO bet_types (name, description) VALUES
     ('win', 'Bet on athlete to win first place'),
@@ -277,6 +276,13 @@ SELECT
     CURRENT_TIMESTAMP
 FROM olympia_participants op
 CROSS JOIN bet_types bt;
+
+-- Accumulator bets are not tied to an individual athlete odds so we 
+-- can safely just add this with a static id and without having it 
+-- tied to any athletes or odds
+INSERT INTO bet_types (id, name, description) 
+VALUES (9999999999, 'accumulator', 'Bet combining multiple selections into a single wager; all selections must win for a payout');
+
 -- +goose StatementEnd
 
 -- +goose Down
@@ -300,7 +306,7 @@ WHERE bet_type_id IN (
 
 -- Remove bet types
 DELETE FROM bet_types 
-WHERE name IN ('win', 'place', 'show');
+WHERE name IN ('win', 'place', 'show', 'accumulator');
 
 -- Remove division participants
 DELETE FROM division_participants 
