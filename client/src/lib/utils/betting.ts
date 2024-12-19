@@ -17,6 +17,37 @@ export const getBetSelectionsDisplay = (numOfSelections: number): string => {
   return specialCases[numOfSelections] ?? `${numOfSelections} Fold`;
 };
 
+export const betExistsForDivision = (
+  activeBets: ActiveBet[],
+  divisionId: number
+): boolean => {
+  const betExists = !!activeBets.find((bet) => bet.division.id === divisionId);
+
+  return betExists;
+};
+
+export const betExistsInSameDivision = (activeBets: ActiveBet[]): boolean => {
+  const divisionIds = new Set<number>();
+
+  for (const bet of activeBets) {
+    const { id } = bet.division;
+    if (divisionIds.has(id)) return true;
+    divisionIds.add(id);
+  }
+
+  return false;
+};
+
+export const getUniqueCategoriesFromBets = (bets: ActiveBet[]): string[] => {
+  return Array.from(
+    new Set(
+      bets
+        .map((bet) => bet.division.category)
+        .filter((category): category is string => category !== null) // Ensure only strings are kept
+    )
+  );
+};
+
 export const calculatePotentialWinnings = (
   amount: number,
   odds: number

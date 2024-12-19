@@ -17,7 +17,6 @@ import { Dialog } from "@/types/dialog";
 import { useBet, useBetActions } from "@/store/betting";
 import { Show } from "@/types/api/show/show";
 import { Division } from "@/types/api/division/division";
-import { useCallback } from "react";
 import { cn } from "@/lib/utils/cn";
 
 interface Props {
@@ -35,9 +34,9 @@ export const CompetitorTable: React.FC<Props> = ({
   const { user } = useUser();
   const { state } = useBet();
   const { activeBets } = state;
-  const { startBet, removeBet, alert } = useBetActions();
+  const { startBet, alert } = useBetActions();
 
-  const memoizedBetSlipAlert = useCallback(alert, [alert]);
+  // const memoizedBetSlipAlert = useCallback(alert, [alert]);
 
   const handleStartBet = (competitor: Competitor) => {
     if (!user) {
@@ -54,15 +53,14 @@ export const CompetitorTable: React.FC<Props> = ({
       return;
     }
 
-    const divisionBetExists = activeBets.find(
-      (bet) => bet.division.id === division.id
-    );
-
-    if (divisionBetExists) {
-      // user should not be allowed to place multiple bets on competitors in the same division
-      memoizedBetSlipAlert("Maximum of 1 to win per division already made.");
-      return;
-    }
+    // TODO: is this needed any more? Perhaps instead we just
+    // don't allow an accumulator bet if user has selected
+    // competitors in the same division instead?
+    // if (betExistsForDivision(division.id)) {
+    //   // user should not be allowed to place multiple bets on competitors in the same division
+    //   memoizedBetSlipAlert("Maximum of 1 to win per division already made.");
+    //   return;
+    // }
 
     startBet(show, division, competitor);
   };
@@ -73,7 +71,7 @@ export const CompetitorTable: React.FC<Props> = ({
         <TableRow className="bg-muted hover:bg-muted">
           <TableHead>Competitor</TableHead>
           <TableHead>Country</TableHead>
-          <TableHead className="text-center">X</TableHead>
+          <TableHead className="text-center">Win</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>

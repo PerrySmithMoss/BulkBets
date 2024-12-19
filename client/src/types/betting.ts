@@ -14,6 +14,7 @@ export interface ActiveBet {
   // TODO: Change this to number to avoid having
   // the parse later down the line?
   amount: string;
+  _potentialReturn: number | null;
   _timestamp: string;
 }
 

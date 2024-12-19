@@ -15,9 +15,11 @@ import {
   useBetActions,
 } from "@/store/betting";
 import {
+  betExistsInSameDivision,
   findMostRecentBet,
   getBetSelectionsDisplay,
   getBetTypeDisplay,
+  getUniqueCategoriesFromBets,
   roundOddsToFractional,
 } from "@/lib/utils/betting";
 import { BetDialogAlert } from "../alerts/bet-dialog-alert";
@@ -58,6 +60,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
   const containsBetsWithStake = activeBets.some((bet) =>
     isValidNumber(bet.amount)
   );
+  const containsBetsInSameDivision = betExistsInSameDivision(activeBets);
   const [visibleAlert, setVisibleAlert] = useState<string | null>(
     alertMsg || null
   );
@@ -312,12 +315,13 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
         )}
       >
         <div className="flex gap-2 w-full">
-          {!containsBetsWithStake && (
-            <RxCross1
-              onClick={handleRemoveAllBets}
-              className="cursor-pointer mt-[5px] text-secondary h-3.5 w-3.5"
-            />
-          )}
+          {!containsBetsWithStake ||
+            (!containsBetsInSameDivision && (
+              <RxCross1
+                onClick={handleRemoveAllBets}
+                className="cursor-pointer mt-[5px] text-secondary h-3.5 w-3.5"
+              />
+            ))}
           <div className="w-full">
             <div>
               <div className="flex justify-between w-full pr-3">
@@ -326,7 +330,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                     {latestBet?.competitor.first_name}{" "}
                     {latestBet?.competitor.last_name}
                   </h3>
-                ) : containsBetsWithStake ? (
+                ) : containsBetsWithStake || containsBetsInSameDivision ? (
                   <div className="flex items-center gap-1.5">
                     <div className="flex text-[13px] mt-0.5 justify-center items-center w-5 h-5 rounded-full bg-primary text-secondary font-extrabold">
                       {activeBets.length}
@@ -342,13 +346,14 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                     {getBetSelectionsDisplay(activeBets.length)}
                   </h3>
                 )}
-                {!containsBetsWithStake && (
-                  <div>
-                    <p className="text-secondary font-medium text-[15px]">
-                      {state.totalFractionalOdds}
-                    </p>
-                  </div>
-                )}
+                {!containsBetsWithStake ||
+                  (!containsBetsInSameDivision && (
+                    <div>
+                      <p className="text-secondary font-medium text-[15px]">
+                        {state.totalFractionalOdds}
+                      </p>
+                    </div>
+                  ))}
               </div>
               <div className="text-sm text-secondary font-semibold mt-0.5">
                 {activeBets.length === 1 ? (
@@ -367,25 +372,28 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                   </div>
                 )}
               </div>
-              {!containsBetsWithStake && (
-                <div className="text-sm text-secondary">
-                  {activeBets.length === 1 ? (
-                    <>{latestBet?.show.name}</>
-                  ) : (
-                    <div className="flex gap-1 items-center mt-3 flex-wrap">
-                      {activeBets.map((bet) => (
-                        <Badge
-                          key={bet._id}
-                          variant="secondary"
-                          className="px-1.5 text-[11px] leading-[14px] hover:bg-secondary"
-                        >
-                          {bet.division.category}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+              {!containsBetsWithStake ||
+                (containsBetsInSameDivision && (
+                  <div className="text-sm text-secondary">
+                    {activeBets.length === 1 ? (
+                      <>{latestBet?.show.name}</>
+                    ) : (
+                      <div className="flex gap-1 items-center mt-3 flex-wrap">
+                        {getUniqueCategoriesFromBets(activeBets).map(
+                          (category) => (
+                            <Badge
+                              key={category}
+                              variant="secondary"
+                              className="px-1.5 text-[11px] leading-[14px] hover:bg-secondary"
+                            >
+                              {category}
+                            </Badge>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
             </div>
           </div>
         </div>
@@ -459,13 +467,13 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
         </div>
         <div className="bg-[#f0f0f0] px-2 py-3 overflow-x-hidden overflow-y-auto relative">
           <div className="flex gap-1 items-center flex-wrap">
-            {activeBets.map((bet) => (
+            {getUniqueCategoriesFromBets(activeBets).map((category: string) => (
               <Badge
-                key={bet._id}
+                key={category}
                 variant="secondary"
                 className="px-1.5 text-[11px] leading-[14px] hover:bg-secondary"
               >
-                {bet.division.category}
+                {category}
               </Badge>
             ))}
           </div>
@@ -512,43 +520,50 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                         placeholder="Stake"
                         className="w-28 h-[38px] text-sm text-right rounded-sm bg-white outline-none focus:ring-0 focus-visible:ring-0 focus:outline-none focus-visible:ring-offset-0 focus-visible:ring-transparent placeholder:text-muted-foreground text-card"
                       />
+                      {bet._potentialReturn ? (
+                        <div className="text-secondary pt-[5px] text-right text-[11px] pb-2">
+                          To Return {formatCurrency(bet._potentialReturn)}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="flex gap-3 w-full pt-3">
-              <div className="flex flex-col gap-3 w-full flex-[1_1_100%]">
-                <div className="flex gap-2 w-full">
-                  <div className="w-full mt-2.5">
-                    <div>
-                      <div className="flex justify-between w-full">
-                        <div className="text-primary font-extrabold text-[15px]">
-                          {getBetSelectionsDisplay(activeBets.length)}
-                        </div>
-                        <div>
-                          <p className="text-secondary font-bold text-sm">
-                            {totalFractionalOdds}
-                          </p>
+            {!containsBetsInSameDivision && activeBets.length > 1 && (
+              <div className="flex gap-3 w-full pt-3">
+                <div className="flex flex-col gap-3 w-full flex-[1_1_100%]">
+                  <div className="flex gap-2 w-full">
+                    <div className="w-full mt-2.5">
+                      <div>
+                        <div className="flex justify-between w-full">
+                          <div className="text-primary font-extrabold text-[15px]">
+                            {getBetSelectionsDisplay(activeBets.length)}
+                          </div>
+                          <div>
+                            <p className="text-secondary font-bold text-sm">
+                              {totalFractionalOdds}
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                  <div>
-                    <Input
-                      type="text"
-                      ref={stakeRef}
-                      value={stakeMultiplierDisplayValue}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      aria-label="Stake amount"
-                      placeholder="Stake"
-                      className="w-28 h-[38px] text-sm text-right rounded-sm bg-white outline-none focus:ring-0 focus-visible:ring-0 focus:outline-none focus-visible:ring-offset-0 focus-visible:ring-transparent placeholder:text-muted-foreground text-card"
-                    />
+                    <div>
+                      <Input
+                        type="text"
+                        ref={stakeRef}
+                        value={stakeMultiplierDisplayValue}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        aria-label="Stake amount"
+                        placeholder="Stake"
+                        className="w-28 h-[38px] text-sm text-right rounded-sm bg-white outline-none focus:ring-0 focus-visible:ring-0 focus:outline-none focus-visible:ring-offset-0 focus-visible:ring-transparent placeholder:text-muted-foreground text-card"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -586,7 +601,8 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
             )}
           </Button>
         ) : (
-          !containsBetsWithStake && (
+          !containsBetsWithStake ||
+          (!containsBetsInSameDivision && (
             <div className="flex">
               <div
                 ref={stakeMultiplierContainerRef}
@@ -660,7 +676,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                   )}
               </Button>
             </div>
-          )
+          ))
         )}
       </div>
       {isExpanded && <Overlay />}
