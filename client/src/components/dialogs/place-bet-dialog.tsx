@@ -20,6 +20,7 @@ import {
   getBetSelectionsDisplay,
   getBetTypeDisplay,
   getUniqueCategoriesFromBets,
+  isValidBetSlip,
   roundOddsToFractional,
 } from "@/lib/utils/betting";
 import { BetDialogAlert } from "../alerts/bet-dialog-alert";
@@ -58,6 +59,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     isValidNumber(bet.amount)
   );
   const containsBetsInSameDivision = betExistsInSameDivision(activeBets);
+  const isValidBet = isValidBetSlip(state);
   const [visibleAlert, setVisibleAlert] = useState<string | null>(
     alertMsg || null
   );
@@ -588,16 +590,12 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
         {isExpanded ? (
           <Button
             onClick={handlePlaceBet}
-            disabled={
-              !stakeMultiplierRawValue ||
-              invalidStakeValues.includes(stakeMultiplierDisplayValue)
-            }
+            disabled={!isValidBet}
             className={cn(
               "w-full h-[50px] flex flex-col gap-0.5 bg-primary hover:bg-[#52c466] justify-center items-center py-4 px-3 rounded-none rounded-br",
               {
                 "bg-muted-foreground text-secondary hover:bg-muted-foreground cursor-not-allowed disabled:opacity-100":
-                  !stakeMultiplierRawValue ||
-                  invalidStakeValues.includes(stakeMultiplierDisplayValue),
+                  !isValidBet,
               }
             )}
           >
@@ -667,16 +665,12 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
 
               <Button
                 onClick={handlePlaceBet}
-                disabled={
-                  !stakeMultiplierRawValue ||
-                  invalidStakeValues.includes(stakeMultiplierDisplayValue)
-                }
+                disabled={!isValidBet}
                 className={cn(
                   "w-1/2 h-[50px] flex flex-col gap-0.5 bg-primary hover:bg-[#52c466] justify-center items-center py-4 px-3 rounded-none rounded-br",
                   {
                     "bg-muted-foreground text-secondary hover:bg-muted-foreground cursor-not-allowed disabled:opacity-100":
-                      !stakeMultiplierRawValue ||
-                      invalidStakeValues.includes(stakeMultiplierDisplayValue),
+                      !isValidBet,
                   }
                 )}
               >

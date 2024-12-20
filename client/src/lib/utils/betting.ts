@@ -1,6 +1,7 @@
 import { BetType } from "@/types/api/bets/bet-type";
 import { ActiveBet, BetSlipState, BetTypeDisplayMap } from "@/types/betting";
 import { roundCurrency } from "./currency";
+import { isNumeric } from "./math";
 
 export const getBetTypeDisplay = (betType: BetType | undefined | null) => {
   if (betType == null) return "";
@@ -15,6 +16,23 @@ export const getBetSelectionsDisplay = (numOfSelections: number): string => {
   };
 
   return specialCases[numOfSelections] ?? `${numOfSelections} Fold`;
+};
+
+export const isValidBetSlip = (betSlip: BetSlipState): boolean => {
+  const { stakeMultiplierRawValue, activeBets } = betSlip;
+
+  const containsValidSingularBet = activeBets.some((bet) =>
+    isNumeric(bet.amount)
+  );
+  const isValidStakeMultiplier = isNumeric(stakeMultiplierRawValue);
+  const isValidAccumulator =
+    isValidStakeMultiplier &&
+    !betExistsInSameDivision(activeBets) &&
+    containsValidSingularBet;
+
+  if (isValidAccumulator || containsValidSingularBet) return true;
+
+  return false;
 };
 
 export const betExistsForDivision = (

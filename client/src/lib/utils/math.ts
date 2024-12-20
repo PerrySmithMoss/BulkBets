@@ -52,3 +52,7 @@ export function decimalToPercentage(
     return `${probability.toFixed(2)}%`;
   }
 }
+
+export const isNumeric = (num: any) => {
+  return !isNaN(num);
+};
