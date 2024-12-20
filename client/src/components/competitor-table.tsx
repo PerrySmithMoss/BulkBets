@@ -18,6 +18,7 @@ import { useBet, useBetActions } from "@/store/betting";
 import { Show } from "@/types/api/show/show";
 import { Division } from "@/types/api/division/division";
 import { cn } from "@/lib/utils/cn";
+import { betExistsForCompetitor } from "@/lib/utils/betting";
 
 interface Props {
   show: Show;
@@ -34,7 +35,7 @@ export const CompetitorTable: React.FC<Props> = ({
   const { user } = useUser();
   const { state } = useBet();
   const { activeBets } = state;
-  const { startBet, alert } = useBetActions();
+  const { startBet } = useBetActions();
 
   // const memoizedBetSlipAlert = useCallback(alert, [alert]);
 
@@ -44,11 +45,7 @@ export const CompetitorTable: React.FC<Props> = ({
       return;
     }
 
-    const competitorBetExists = !!state.activeBets.find(
-      (bet) => bet.competitor.id === competitor.id
-    );
-
-    if (competitorBetExists) {
+    if (betExistsForCompetitor(activeBets, competitor.id)) {
       startBet(show, division, competitor);
       return;
     }

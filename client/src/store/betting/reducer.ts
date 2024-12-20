@@ -1,4 +1,8 @@
-import { calculateBetSlipTotals } from "@/lib/utils/betting";
+import {
+  betExistsForCompetitor,
+  betExistsInSameDivision,
+  calculateBetSlipTotals,
+} from "@/lib/utils/betting";
 import {
   BettingAction,
   BettingActionType,
@@ -36,8 +40,9 @@ export const bettingReducer = (
 ): BetSlipState => {
   switch (action.type) {
     case BettingActionType.StartBet: {
-      const isExistingCompetitorBet = state.activeBets.some(
-        (bet) => bet.competitor.id === action.payload.competitor.id
+      const isExistingCompetitorBet = betExistsForCompetitor(
+        state.activeBets,
+        action.payload.competitor.id
       );
 
       const newBets = isExistingCompetitorBet

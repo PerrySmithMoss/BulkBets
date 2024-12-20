@@ -20,11 +20,12 @@ export const getBetSelectionsDisplay = (numOfSelections: number): string => {
 export const betExistsForDivision = (
   activeBets: ActiveBet[],
   divisionId: number
-): boolean => {
-  const betExists = !!activeBets.find((bet) => bet.division.id === divisionId);
+): boolean => !!activeBets.find((bet) => bet.division.id === divisionId);
 
-  return betExists;
-};
+export const betExistsForCompetitor = (
+  activeBets: ActiveBet[],
+  competitorId: string
+): boolean => !!activeBets.find((bet) => bet.competitor.id === competitorId);
 
 export const betExistsInSameDivision = (activeBets: ActiveBet[]): boolean => {
   const divisionIds = new Set<number>();

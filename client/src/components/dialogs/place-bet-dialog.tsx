@@ -31,15 +31,12 @@ import {
 import { useUser } from "@/store/user/user-context";
 import { Badge } from "../ui/badge";
 import { Overlay } from "../overlay";
-import { useDialog } from "@/store/dialog/dialog-context";
-import { Dialog } from "@/types/dialog";
 import { placeBet } from "@/lib/api/bets/place-bet";
 
 interface Props {}
 
 export const PlaceBetDialog: React.FC<Props> = ({}) => {
   const { user } = useUser();
-  const { openDialog, activeDialog } = useDialog();
   const {
     alert,
     removeBet,
@@ -66,8 +63,6 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
   );
   const latestBet = findMostRecentBet(activeBets);
   const [isExpanded, setIsExpanded] = useState(false);
-  const isInsufficientFundsDialogOpen =
-    activeDialog === Dialog.NoFundsInAccount;
   const [isEditingStake, setIsEditingStake] = useState(false);
   const [rememberStake, setRememberStake] = useState(false);
   const stakeRef = useRef<HTMLInputElement | null>(null);
@@ -79,6 +74,11 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
   const handleToggleExpand = () => {
     setIsExpanded(!isExpanded);
   };
+
+  const updateStakeMultiplierCallback = useCallback((value: string) => {
+    updateStakeMultiplier(value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = e.target;
@@ -161,6 +161,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
   };
 
   const handleRemoveAllBets = () => {
+    setIsExpanded(false);
     clearAllBets();
   };
 
@@ -302,6 +303,13 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     };
   }, [isExpanded, setIsExpanded]);
 
+  useEffect(() => {
+    // clear stake multiplier if it's not a valid accumulator
+    if (betExistsInSameDivision(activeBets)) {
+      updateStakeMultiplierCallback("");
+    }
+  }, [activeBets, updateStakeMultiplierCallback]);
+
   if (!user || activeBets.length === 0) return null;
 
   const renderMinimisedBetSlip = () => {
@@ -315,13 +323,12 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
         )}
       >
         <div className="flex gap-2 w-full">
-          {!containsBetsWithStake ||
-            (!containsBetsInSameDivision && (
-              <RxCross1
-                onClick={handleRemoveAllBets}
-                className="cursor-pointer mt-[5px] text-secondary h-3.5 w-3.5"
-              />
-            ))}
+          {!containsBetsWithStake && !containsBetsInSameDivision && (
+            <RxCross1
+              onClick={handleRemoveAllBets}
+              className="cursor-pointer mt-[5px] text-secondary h-3.5 w-3.5"
+            />
+          )}
           <div className="w-full">
             <div>
               <div className="flex justify-between w-full pr-3">
@@ -346,16 +353,15 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                     {getBetSelectionsDisplay(activeBets.length)}
                   </h3>
                 )}
-                {!containsBetsWithStake ||
-                  (!containsBetsInSameDivision && (
-                    <div>
-                      <p className="text-secondary font-medium text-[15px]">
-                        {state.totalFractionalOdds}
-                      </p>
-                    </div>
-                  ))}
+                {!containsBetsWithStake && !containsBetsInSameDivision && (
+                  <div>
+                    <p className="text-secondary font-medium text-[15px]">
+                      {state.totalFractionalOdds}
+                    </p>
+                  </div>
+                )}
               </div>
-              <div className="text-sm text-secondary font-semibold mt-0.5">
+              <div className="text-sm text-secondary font-semibold">
                 {activeBets.length === 1 ? (
                   <>{getBetTypeDisplay(latestBet?.betType)}</>
                 ) : (
@@ -372,28 +378,28 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                   </div>
                 )}
               </div>
-              {!containsBetsWithStake ||
-                (containsBetsInSameDivision && (
-                  <div className="text-sm text-secondary">
-                    {activeBets.length === 1 ? (
-                      <>{latestBet?.show.name}</>
-                    ) : (
-                      <div className="flex gap-1 items-center mt-3 flex-wrap">
-                        {getUniqueCategoriesFromBets(activeBets).map(
-                          (category) => (
-                            <Badge
-                              key={category}
-                              variant="secondary"
-                              className="px-1.5 text-[11px] leading-[14px] hover:bg-secondary"
-                            >
-                              {category}
-                            </Badge>
-                          )
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div className="text-sm text-secondary">
+                {activeBets.length === 1 ? (
+                  <>{latestBet?.show.name}</>
+                ) : (
+                  containsBetsWithStake ||
+                  (containsBetsInSameDivision && (
+                    <div className="flex gap-1 items-center mt-3 flex-wrap">
+                      {getUniqueCategoriesFromBets(activeBets).map(
+                        (category) => (
+                          <Badge
+                            key={category}
+                            variant="secondary"
+                            className="px-1.5 text-[11px] leading-[14px] hover:bg-secondary"
+                          >
+                            {category}
+                          </Badge>
+                        )
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -582,10 +588,14 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
         {isExpanded ? (
           <Button
             onClick={handlePlaceBet}
+            disabled={
+              !stakeMultiplierRawValue ||
+              invalidStakeValues.includes(stakeMultiplierDisplayValue)
+            }
             className={cn(
               "w-full h-[50px] flex flex-col gap-0.5 bg-primary hover:bg-[#52c466] justify-center items-center py-4 px-3 rounded-none rounded-br",
               {
-                "bg-muted-foreground text-secondary hover:bg-muted-foreground cursor-not-allowed":
+                "bg-muted-foreground text-secondary hover:bg-muted-foreground cursor-not-allowed disabled:opacity-100":
                   !stakeMultiplierRawValue ||
                   invalidStakeValues.includes(stakeMultiplierDisplayValue),
               }
@@ -601,8 +611,8 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
             )}
           </Button>
         ) : (
-          !containsBetsWithStake ||
-          (!containsBetsInSameDivision && (
+          !containsBetsWithStake &&
+          !containsBetsInSameDivision && (
             <div className="flex">
               <div
                 ref={stakeMultiplierContainerRef}
@@ -657,10 +667,14 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
 
               <Button
                 onClick={handlePlaceBet}
+                disabled={
+                  !stakeMultiplierRawValue ||
+                  invalidStakeValues.includes(stakeMultiplierDisplayValue)
+                }
                 className={cn(
                   "w-1/2 h-[50px] flex flex-col gap-0.5 bg-primary hover:bg-[#52c466] justify-center items-center py-4 px-3 rounded-none rounded-br",
                   {
-                    "bg-muted-foreground text-secondary hover:bg-muted-foreground cursor-not-allowed":
+                    "bg-muted-foreground text-secondary hover:bg-muted-foreground cursor-not-allowed disabled:opacity-100":
                       !stakeMultiplierRawValue ||
                       invalidStakeValues.includes(stakeMultiplierDisplayValue),
                   }
@@ -676,7 +690,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                   )}
               </Button>
             </div>
-          ))
+          )
         )}
       </div>
       {isExpanded && <Overlay />}
