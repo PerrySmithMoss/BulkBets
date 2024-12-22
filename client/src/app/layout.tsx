@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Inter as FontSans } from "next/font/google";
-import { ThemeProvider } from "@/components/theme-provider";
 import { DialogManager } from "@/components/dialog-manager";
 import { DialogProvider } from "@/store/dialog/dialog-context";
 import { fetchCurrentUser } from "@/lib/api/users/fetch-current-user";
@@ -29,21 +28,14 @@ export default async function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head />
       <body>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <BetProvider>
-            <UserProvider initialUser={user}>
-              <DialogProvider>
-                <DialogManager />
-                {children}
-              </DialogProvider>
-            </UserProvider>
-          </BetProvider>
-        </ThemeProvider>
+        <BetProvider>
+          <UserProvider initialUser={user}>
+            <DialogProvider>
+              <DialogManager />
+              {children}
+            </DialogProvider>
+          </UserProvider>
+        </BetProvider>
       </body>
     </html>
   );

@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { ThemeToggle } from "./theme-toggle";
 import Link from "next/link";
 import { CircleUser, Menu, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -187,9 +186,6 @@ export const NavBar: React.FC<Props> = ({}) => {
                   </Button>
                 </div>
               )}
-              <div className="hidden xxs:block">
-                <ThemeToggle />
-              </div>
             </div>
           </header>
         </div>
