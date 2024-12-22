@@ -53,6 +53,9 @@ export function decimalToPercentage(
   }
 }
 
-export const isNumeric = (num: any) => {
-  return !isNaN(num);
+export const isNumeric = (num: any): boolean => {
+  return (
+    (typeof num === "number" && !isNaN(num)) ||
+    (typeof num === "string" && num.trim() !== "" && !isNaN(Number(num)))
+  );
 };

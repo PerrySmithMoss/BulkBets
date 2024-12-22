@@ -15,6 +15,7 @@ import {
   useBetActions,
 } from "@/store/betting";
 import {
+  betExistsForDivision,
   betExistsInSameDivision,
   findMostRecentBet,
   getBetSelectionsDisplay,
@@ -384,22 +385,17 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                 {activeBets.length === 1 ? (
                   <>{latestBet?.show.name}</>
                 ) : (
-                  containsBetsWithStake ||
-                  (containsBetsInSameDivision && (
-                    <div className="flex gap-1 items-center mt-3 flex-wrap">
-                      {getUniqueCategoriesFromBets(activeBets).map(
-                        (category) => (
-                          <Badge
-                            key={category}
-                            variant="secondary"
-                            className="px-1.5 text-[11px] leading-[14px] hover:bg-secondary"
-                          >
-                            {category}
-                          </Badge>
-                        )
-                      )}
-                    </div>
-                  ))
+                  <div className="flex gap-1 items-center mt-3 flex-wrap">
+                    {getUniqueCategoriesFromBets(activeBets).map((category) => (
+                      <Badge
+                        key={category}
+                        variant="secondary"
+                        className="px-1.5 text-[11px] leading-[14px] hover:bg-secondary"
+                      >
+                        {category}
+                      </Badge>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
@@ -486,11 +482,19 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
             ))}
           </div>
 
-          <div className="px-3 py-4 mt-3 border bg-secondary-foreground border-[#e4e4e7]">
+          <div className="mt-3 pt-4 border rounded bg-secondary-foreground border-[#e4e4e7]">
             <div className="flex gap-3 w-full">
-              <div className="flex flex-col gap-3 w-full flex-[1_1_100%]">
+              <div className="flex flex-col w-full flex-[1_1_100%]">
                 {activeBets.map((bet) => (
-                  <div key={bet._id} className="flex gap-2 w-full">
+                  <div
+                    key={bet._id}
+                    className={cn("flex gap-2 w-full pb-[15px] pl-1 pr-2.5", {
+                      "border-l-[3px]": betExistsForDivision(
+                        activeBets,
+                        bet.division.id
+                      ),
+                    })}
+                  >
                     <RxCross1
                       onClick={() => handleRemoveBet(bet._id)}
                       className="cursor-pointer mt-[11px] text-secondary h-5 w-5"
@@ -526,7 +530,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                         onBlur={(e) => handleBetAmountBlur(e, bet._id)}
                         aria-label="Stake amount"
                         placeholder="Stake"
-                        className="w-28 h-[38px] text-sm text-right rounded-sm bg-white outline-none focus:ring-0 focus-visible:ring-0 focus:outline-none focus-visible:ring-offset-0 focus-visible:ring-transparent placeholder:text-muted-foreground text-card"
+                        className="w-28 h-[38px] text-sm text-right border-[#999] rounded bg-white outline-none focus-visible:ring-offset-1 focus-visible:ring-transparent focus:placeholder:font-semibold focus:placeholder:text-background placeholder:text-muted-foreground text-card"
                       />
                       {bet._potentialReturn ? (
                         <div className="text-secondary pt-[5px] text-right text-[11px] pb-2">

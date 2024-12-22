@@ -21,24 +21,30 @@ export const getBetSelectionsDisplay = (numOfSelections: number): string => {
 export const isValidBetSlip = (betSlip: BetSlipState): boolean => {
   const { stakeMultiplierRawValue, activeBets } = betSlip;
 
-  const containsValidSingularBet = activeBets.some((bet) =>
-    isNumeric(bet.amount)
-  );
+  const hasValidBetAmount = activeBets.some((bet) => isNumeric(bet.amount));
   const isValidStakeMultiplier = isNumeric(stakeMultiplierRawValue);
   const isValidAccumulator =
     isValidStakeMultiplier &&
     !betExistsInSameDivision(activeBets) &&
-    containsValidSingularBet;
+    hasValidBetAmount;
 
-  if (isValidAccumulator || containsValidSingularBet) return true;
-
-  return false;
+  return isValidAccumulator || hasValidBetAmount;
 };
 
 export const betExistsForDivision = (
   activeBets: ActiveBet[],
   divisionId: number
-): boolean => !!activeBets.find((bet) => bet.division.id === divisionId);
+): boolean => {
+  let occurrences = 0;
+
+  for (const { division } of activeBets) {
+    if (division.id === divisionId && ++occurrences > 1) {
+      return true;
+    }
+  }
+
+  return false;
+};
 
 export const betExistsForCompetitor = (
   activeBets: ActiveBet[],
