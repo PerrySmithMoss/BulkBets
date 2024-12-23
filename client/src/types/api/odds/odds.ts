@@ -1,4 +1,4 @@
-import { BetType } from "../bets/bet-type";
+import { BetType } from "../bets/bets";
 
 export interface CompetitorOdds {
   bet_type_id: number;

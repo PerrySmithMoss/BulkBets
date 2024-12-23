@@ -9,6 +9,7 @@ import (
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
 	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 var (
@@ -45,6 +46,23 @@ type Bet struct {
 	PotentialPayout float64       `json:"potential_payout"`
 	Status          string        `json:"status"`
 	SingularBets    []SingularBet `json:"singular_bets"`
+}
+
+type BetResponse struct {
+	ID              string   `json:"id"`
+	DivisionID      string   `json:"division_id,omitempty"` // will be omitted if empty
+	BetType         int64    `json:"bet_type"`
+	BetTypeName     string   `json:"bet_type_name"`
+	Amount          float64  `json:"amount"`
+	Currency        string   `json:"currency"`
+	OddsAtTime      float64  `json:"odds_at_time"`
+	PotentialPayout float64  `json:"potential_payout"`
+	Status          string   `json:"status"`
+	CancelledAt     *string  `json:"cancelled_at,omitempty"`
+	CreatedAt       string   `json:"created_at"`
+	SettledAt       *string  `json:"settled_at,omitempty"`
+	IsAccumulator   bool     `json:"is_accumulator"`
+	Components      []string `json:"components,omitempty"`
 }
 
 // createSingularBet handles the creation of a single bet record
@@ -231,38 +249,116 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 	})
 }
 
-// func (s *UsersStore) FetchBets(ctx context.Context, userId string) (*Bet, error) {
-// 	// SQL query
-// 	query := `
-//         WITH mixed_bets AS (
-//     SELECT
-//         a.accumulator_bet_id,
-//         JSON_AGG(
-//             JSON_BUILD_OBJECT(
-//                 'id', b.id,
-//                 'division_participant_id', b.division_participant_id,
-//                 'bet_type_id', b.bet_type_id,
-//                 'amount', b.amount,
-//                 'odds_at_time', b.odds_at_time,
-//                 'potential_payout', b.potential_payout
-//             )
-//         ) AS singular_bets
-//     FROM accumulator_bet_components a
-//     JOIN bets b ON a.singular_bet_id = b.id
-//     GROUP BY a.accumulator_bet_id
-// )
-// SELECT
-//     b.id AS bet_id,
-//     b.user_id,
-//     b.amount,
-//     b.odds_at_time,
-//     b.potential_payout,
-//     b.created_at,
-//     b.status,
-//     COALESCE(m.singular_bets, '[]'::JSON) AS singular_bets
-// FROM bets b
-// LEFT JOIN mixed_bets m ON b.id = m.accumulator_bet_id
-// WHERE b.user_id = $1
-// ORDER BY b.created_at DESC;
-//     `
-// }
+func (s *BetsStore) FetchBets(ctx context.Context, userId string, status string, limit int, offset int) ([]BetResponse, error) {
+	query := `WITH bet_components AS (
+    			SELECT 
+        			abc.accumulator_bet_id,
+        			ARRAY_AGG(abc.singular_bet_id ORDER BY abc.singular_bet_id) 
+					as component_ids
+    			FROM accumulator_bet_components abc
+				GROUP BY abc.accumulator_bet_id
+				)
+			SELECT DISTINCT ON (b.id)
+				b.id,
+				b.division_participant_id,
+				b.bet_type_id,
+				b.amount,
+				b.currency_code,
+				b.odds_at_time,
+				b.potential_payout,
+				b.status,
+				b.cancelled_at,
+				b.created_at,
+				b.settled_at,
+				bt.name AS bet_type_name,
+			CASE 
+        		WHEN bc.accumulator_bet_id IS NOT NULL THEN TRUE
+        		ELSE FALSE
+    		END AS is_accumulator,
+				COALESCE(bc.component_ids, ARRAY[]::uuid[]) as component_ids
+			FROM bets b
+			LEFT JOIN bet_types bt ON b.bet_type_id = bt.id
+			LEFT JOIN bet_components bc ON b.id = bc.accumulator_bet_id
+			WHERE b.user_id = $1
+			AND (
+				CASE 
+            		WHEN $2 = 'live' THEN b.status = 'pending'
+            		WHEN $2 = 'unsettled' THEN b.status IN ('pending')
+            		WHEN $2 = 'settled' THEN b.status IN ('won', 'lost', 'void')
+            		ELSE TRUE
+        		END
+			)
+		ORDER BY 
+		b.id,  -- Ensure DISTINCT ON works consistently
+		b.created_at DESC
+		LIMIT $3 OFFSET $4;
+	`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
+
+	// Perform the query using QueryContext
+	rows, err := s.db.QueryContext(ctx, query, userId, status, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	defer rows.Close()
+
+	var bets []BetResponse
+
+	for rows.Next() {
+		var bet BetResponse
+		var divisionID, cancelledAt, settledAt sql.NullString
+		var componentIds []sql.NullString
+
+		if err := rows.Scan(
+			&bet.ID,
+			&divisionID, // Changed to sql.NullString
+			&bet.BetType,
+			&bet.Amount,
+			&bet.Currency,
+			&bet.OddsAtTime,
+			&bet.PotentialPayout,
+			&bet.Status,
+			&cancelledAt,
+			&bet.CreatedAt,
+			&settledAt,
+			&bet.BetTypeName,
+			&bet.IsAccumulator,
+			pq.Array(&componentIds),
+		); err != nil {
+			return nil, fmt.Errorf("failed to parse bet: %w", err)
+		}
+
+		// Handle NULL division_participant_id
+		if divisionID.Valid {
+			bet.DivisionID = divisionID.String
+		}
+
+		// Handle cancelled and settled timestamps
+		if cancelledAt.Valid {
+			cancelledAt := cancelledAt.String
+			bet.CancelledAt = &cancelledAt
+		}
+		if settledAt.Valid {
+			settledAt := settledAt.String
+			bet.SettledAt = &settledAt
+		}
+
+		// Convert component IDs from sql.NullString to string
+		bet.Components = make([]string, 0, len(componentIds))
+		for _, id := range componentIds {
+			if id.Valid {
+				bet.Components = append(bet.Components, id.String)
+			}
+		}
+
+		bets = append(bets, bet)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over rows: %w", err)
+	}
+
+	return bets, nil
+}

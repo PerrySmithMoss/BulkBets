@@ -1,4 +1,4 @@
-import { BetType } from "@/types/api/bets/bet-type";
+import { BetType } from "@/types/api/bets/bets";
 import { ActiveBet, BetSlipState, BetTypeDisplayMap } from "@/types/betting";
 import { roundCurrency } from "./currency";
 import { isNumeric } from "./math";

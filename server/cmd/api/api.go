@@ -68,6 +68,7 @@ func (app *application) mount() http.Handler {
 			r.Use(app.DeserialiseUserMiddleware)
 			r.Use(app.RequireUserMiddleware)
 			r.Post("/", app.createBetHandler)
+			r.Get("/", app.getBetsHandler)
 		})
 	})
 

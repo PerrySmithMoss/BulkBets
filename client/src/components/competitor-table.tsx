@@ -11,7 +11,7 @@ import {
 import { useDialog } from "@/store/dialog/dialog-context";
 import { useUser } from "@/store/user/user-context";
 import { decimalToFraction, decimalToPercentage } from "@/lib/utils/math";
-import { BetType } from "@/types/api/bets/bet-type";
+import { BetType } from "@/types/api/bets/bets";
 import { Competitor } from "@/types/api/competitors/competitors";
 import { Dialog } from "@/types/dialog";
 import { useBet, useBetActions } from "@/store/betting";

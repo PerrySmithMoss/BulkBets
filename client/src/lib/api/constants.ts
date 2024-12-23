@@ -11,4 +11,7 @@ export const API_ROUTES = {
   SHOWS: {
     BASE: "api/v1/shows",
   },
+  BETS: {
+    BASE: "api/v1/bets",
+  },
 } as const;

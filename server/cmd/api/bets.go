@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
 	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
@@ -143,4 +144,48 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	writeJSON(w, http.StatusCreated, nil)
+}
+
+func (app *application) getBetsHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(userCtx).(string)
+	if !ok {
+		http.Error(w, "Unauthorised", http.StatusUnauthorized)
+		return
+	}
+
+	status := r.URL.Query().Get("status")
+	limitStr := r.URL.Query().Get("limit")
+	offsetStr := r.URL.Query().Get("offset")
+
+	// Default values for limit and offset
+	limit := 20
+	offset := 0
+	if limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil {
+			limit = parsedLimit
+		}
+	}
+	if offsetStr != "" {
+		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil {
+			offset = parsedOffset
+		}
+	}
+
+	user, err := app.store.BetsRepository.FetchBets(r.Context(), userID, status, limit, offset)
+
+	if err != nil {
+		switch err {
+		case store.ErrNotFound:
+			app.notFoundResponse(w, r, err)
+			return
+		default:
+			app.internalServerError(w, r, err)
+			return
+		}
+	}
+
+	if err := app.jsonResponse(w, http.StatusOK, user); err != nil {
+		log.Printf("getBetsHandler err: %v", err)
+		app.internalServerError(w, r, err)
+	}
 }

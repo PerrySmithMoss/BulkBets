@@ -1,4 +1,4 @@
-import { BetType } from "./api/bets/bet-type";
+import { BetType } from "./api/bets/bets";
 import { Competitor } from "./api/competitors/competitors";
 import { Division } from "./api/division/division";
 import { Show } from "./api/show/show";

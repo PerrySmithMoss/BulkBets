@@ -34,6 +34,7 @@ type OddsRepository interface {
 
 type BetsRepository interface {
 	CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *User) error
+	FetchBets(ctx context.Context, userId string, status string, limit int, offset int) ([]BetResponse, error)
 }
 
 type TransactionsRepository interface {

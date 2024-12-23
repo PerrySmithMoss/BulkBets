@@ -20,6 +20,7 @@ import { Dialog } from "@/types/dialog";
 import { Logo } from "./logo";
 import { useUser } from "@/store/user/user-context";
 import { logoutUser } from "@/lib/api/auth/logout-user";
+import { formatCurrency } from "@/lib/utils/currency";
 
 interface Props {}
 
@@ -111,12 +112,17 @@ export const NavBar: React.FC<Props> = ({}) => {
               <Link href="#" className={getNavigationClassName("divisions")}>
                 Divisions
               </Link>
-              <Link href="#" className={getNavigationClassName("competitors")}>
-                Competitors
-              </Link>
               <Link href="#" className={getNavigationClassName("calendar")}>
                 Calendar
               </Link>
+              {user && (
+                <Link
+                  href="/customer/account/my-bets"
+                  className={getNavigationClassName("my-bets")}
+                >
+                  My Bets
+                </Link>
+              )}
             </nav>
             <div className="flex items-center gap-4 md:gap-2 lg:gap-4">
               <form className="hidden [@media(min-width:1160px)]:block ml-auto flex-1 sm:flex-initial">
@@ -152,13 +158,19 @@ export const NavBar: React.FC<Props> = ({}) => {
                 </DropdownMenu>
               </div>
               {user ? (
-                <div className="hidden xs:block">
+                <div className="hidden xs:flex items-center">
+                  <div className="text-[11px] pr-2">
+                    {formatCurrency(user.balance)}
+                  </div>
+                  <Button variant="link" className="text-[11px] w-0 pl-6 pr-10">
+                    Deposit
+                  </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
-                        variant="secondary"
+                        variant="ghost"
                         size="icon"
-                        className="rounded-full"
+                        className="rounded-full w-full"
                       >
                         <CircleUser className="h-5 w-5" />
                         <span className="sr-only">Toggle user menu</span>

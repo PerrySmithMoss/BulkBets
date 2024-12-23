@@ -1,4 +1,4 @@
-import { BetType } from "@/types/api/bets/bet-type";
+import { BetType } from "@/types/api/bets/bets";
 import { Competitor } from "@/types/api/competitors/competitors";
 import { ActiveBet, BettingActionType } from "@/types/betting";
 import { useBet } from "./context";
@@ -30,6 +30,7 @@ export const useBetActions = () => {
       betType: BetType.Win,
       // initialise as empty string as no stake has been set
       amount: "",
+      _potentialReturn: null,
       _timestamp: new Date().toISOString(),
     };
 
