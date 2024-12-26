@@ -249,13 +249,13 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 	})
 }
 
-func (s *BetsStore) FetchBets(ctx context.Context, userId string, status string, limit int, offset int) ([]BetResponse, error) {
+func (s *BetsStore) FetchUserBets(ctx context.Context, userId string, status []string, limit int, offset int) ([]BetResponse, error) {
 	query := `WITH bet_components AS (
-    			SELECT 
-        			abc.accumulator_bet_id,
-        			ARRAY_AGG(abc.singular_bet_id ORDER BY abc.singular_bet_id) 
+				SELECT 
+					abc.accumulator_bet_id,
+					ARRAY_AGG(abc.singular_bet_id ORDER BY abc.singular_bet_id) 
 					as component_ids
-    			FROM accumulator_bet_components abc
+				FROM accumulator_bet_components abc
 				GROUP BY abc.accumulator_bet_id
 				)
 			SELECT DISTINCT ON (b.id)
@@ -272,9 +272,9 @@ func (s *BetsStore) FetchBets(ctx context.Context, userId string, status string,
 				b.settled_at,
 				bt.name AS bet_type_name,
 			CASE 
-        		WHEN bc.accumulator_bet_id IS NOT NULL THEN TRUE
-        		ELSE FALSE
-    		END AS is_accumulator,
+				WHEN bc.accumulator_bet_id IS NOT NULL THEN TRUE
+				ELSE FALSE
+			END AS is_accumulator,
 				COALESCE(bc.component_ids, ARRAY[]::uuid[]) as component_ids
 			FROM bets b
 			LEFT JOIN bet_types bt ON b.bet_type_id = bt.id
@@ -282,11 +282,12 @@ func (s *BetsStore) FetchBets(ctx context.Context, userId string, status string,
 			WHERE b.user_id = $1
 			AND (
 				CASE 
-            		WHEN $2 = 'live' THEN b.status = 'pending'
-            		WHEN $2 = 'unsettled' THEN b.status IN ('pending')
-            		WHEN $2 = 'settled' THEN b.status IN ('won', 'lost', 'void')
-            		ELSE TRUE
-        		END
+                    WHEN $2 = '{}'::text[] THEN TRUE
+                    WHEN 'live' = ANY($2) THEN b.status::text = 'pending'
+                    WHEN 'unsettled' = ANY($2) THEN b.status::text = 'pending'
+                    WHEN 'settled' = ANY($2) THEN b.status::text IN ('won', 'lost', 'void, cancelled')
+                    ELSE b.status::text = ANY($2)  -- Cast status to text for comparison
+                END
 			)
 		ORDER BY 
 		b.id,  -- Ensure DISTINCT ON works consistently
@@ -297,8 +298,11 @@ func (s *BetsStore) FetchBets(ctx context.Context, userId string, status string,
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
 
-	// Perform the query using QueryContext
-	rows, err := s.db.QueryContext(ctx, query, userId, status, limit, offset)
+	if len(status) == 0 {
+		status = []string{}
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, userId, pq.Array(status), limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -313,7 +317,7 @@ func (s *BetsStore) FetchBets(ctx context.Context, userId string, status string,
 
 		if err := rows.Scan(
 			&bet.ID,
-			&divisionID, // Changed to sql.NullString
+			&divisionID,
 			&bet.BetType,
 			&bet.Amount,
 			&bet.Currency,

@@ -153,7 +153,7 @@ func (app *application) getBetsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status := r.URL.Query().Get("status")
+	status := r.URL.Query()["status"]
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
 
@@ -171,7 +171,7 @@ func (app *application) getBetsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	user, err := app.store.BetsRepository.FetchBets(r.Context(), userID, status, limit, offset)
+	user, err := app.store.BetsRepository.FetchUserBets(r.Context(), userID, status, limit, offset)
 
 	if err != nil {
 		switch err {

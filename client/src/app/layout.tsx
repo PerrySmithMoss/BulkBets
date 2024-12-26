@@ -6,6 +6,7 @@ import { DialogProvider } from "@/store/dialog/dialog-context";
 import { fetchCurrentUser } from "@/lib/api/users/fetch-current-user";
 import { UserProvider } from "@/store/user/user-context";
 import { BetProvider } from "@/store/betting";
+import { ClientProviders } from "@/providers/client/providers";
 
 const fontSans = FontSans({
   subsets: ["latin"],
@@ -28,14 +29,16 @@ export default async function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head />
       <body>
-        <BetProvider>
-          <UserProvider initialUser={user}>
-            <DialogProvider>
-              <DialogManager />
-              {children}
-            </DialogProvider>
-          </UserProvider>
-        </BetProvider>
+        <ClientProviders>
+          <BetProvider>
+            <UserProvider initialUser={user}>
+              <DialogProvider>
+                <DialogManager />
+                {children}
+              </DialogProvider>
+            </UserProvider>
+          </BetProvider>
+        </ClientProviders>
       </body>
     </html>
   );

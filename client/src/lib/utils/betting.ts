@@ -18,6 +18,19 @@ export const getBetSelectionsDisplay = (numOfSelections: number): string => {
   return specialCases[numOfSelections] ?? `${numOfSelections} Fold`;
 };
 
+export const isValidAccumulator = (betSlip: BetSlipState): boolean => {
+  const { stakeMultiplierRawValue, activeBets } = betSlip;
+
+  const hasValidBetAmount = activeBets.some((bet) => isNumeric(bet.amount));
+  const isValidStakeMultiplier = isNumeric(stakeMultiplierRawValue);
+  const isValidAccumulator =
+    isValidStakeMultiplier &&
+    !betExistsInSameDivision(activeBets) &&
+    hasValidBetAmount;
+
+  return isValidAccumulator;
+};
+
 export const isValidBetSlip = (betSlip: BetSlipState): boolean => {
   const { stakeMultiplierRawValue, activeBets } = betSlip;
 

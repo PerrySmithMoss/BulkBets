@@ -1,4 +1,4 @@
-import { BetType } from "./api/bets/bets";
+import { BetStatus, BetType } from "./api/bets/bets";
 import { Competitor } from "./api/competitors/competitors";
 import { Division } from "./api/division/division";
 import { Show } from "./api/show/show";
@@ -40,6 +40,20 @@ export enum BettingActionType {
   SyncState = "SYNC_STATE",
   Alert = "ALERT",
 }
+
+export enum MY_BETS_TABS {
+  CashOut = "cash-out",
+  LiveNow = "live-now",
+  Unsettled = "unsettled",
+  Settled = "settled",
+}
+
+export const BET_STATUS_TAB_TRANSLATION = {
+  [MY_BETS_TABS.CashOut]: [BetStatus.Won],
+  [MY_BETS_TABS.LiveNow]: ["live"],
+  [MY_BETS_TABS.Unsettled]: [BetStatus.Pending],
+  [MY_BETS_TABS.Settled]: [BetStatus.Won, BetStatus.Lost, BetStatus.Void],
+};
 
 export type BettingAction =
   | { type: BettingActionType.StartBet; payload: ActiveBet }

@@ -95,7 +95,7 @@ export const NavBar: React.FC<Props> = ({}) => {
                 </SheetContent>
               </Sheet>
               <Link
-                href="#"
+                href="/"
                 className="flex items-center gap-2 font-bold text-2xl"
               >
                 <p>
@@ -117,7 +117,7 @@ export const NavBar: React.FC<Props> = ({}) => {
               </Link>
               {user && (
                 <Link
-                  href="/customer/account/my-bets"
+                  href="/my-bets"
                   className={getNavigationClassName("my-bets")}
                 >
                   My Bets
