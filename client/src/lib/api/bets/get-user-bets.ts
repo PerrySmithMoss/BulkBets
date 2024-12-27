@@ -12,7 +12,7 @@ export interface GetUserBetsOptions {
 
 export const getUserBets = async (
   opts?: GetUserBetsOptions
-): Promise<BetResponse[] | null> => {
+): Promise<BetResponse | null> => {
   const authCookies = await getAuthCookies();
   const cookieHeader = formatCookieHeader(authCookies);
 

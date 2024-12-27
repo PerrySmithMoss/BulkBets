@@ -28,3 +28,12 @@ func (app *application) unauthorisedResponse(w http.ResponseWriter, r *http.Requ
 
 	writeJSONError(w, http.StatusUnauthorized, "unauthorised")
 }
+
+func (app *application) badRequestResponse(w http.ResponseWriter, r *http.Request, errMessage string) {
+	// TODO: implement app logger
+	// app.logger.Warnf("not found error", "method", r.Method, "path", r.URL.Path, "error", err.Error())
+	log.Printf("not found error %v", errMessage)
+
+	// TODO: use passed in err instead of current error message below
+	writeJSONError(w, http.StatusBadRequest, errMessage)
+}

@@ -250,50 +250,53 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 }
 
 func (s *BetsStore) FetchUserBets(ctx context.Context, userId string, status []string, limit int, offset int) ([]BetResponse, error) {
-	query := `WITH bet_components AS (
-				SELECT 
-					abc.accumulator_bet_id,
-					ARRAY_AGG(abc.singular_bet_id ORDER BY abc.singular_bet_id) 
-					as component_ids
-				FROM accumulator_bet_components abc
-				GROUP BY abc.accumulator_bet_id
-				)
-			SELECT DISTINCT ON (b.id)
-				b.id,
-				b.division_participant_id,
-				b.bet_type_id,
-				b.amount,
-				b.currency_code,
-				b.odds_at_time,
-				b.potential_payout,
-				b.status,
-				b.cancelled_at,
-				b.created_at,
-				b.settled_at,
-				bt.name AS bet_type_name,
-			CASE 
-				WHEN bc.accumulator_bet_id IS NOT NULL THEN TRUE
-				ELSE FALSE
-			END AS is_accumulator,
-				COALESCE(bc.component_ids, ARRAY[]::uuid[]) as component_ids
-			FROM bets b
-			LEFT JOIN bet_types bt ON b.bet_type_id = bt.id
-			LEFT JOIN bet_components bc ON b.id = bc.accumulator_bet_id
-			WHERE b.user_id = $1
-			AND (
-				CASE 
-                    WHEN $2 = '{}'::text[] THEN TRUE
-                    WHEN 'live' = ANY($2) THEN b.status::text = 'pending'
-                    WHEN 'unsettled' = ANY($2) THEN b.status::text = 'pending'
-                    WHEN 'settled' = ANY($2) THEN b.status::text IN ('won', 'lost', 'void, cancelled')
-                    ELSE b.status::text = ANY($2)  -- Cast status to text for comparison
-                END
-			)
-		ORDER BY 
-		b.id,  -- Ensure DISTINCT ON works consistently
-		b.created_at DESC
-		LIMIT $3 OFFSET $4;
-	`
+	query := `
+    WITH bet_components AS (
+        SELECT 
+            abc.accumulator_bet_id,
+            ARRAY_AGG(abc.singular_bet_id ORDER BY abc.singular_bet_id) as component_ids
+        FROM accumulator_bet_components abc
+        GROUP BY abc.accumulator_bet_id
+    )
+    SELECT DISTINCT ON (b.id)
+        b.id,
+        b.division_participant_id,
+        b.bet_type_id,
+        b.amount,
+        b.currency_code,
+        b.odds_at_time,
+        b.potential_payout,
+        b.status,
+        b.cancelled_at,
+        b.created_at,
+        b.settled_at,
+        bt.name AS bet_type_name,
+        CASE 
+            WHEN bc.accumulator_bet_id IS NOT NULL THEN TRUE
+            ELSE FALSE
+        END AS is_accumulator,
+        COALESCE(bc.component_ids, ARRAY[]::uuid[]) as component_ids
+    FROM bets b
+    LEFT JOIN bet_types bt ON b.bet_type_id = bt.id
+    LEFT JOIN bet_components bc ON b.id = bc.accumulator_bet_id
+    LEFT JOIN division_participants dp ON b.division_participant_id = dp.id
+    LEFT JOIN divisions d ON dp.division_id = d.id
+    LEFT JOIN shows s ON d.show_id = s.id
+    WHERE b.user_id = $1
+    AND (
+        CASE 
+            WHEN $2 = '{}'::text[] THEN TRUE
+            WHEN 'live' = ANY($2) THEN NOW() BETWEEN s.start_time AND s.end_time
+            WHEN 'unsettled' = ANY($2) THEN b.status::text = 'pending'
+            WHEN 'settled' = ANY($2) THEN b.status::text IN ('won', 'lost', 'void, cancelled')
+            ELSE b.status::text = ANY($2)  -- Cast status to text for comparison
+        END
+    )
+    ORDER BY 
+        b.id,  -- Ensure DISTINCT ON works consistently
+        b.created_at DESC
+    LIMIT $3 OFFSET $4;
+`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()

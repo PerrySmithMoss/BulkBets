@@ -5,7 +5,7 @@ import { GetUserBetsOptions } from "../get-user-bets";
 
 export const getUserBetsClient = async (
   opts?: GetUserBetsOptions
-): Promise<BetResponse[] | null> => {
+): Promise<BetResponse | null> => {
   const params = new URLSearchParams();
 
   if (opts?.status?.length) {

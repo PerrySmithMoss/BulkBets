@@ -157,34 +157,69 @@ func (app *application) getBetsHandler(w http.ResponseWriter, r *http.Request) {
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
 
-	// Default values for limit and offset
+	// Validate and parse pagination parameters
 	limit := 20
 	offset := 0
 	if limitStr != "" {
-		if parsedLimit, err := strconv.Atoi(limitStr); err == nil {
-			limit = parsedLimit
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = min(parsedLimit, 100) // Add maximum limit
 		}
 	}
 	if offsetStr != "" {
-		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil {
+		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
 			offset = parsedOffset
 		}
 	}
 
-	user, err := app.store.BetsRepository.FetchUserBets(r.Context(), userID, status, limit, offset)
+	// Add validation for status
+	validStatuses := map[string]bool{
+		"live":      true,
+		"won":       true,
+		"lost":      true,
+		"pending":   true,
+		"settled":   true,
+		"unsettled": true,
+		"void":      true,
+		"cancelled": true,
+	}
 
-	if err != nil {
-		switch err {
-		case store.ErrNotFound:
-			app.notFoundResponse(w, r, err)
-			return
-		default:
-			app.internalServerError(w, r, err)
+	for _, s := range status {
+		if !validStatuses[s] {
+			app.badRequestResponse(w, r, "invalid status parameter")
 			return
 		}
 	}
 
-	if err := app.jsonResponse(w, http.StatusOK, user); err != nil {
+	bets, err := app.store.BetsRepository.FetchUserBets(r.Context(), userID, status, limit, offset)
+	if err != nil {
+		switch err {
+		case store.ErrNotFound:
+			app.notFoundResponse(w, r, err)
+		default:
+			app.internalServerError(w, r, err)
+		}
+		return
+	}
+
+	// Add pagination metadata
+	response := struct {
+		Bets       []store.BetResponse `json:"bets"`
+		Pagination struct {
+			Limit  int `json:"limit"`
+			Offset int `json:"offset"`
+		} `json:"pagination"`
+	}{
+		Bets: bets,
+		Pagination: struct {
+			Limit  int `json:"limit"`
+			Offset int `json:"offset"`
+		}{
+			Limit:  limit,
+			Offset: offset,
+		},
+	}
+
+	if err := app.jsonResponse(w, http.StatusOK, response); err != nil {
 		log.Printf("getBetsHandler err: %v", err)
 		app.internalServerError(w, r, err)
 	}
