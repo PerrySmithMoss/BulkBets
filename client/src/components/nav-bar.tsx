@@ -50,8 +50,6 @@ export const NavBar: React.FC<Props> = ({}) => {
     return className;
   };
 
-  console.log("getNavigationClassName: ", getNavigationClassName("shows"));
-
   return (
     <div className="border-b">
       <div className="max-w-[1450px] my-0 mx-auto flex items-stretch">
