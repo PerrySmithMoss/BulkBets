@@ -7,10 +7,8 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { getUserBetsClient } from "@/lib/api/bets/client/get-user-bets";
 import { BetResponse } from "@/types/api/bets/bet-response";
 import { Bet } from "@/types/api/bets/bets";
-import { useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { BetCard } from "../bets/bet-card";

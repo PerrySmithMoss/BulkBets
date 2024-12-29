@@ -13,7 +13,8 @@ import { formatCurrency } from "@/lib/utils/currency";
 import { capitalizeFirstLetter } from "@/lib/utils/string";
 import { decimalToFraction } from "@/lib/utils/math";
 import { AccumulatorTimeline } from "../timeline/accumulator-timeline/accumulator-timeline";
-import { BetTypeDisplayMap } from "@/types/betting";
+import { BetTypeDisplayMap, MY_BETS_TAB } from "@/types/betting";
+import { Button } from "../ui/button";
 
 interface Props {
   bet: Bet | null;
@@ -113,6 +114,11 @@ export const BetCard: React.FC<Props> = ({ bet, getBetsInAccumulator }) => {
             {formatCurrency(bet.potential_payout || 0)}
           </div>
         </div>
+        {bet.status === BetStatus.Won && (
+          <div>
+            <Button>Cash Out {formatCurrency(bet.potential_payout)}</Button>
+          </div>
+        )}
       </CardFooter>
     </Card>
   );

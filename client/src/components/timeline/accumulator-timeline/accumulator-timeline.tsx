@@ -78,7 +78,7 @@ export const AccumulatorTimeline: React.FC<AccumulatorTimelineProps> = ({
               <div className="font-semibold text-white">{`${
                 accumulatorBet.components?.length || 0
               } Fold Accumulator`}</div>
-              <div className="text-xs mt-1">
+              <div className="text-xs mt-1 text-zinc-400">
                 {formatTimestamp(accumulatorBet.created_at, {
                   format: "E, MMM eo HH:mm",
                 })}

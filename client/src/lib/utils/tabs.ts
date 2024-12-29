@@ -1,6 +1,8 @@
 import { BetStatus } from "@/types/api/bets/bets";
 import { MY_BETS_TAB } from "@/types/betting";
 
+export const getTab = (tab: string | null | undefined) => {};
+
 export function getBetStatusesForTab(tab: MY_BETS_TAB): BetStatus[] {
   switch (tab) {
     case MY_BETS_TAB.CashOut:
