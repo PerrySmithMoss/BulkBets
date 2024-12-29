@@ -28,6 +28,10 @@ type ShowRepository interface {
 	GetShowByID(ctx context.Context, showId int) (*ShowDetails, error)
 }
 
+type DivisionRepository interface {
+	GetDivisionByID(ctx context.Context, divisionId int, showId int) (*Division, error)
+}
+
 type OddsRepository interface {
 	FetchOdds(ctx context.Context, keys []OddsKey) (map[OddsKey]float64, error)
 }
@@ -44,6 +48,7 @@ type TransactionsRepository interface {
 type Storage struct {
 	UserRepository         UserRepository
 	ShowRepository         ShowRepository
+	DivisionRepository     DivisionRepository
 	OddsRepository         OddsRepository
 	BetsRepository         BetsRepository
 	TransactionsRepository TransactionsRepository
@@ -53,6 +58,7 @@ func NewStorage(db *sql.DB) Storage {
 	return Storage{
 		UserRepository:         NewUsersStore(db),
 		ShowRepository:         NewShowsStore(db),
+		DivisionRepository:     NewDivisionsStore(db),
 		OddsRepository:         NewOddsStore(db),
 		BetsRepository:         NewBetsStore(db),
 		TransactionsRepository: NewTransactionsStore(db),

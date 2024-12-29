@@ -61,7 +61,11 @@ func (app *application) mount() http.Handler {
 		r.Route("/shows", func(r chi.Router) {
 			// TODO: maybe add middleware so these routes require api key/token?
 			// That we we could monetise the API as well as using it for the platform itself.
+
 			r.Get("/{id}", app.showDetailsHandler)
+
+			// Potentially require admin auth and/or special API key/token?
+			r.Post("/{id}/divisions/{division_id}/result", app.showResultHandler)
 		})
 
 		r.Route("/bets", func(r chi.Router) {
