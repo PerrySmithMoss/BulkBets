@@ -50,6 +50,8 @@ export const NavBar: React.FC<Props> = ({}) => {
     return className;
   };
 
+  console.log("getNavigationClassName: ", getNavigationClassName("shows"));
+
   return (
     <div className="border-b">
       <div className="max-w-[1450px] my-0 mx-auto flex items-stretch">
@@ -70,7 +72,7 @@ export const NavBar: React.FC<Props> = ({}) => {
                 <SheetContent side="left">
                   <nav className="grid gap-6 text-lg font-medium">
                     <Logo />
-                    <Link href="#" className={getNavigationClassName("/")}>
+                    <Link href="#" className={getNavigationClassName("shows")}>
                       Shows
                     </Link>
                     <Link
@@ -106,7 +108,7 @@ export const NavBar: React.FC<Props> = ({}) => {
               </Link>
             </div>
             <nav className="hidden flex-col gap-6 font-medium [@media(min-width:820px)]:flex [@media(min-width:820px)]:flex-row [@media(min-width:820px)]:items-center [@media(min-width:820px)]:gap-5 [@media(min-width:820px)]:text-sm lg:gap-6">
-              <Link href="#" className={getNavigationClassName("/")}>
+              <Link href="#" className={getNavigationClassName("shows")}>
                 Shows
               </Link>
               <Link href="#" className={getNavigationClassName("divisions")}>
