@@ -6,47 +6,18 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"time"
 )
 
 type Show struct {
-	ID          int64   `json:"id"`
-	Name        string  `json:"name"`
-	Description *string `json:"description"`
-	Location    *string `json:"location"`
-	IsTwoDay    bool    `json:"is_two_day_show"`
-	StartTime   string  `json:"start_time"`
-	EndTime     string  `json:"end_time"`
-	Status      string  `json:"status"`
-}
-
-type Division struct {
-	ID        int64   `json:"id"`
-	Name      string  `json:"name"`
-	Category  *string `json:"category"`
-	Status    string  `json:"status"`
-	StartTime string  `json:"start_time"`
-}
-
-type Odds struct {
-	BetTypeId int64   `json:"bet_type_id"`
-	BetType   string  `json:"bet_type"`
-	OddsValue float64 `json:"odds_value"`
-}
-
-type Competitor struct {
-	ID               string  `json:"id"`
-	FirstName        string  `json:"first_name"`
-	LastName         string  `json:"last_name"`
-	Residency        *string `json:"residency"`
-	Nationality      *string `json:"nationality"`
-	CountryCode      *string `json:"country_code"`
-	DateOfBirth      *string `json:"date_of_birth"`
-	Gender           *string `json:"gender"`
-	PreJudgeScore    *int    `json:"pre_judge_score"`
-	PreJudgePosition *int    `json:"pre_judge_position"`
-	FinalScore       *int    `json:"final_score"`
-	FinalPosition    *int    `json:"final_position"`
-	Odds             []Odds  `json:"odds"`
+	ID          int64     `json:"id"`
+	Name        string    `json:"name"`
+	Description *string   `json:"description"`
+	Location    *string   `json:"location"`
+	IsTwoDay    bool      `json:"is_two_day_show"`
+	StartTime   time.Time `json:"start_time"`
+	EndTime     time.Time `json:"end_time"`
+	Status      string    `json:"status"`
 }
 
 // Response structure

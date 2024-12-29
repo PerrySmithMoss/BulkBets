@@ -8,6 +8,12 @@ import (
 	"github.com/lib/pq"
 )
 
+type Odds struct {
+	BetTypeId int64   `json:"bet_type_id"`
+	BetType   string  `json:"bet_type"`
+	OddsValue float64 `json:"odds_value"`
+}
+
 type OddsStore struct {
 	db *sql.DB
 }

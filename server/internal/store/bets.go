@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
 	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
@@ -49,31 +50,34 @@ type Bet struct {
 }
 
 type BetResponse struct {
-	ID              string   `json:"id"`
-	DivisionID      string   `json:"division_id,omitempty"` // will be omitted if empty
-	BetType         int64    `json:"bet_type"`
-	BetTypeName     string   `json:"bet_type_name"`
-	Amount          float64  `json:"amount"`
-	Currency        string   `json:"currency"`
-	OddsAtTime      float64  `json:"odds_at_time"`
-	PotentialPayout float64  `json:"potential_payout"`
-	Status          string   `json:"status"`
-	CancelledAt     *string  `json:"cancelled_at,omitempty"`
-	CreatedAt       string   `json:"created_at"`
-	SettledAt       *string  `json:"settled_at,omitempty"`
-	IsAccumulator   bool     `json:"is_accumulator"`
-	Components      []string `json:"components,omitempty"`
+	ID                    string   `json:"id"`
+	DivisionParticipantID string   `json:"division_participant_id,omitempty"`
+	BetType               int64    `json:"bet_type"`
+	BetTypeName           string   `json:"bet_type_name"`
+	Amount                float64  `json:"amount"`
+	Currency              string   `json:"currency"`
+	OddsAtTime            float64  `json:"odds_at_time"`
+	PotentialPayout       float64  `json:"potential_payout"`
+	Status                string   `json:"status"`
+	CancelledAt           *string  `json:"cancelled_at,omitempty"`
+	CreatedAt             string   `json:"created_at"`
+	SettledAt             *string  `json:"settled_at,omitempty"`
+	IsAccumulator         bool     `json:"is_accumulator"`
+	Components            []string `json:"components,omitempty"`
+
+	Show     *Show     `json:"show,omitempty"`
+	Athlete  *Athlete  `json:"athlete,omitempty"`
+	Division *Division `json:"division,omitempty"`
 }
 
 // createSingularBet handles the creation of a single bet record
 func (s *BetsStore) createSingularBet(ctx context.Context, tx *sql.Tx, user *User, bet *bets.ActiveBet) (*SingularBet, error) {
 	singularBet := &SingularBet{}
 	err := tx.QueryRowContext(ctx, `
-		INSERT INTO bets (
-			user_id, division_participant_id, bet_type_id, amount,
-			currency_code, odds_at_time, potential_payout
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, user_id, amount, currency_code, odds_at_time`,
+		INSERT INTO bets (user_id, division_participant_id, bet_type_id, amount, currency_code, odds_at_time, potential_payout)
+		    VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING
+		    id, user_id, amount, currency_code, odds_at_time`,
 		user.Id, bet.CompetitorId, bet.BetTypeId, bet.Amount,
 		user.DefaultCurrency, bet.Odds, bet.PotentialPayout,
 	).Scan(&singularBet.Id, &singularBet.UserId, &singularBet.Amount,
@@ -91,17 +95,21 @@ func (s *BetsStore) createAccumulatorBet(ctx context.Context, tx *sql.Tx, user *
 
 	accumulatorBet := &SingularBet{}
 	err := tx.QueryRowContext(ctx, `
-		INSERT INTO bets (
-			user_id, bet_type_id, amount, currency_code, odds_at_time, potential_payout
-		) VALUES (
-			$1, 
-			(SELECT id FROM bet_types WHERE name = 'accumulator'), -- Fetch the bet_type_id dynamically
-			$2, 
-			$3, 
-			$4, 
-			$5
-		)
-		RETURNING id, user_id, amount, currency_code, odds_at_time`,
+		INSERT INTO bets (user_id, bet_type_id, amount, currency_code, odds_at_time, potential_payout)
+		    VALUES ($1, (
+		            SELECT
+		                id
+		            FROM
+		                bet_types
+		            WHERE
+		                name = 'accumulator'), -- Fetch the bet_type_id dynamically
+		            $2, $3, $4, $5)
+		RETURNING
+		    id,
+		    user_id,
+		    amount,
+		    currency_code,
+		    odds_at_time`,
 		user.Id,
 		betSlip.StakeMultiplier,
 		user.DefaultCurrency,
@@ -117,9 +125,8 @@ func (s *BetsStore) createAccumulatorBet(ctx context.Context, tx *sql.Tx, user *
 	// Link accumulator components
 	for _, singularBet := range singularBets {
 		_, err := tx.ExecContext(ctx, `
-			INSERT INTO accumulator_bet_components (
-				accumulator_bet_id, singular_bet_id
-			) VALUES ($1, $2)`,
+			INSERT INTO accumulator_bet_components (accumulator_bet_id, singular_bet_id)
+			    VALUES ($1, $2)`,
 			accumulatorBet.Id, singularBet.Id,
 		)
 		if err != nil {
@@ -137,10 +144,8 @@ func (s *BetsStore) createBetTransaction(ctx context.Context, tx *sql.Tx,
 	transactionAmount := -bet.Amount
 
 	_, err := tx.ExecContext(ctx, `
-        INSERT INTO transactions (
-            user_id, amount, currency_code, balance_before, 
-            balance_after, transaction_type, reference_id, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		INSERT INTO transactions (user_id, amount, currency_code, balance_before, balance_after, transaction_type, reference_id, status)
+		    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		bet.UserId,
 		transactionAmount,
 		bet.CurrencyCode,
@@ -174,9 +179,13 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 		var currentBalance float64
 		var userVersion int
 		err := tx.QueryRow(`
-			SELECT balance, version 
-			FROM user_balances 
-			WHERE user_id = $1 
+			SELECT
+			    balance,
+			    version
+			FROM
+			    user_balances
+			WHERE
+			    user_id = $1
 			FOR UPDATE`, user.Id).Scan(&currentBalance, &userVersion)
 		if err != nil {
 			return fmt.Errorf("failed to retrieve user balance: %v", err)
@@ -190,10 +199,14 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 		//  Update balance with optimistic locking
 		newBalance := currentBalance - totalStake
 		result, err := tx.ExecContext(ctx, `
-			UPDATE user_balances 
-			SET balance = $1, 
-				version = version + 1 
-			WHERE user_id = $2 AND version = $3`,
+			UPDATE
+			    user_balances
+			SET
+			    balance = $1,
+			    version = version + 1
+			WHERE
+			    user_id = $2
+			    AND version = $3`,
 			newBalance, user.Id, userVersion)
 		if err != nil {
 			return fmt.Errorf("failed to update balance: %w", err)
@@ -251,52 +264,79 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 
 func (s *BetsStore) FetchUserBets(ctx context.Context, userId string, status []string, limit int, offset int) ([]BetResponse, error) {
 	query := `
-    WITH bet_components AS (
-        SELECT 
-            abc.accumulator_bet_id,
-            ARRAY_AGG(abc.singular_bet_id ORDER BY abc.singular_bet_id) as component_ids
-        FROM accumulator_bet_components abc
-        GROUP BY abc.accumulator_bet_id
-    )
-    SELECT DISTINCT ON (b.id)
-        b.id,
-        b.division_participant_id,
-        b.bet_type_id,
-        b.amount,
-        b.currency_code,
-        b.odds_at_time,
-        b.potential_payout,
-        b.status,
-        b.cancelled_at,
-        b.created_at,
-        b.settled_at,
-        bt.name AS bet_type_name,
-        CASE 
-            WHEN bc.accumulator_bet_id IS NOT NULL THEN TRUE
-            ELSE FALSE
-        END AS is_accumulator,
-        COALESCE(bc.component_ids, ARRAY[]::uuid[]) as component_ids
-    FROM bets b
-    LEFT JOIN bet_types bt ON b.bet_type_id = bt.id
-    LEFT JOIN bet_components bc ON b.id = bc.accumulator_bet_id
-    LEFT JOIN division_participants dp ON b.division_participant_id = dp.id
-    LEFT JOIN divisions d ON dp.division_id = d.id
-    LEFT JOIN shows s ON d.show_id = s.id
-    WHERE b.user_id = $1
-    AND (
-        CASE 
-            WHEN $2 = '{}'::text[] THEN TRUE
-            WHEN 'live' = ANY($2) THEN NOW() BETWEEN s.start_time AND s.end_time
-            WHEN 'unsettled' = ANY($2) THEN b.status::text = 'pending'
-            WHEN 'settled' = ANY($2) THEN b.status::text IN ('won', 'lost', 'void, cancelled')
-            ELSE b.status::text = ANY($2)  -- Cast status to text for comparison
-        END
-    )
-    ORDER BY 
-        b.id,  -- Ensure DISTINCT ON works consistently
-        b.created_at DESC
-    LIMIT $3 OFFSET $4;
-`
+		WITH bet_components AS (
+		    SELECT
+		        abc.accumulator_bet_id,
+		        ARRAY_AGG(abc.singular_bet_id ORDER BY abc.singular_bet_id) AS component_ids
+		    FROM
+		        accumulator_bet_components abc
+		    GROUP BY
+		        abc.accumulator_bet_id
+		)
+		SELECT DISTINCT ON (b.id)
+		    b.id,
+		    b.division_participant_id,
+		    b.bet_type_id,
+		    b.amount,
+		    b.currency_code,
+		    b.odds_at_time,
+		    b.potential_payout,
+		    b.status,
+		    b.cancelled_at,
+		    b.created_at,
+		    b.settled_at,
+		    bt.name AS bet_type_name,
+		    CASE 
+				WHEN bc.accumulator_bet_id IS NOT NULL THEN
+		        	TRUE
+		    	ELSE
+		        	FALSE
+		    	END AS is_accumulator,
+		    COALESCE(bc.component_ids, ARRAY[]::UUID[]) AS component_ids,
+			s.id AS show_id,
+		    s.name AS show_name,
+		    s.location AS show_location,
+		    s.start_time AS show_start_time,
+		    s.end_time AS show_end_time,
+		    s.status AS show_status,
+		    a.id AS athlete_id,
+		    a.first_name AS athlete_first_name,
+		    a.last_name AS athlete_last_name,
+		    a.nationality AS athlete_nationality,
+		    a.gender AS athlete_gender,
+			d.id as division_id,
+			d.name as division_name,
+			d.category as division_category,
+			d.status as division_status,
+			d.start_time as division_start_time
+		FROM
+		    bets b
+		    LEFT JOIN bet_types bt ON b.bet_type_id = bt.id
+		    LEFT JOIN bet_components bc ON b.id = bc.accumulator_bet_id
+		    LEFT JOIN division_participants dp ON b.division_participant_id = dp.id
+		    LEFT JOIN divisions d ON dp.division_id = d.id
+		    LEFT JOIN athletes a ON dp.athlete_id = a.id
+		    LEFT JOIN shows s ON d.show_id = s.id
+		WHERE
+		    b.user_id = $1
+		    AND (
+		        CASE WHEN $2 = '{}'::TEXT[] THEN
+		            TRUE
+		        WHEN 'live' = ANY ($2) THEN
+		            NOW() BETWEEN s.start_time AND s.end_time
+		        WHEN 'unsettled' = ANY ($2) THEN
+		            b.status::TEXT = 'pending'
+		        WHEN 'settled' = ANY ($2) THEN
+		            b.status::TEXT IN ('won', 'lost', 'void, cancelled')
+		        ELSE
+		            b.status::TEXT = ANY ($2) -- Cast status to text for comparison
+		        END)
+		ORDER BY
+		    b.id,
+		    b.created_at DESC
+		LIMIT $3 OFFSET $4;
+		
+		`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
@@ -315,12 +355,19 @@ func (s *BetsStore) FetchUserBets(ctx context.Context, userId string, status []s
 
 	for rows.Next() {
 		var bet BetResponse
-		var divisionID, cancelledAt, settledAt sql.NullString
+		var cancelledAt, settledAt sql.NullString
+		var divisionParticipantID sql.NullString
+		var divisionID, divisionName, divisionCategory, divisionStatus sql.NullString
+		var divisionStartTime sql.NullTime
+
+		var athleteID, athleteFirstName, athleteLastName, athleteNationality, athleteGender sql.NullString
+		var showID, showName, showLocation, showStatus sql.NullString
+		var showStartTime, showEndTime sql.NullTime
 		var componentIds []sql.NullString
 
 		if err := rows.Scan(
 			&bet.ID,
-			&divisionID,
+			&divisionParticipantID,
 			&bet.BetType,
 			&bet.Amount,
 			&bet.Currency,
@@ -333,16 +380,88 @@ func (s *BetsStore) FetchUserBets(ctx context.Context, userId string, status []s
 			&bet.BetTypeName,
 			&bet.IsAccumulator,
 			pq.Array(&componentIds),
+			&showID,
+			&showName,
+			&showLocation,
+			&showStartTime,
+			&showEndTime,
+			&showStatus,
+			&athleteID,
+			&athleteFirstName,
+			&athleteLastName,
+			&athleteNationality,
+			&athleteGender,
+			&divisionID,
+			&divisionName,
+			&divisionCategory,
+			&divisionStatus,
+			&divisionStartTime,
 		); err != nil {
-			return nil, fmt.Errorf("failed to parse bet: %w", err)
+			return nil, fmt.Errorf("failed to parse bet (ID: %v): %w", bet.ID, err)
 		}
 
-		// Handle NULL division_participant_id
-		if divisionID.Valid {
-			bet.DivisionID = divisionID.String
+		if bet.IsAccumulator {
+			// Skip athlete and show information for accumulator bets
+			bet.Athlete = nil
+			bet.Show = nil
+			bet.Division = nil
+		} else {
+			// Assign nested objects
+			if athleteID.Valid {
+				bet.Athlete = &Athlete{
+					ID:          athleteID.String,
+					FirstName:   athleteFirstName.String,
+					LastName:    athleteLastName.String,
+					Nationality: athleteNationality.String,
+					Gender:      athleteGender.String,
+				}
+			}
+
+			if divisionID.Valid {
+				parsedDivisionID, err := strconv.ParseInt(divisionID.String, 10, 64)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse divisionID %v: %w", divisionID, err)
+				}
+
+				var category *string
+				if divisionCategory.Valid {
+					category = &divisionCategory.String
+				}
+
+				bet.Division = &Division{
+					ID:        parsedDivisionID,
+					Name:      divisionName.String,
+					Category:  category,
+					Status:    divisionStatus.String,
+					StartTime: divisionStartTime.Time,
+				}
+			}
+
+			if showID.Valid {
+				parsedShowID, err := strconv.ParseInt(showID.String, 10, 64)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse showID: %w", err)
+				}
+
+				var location *string
+				if showLocation.Valid {
+					location = &showLocation.String
+				}
+
+				bet.Show = &Show{
+					ID:        parsedShowID,
+					Name:      showName.String,
+					Location:  location,
+					StartTime: showStartTime.Time,
+					EndTime:   showEndTime.Time,
+					Status:    showStatus.String,
+				}
+			}
 		}
 
-		// Handle cancelled and settled timestamps
+		if divisionParticipantID.Valid {
+			bet.DivisionParticipantID = divisionParticipantID.String
+		}
 		if cancelledAt.Valid {
 			cancelledAt := cancelledAt.String
 			bet.CancelledAt = &cancelledAt
