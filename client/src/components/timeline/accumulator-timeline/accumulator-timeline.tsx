@@ -58,7 +58,7 @@ export const AccumulatorTimeline: React.FC<AccumulatorTimelineProps> = ({
           <div className="pl-2">
             <div className="flex justify-between items-center">
               <h3 className="text-sm font-semibold text-white">
-                Competitor name
+                {bet.athlete?.first_name} {bet.athlete?.last_name}
               </h3>
               <div className="text-sm">
                 {bet.odds_at_time ? decimalToFraction(bet.odds_at_time) : "N/A"}
@@ -67,7 +67,7 @@ export const AccumulatorTimeline: React.FC<AccumulatorTimelineProps> = ({
             <p className="mt-0.5 text-sm text-zinc-400">
               {BetTypeDisplayMap[bet.bet_type_name]}
             </p>
-            <p className="mt-0.5 text-sm text-zinc-400">Show name?</p>
+            <p className="mt-0.5 text-sm text-zinc-400">{bet.show?.name}</p>
           </div>
         </li>
       ))}

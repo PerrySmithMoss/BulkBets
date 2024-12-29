@@ -21,8 +21,8 @@ export const BetCard: React.FC<Props> = ({ bet, getBetsInAccumulator }) => {
   const singularBets = getBetsInAccumulator(bet.id);
 
   return (
-    <Card className="mb-4 hover:bg-accent/5 transition-colors">
-      <CardHeader className="py-3 border-b">
+    <Card className="mb-4">
+      <CardHeader className="py-3 pr-3 border-b">
         <div className="flex justify-between items-center">
           <div className="flex flex-col">
             <CardTitle className="text-lg font-medium text-primary">
@@ -66,9 +66,11 @@ export const BetCard: React.FC<Props> = ({ bet, getBetsInAccumulator }) => {
           ) : (
             <div className="flex justify-between items-start">
               <div className="flex-1">
-                <div className="font-medium">Competitor name here</div>
+                <div className="font-medium">
+                  {bet.athlete?.first_name} {bet.athlete?.last_name}
+                </div>
                 <div className="text-sm text-muted-foreground">
-                  Show name here
+                  {bet.show?.name}
                 </div>
                 {/* {selection?.status === 'LIVE' && ( */}
                 <div className="flex items-center gap-1 text-sm text-orange-500">

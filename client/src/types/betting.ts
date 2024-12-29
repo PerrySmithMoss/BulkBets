@@ -41,21 +41,13 @@ export enum BettingActionType {
   Alert = "ALERT",
 }
 
-export enum MY_BETS_TABS {
+export enum MY_BETS_TAB {
   CashOut = "Cash Out",
   LiveNow = "Live Now",
   Unsettled = "Unsettled",
   Settled = "Settled",
   All = "All",
 }
-
-export const BET_STATUS_TAB_TRANSLATION = {
-  [MY_BETS_TABS.CashOut]: [BetStatus.Won],
-  [MY_BETS_TABS.LiveNow]: ["live"],
-  [MY_BETS_TABS.Unsettled]: [BetStatus.Pending],
-  [MY_BETS_TABS.Settled]: [BetStatus.Won, BetStatus.Lost, BetStatus.Void],
-  [MY_BETS_TABS.All]: [],
-};
 
 export type BettingAction =
   | { type: BettingActionType.StartBet; payload: ActiveBet }
