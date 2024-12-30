@@ -156,7 +156,11 @@ export const bettingReducer = (
       return initialState;
 
     case BettingActionType.SyncState:
-      return action.payload;
+      // Compare the payload with the current state to avoid unnecessary updates
+      if (JSON.stringify(state) === JSON.stringify(action.payload)) {
+        return state; // No change, so return the current state
+      }
+      return action.payload; // Otherwise, return the new state
 
     case BettingActionType.Alert:
       return {
