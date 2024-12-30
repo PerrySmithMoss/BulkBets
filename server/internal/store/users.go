@@ -12,6 +12,26 @@ import (
 	"github.com/google/uuid"
 )
 
+// Resource represents different resources in the system
+type Resource string
+
+const (
+	ResourceBettingResults Resource = "betting_results"
+	ResourceUsers          Resource = "users"
+	ResourcePayments       Resource = "payments"
+	ResourceReports        Resource = "reports"
+)
+
+// Action represents different actions that can be performed on resources
+type Action string
+
+const (
+	ActionRead   Action = "read"
+	ActionWrite  Action = "write"
+	ActionDelete Action = "delete"
+	ActionAdmin  Action = "admin"
+)
+
 var (
 	ErrDuplicateEmail  = errors.New("a user with that email already exists")
 	ErrNoPasswordSet   = errors.New("no password set for User")
@@ -341,4 +361,24 @@ func (s *UsersStore) SetRefreshTokenVersion(ctx context.Context, refreshTokenVer
 	}
 
 	return updatedVersion, nil
+}
+
+func (s *UsersStore) HasPermission(userID string, resource Resource, action Action) (bool, error) {
+	query := `
+        SELECT EXISTS (
+            SELECT 1 
+            FROM user_roles ur
+            JOIN role_permissions rp ON ur.role_id = rp.role_id
+            JOIN permissions p ON rp.permission_id = p.id
+            WHERE ur.user_id = $1 
+            AND p.resource = $2 
+            AND p.action::text = $3
+        )`
+
+	var hasPermission bool
+	err := s.db.QueryRow(query, userID, resource, action).Scan(&hasPermission)
+	if err != nil {
+		return false, err
+	}
+	return hasPermission, nil
 }

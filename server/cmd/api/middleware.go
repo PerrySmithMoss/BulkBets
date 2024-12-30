@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/auth"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/store"
 )
 
 func (app *application) DeserialiseUserMiddleware(next http.Handler) http.Handler {
@@ -45,4 +47,32 @@ func (app *application) RequireUserMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// RequirePermission middleware checks if the user has the required permission
+func (app *application) RequirePermissionMiddleware(resource store.Resource, action store.Action) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userID, ok := r.Context().Value(userCtx).(string)
+			if !ok || userID == "" {
+				writeJSONError(w, http.StatusUnauthorized, "Unauthorised")
+				return
+			}
+
+			// Check permission
+			hasPermission, err := app.store.UserRepository.HasPermission(userID, resource, action)
+			if err != nil {
+				log.Printf("Error while checking user permission %v", err)
+				app.internalServerError(w, r, errors.New("internal server error"))
+				return
+			}
+
+			if !hasPermission {
+				writeJSONError(w, http.StatusForbidden, "Forbidden")
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }

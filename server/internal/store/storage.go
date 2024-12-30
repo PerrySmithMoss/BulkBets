@@ -21,6 +21,7 @@ type UserRepository interface {
 	Create(ctx context.Context, user *User) error
 	Upsert(ctx context.Context, user *User) error
 	SetRefreshTokenVersion(ctx context.Context, refreshTokenVersion int64, userId string) (int64, error)
+	HasPermission(userID string, resource Resource, action Action) (bool, error)
 	Builder() *UserBuilder
 }
 
