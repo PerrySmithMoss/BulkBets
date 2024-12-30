@@ -64,8 +64,8 @@ func (app *application) mount() http.Handler {
 
 			r.Get("/{id}", app.showDetailsHandler)
 
-			// Potentially require admin auth and/or special API key/token?
-			r.Post("/{id}/divisions/{division_id}/result", app.showResultHandler)
+			// ! TODO: Implement admin auth and/or special API key/token?
+			r.Post("/{id}/divisions/{division_id}/result", app.showDivisionResultHandler)
 		})
 
 		r.Route("/bets", func(r chi.Router) {

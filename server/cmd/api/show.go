@@ -45,18 +45,20 @@ func (app *application) showDetailsHandler(w http.ResponseWriter, r *http.Reques
 }
 
 type ShowDivisionResult struct {
-	DivisionParticipantResults []DivisionParticipantResult `json:"division_participant_results"`
+	Results  []DivisionParticipantOutcomes `json:"results"`
+	Comments *string                       `json:"comments"`
 }
 
-type DivisionParticipantResult struct {
-	DivisionParticipantId string `json:"division_participant_id"`
-	PreJudgeScore         *int8  `json:"pre_judge_score"`
-	PreJudgePosition      *int8  `json:"pre_judge_position"`
-	FinalScore            *int8  `json:"final_score"`
-	FinalPosition         int8   `json:"final_position"`
+type DivisionParticipantOutcomes struct {
+	DivisionResultId      int64   `json:"division_result_id"`
+	DivisionParticipantId string  `json:"division_participant_id"`
+	ResultStatus          *string `json:"result_status"`
+	Score                 *int8   `json:"score"`
+	Position              *int8   `json:"position"`
+	Comments              *string `json:"comments"`
 }
 
-func (app *application) showResultHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) showDivisionResultHandler(w http.ResponseWriter, r *http.Request) {
 	showId := chi.URLParam(r, "id")
 	divisionId := chi.URLParam(r, "division_id")
 
@@ -72,7 +74,9 @@ func (app *application) showResultHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	showDetails, err := app.store.ShowRepository.GetShowByID(r.Context(), i)
+	ctx := r.Context()
+
+	showDetails, err := app.store.ShowRepository.GetShowByID(ctx, i)
 	if err != nil {
 		switch err {
 		case store.ErrNotFound:
@@ -88,7 +92,7 @@ func (app *application) showResultHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	divisionDetails, dErr := app.store.DivisionRepository.GetDivisionByID(r.Context(), i, parsedDivisionId)
+	divisionDetails, dErr := app.store.DivisionRepository.GetDivisionByID(ctx, i, parsedDivisionId)
 	if dErr != nil {
 		switch dErr {
 		case store.ErrNotFound:
@@ -104,6 +108,19 @@ func (app *application) showResultHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	userID, ok := r.Context().Value(userCtx).(string)
+	if !ok || userID == "" {
+		writeJSONError(w, http.StatusUnauthorized, "Unauthorised")
+		return
+	}
+
+	user, err := app.store.UserRepository.GetUserByID(ctx, userID)
+	if err != nil {
+		log.Printf("No user with ID %s found", userID)
+		writeJSONError(w, http.StatusUnauthorized, "Unauthorised")
+		return
+	}
+
 	var showDivisionResults ShowDivisionResult
 	if err := json.NewDecoder(r.Body).Decode(&showDivisionResults); err != nil {
 		log.Printf("Error %v: ", err)
@@ -111,19 +128,44 @@ func (app *application) showResultHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// TODO: figure out why the validator isn't working for this handler and createBetHandler
 	if err := validate.Struct(showDivisionResults); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// TODO: figure out why the validator isn't working for this handler and createBetHandler
+	// Create division result
+	divisionResultParams := store.DivisionResultParams{
+		DivisionId: divisionDetails.ID,
+		Comments:   showDivisionResults.Comments,
+	}
+	if err := app.store.DivisionRepository.CreateDivisionResult(ctx, divisionResultParams, user.Id); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "Could not create division result")
+		return
+	}
 
-	// create division result record in db
+	// Map outcomes and insert into the database
+	var outcomes []store.DivisionOutcome
+	for _, o := range showDivisionResults.Results {
+		outcomes = append(outcomes, store.DivisionOutcome{
+			DivisionResultId:      divisionDetails.ID,
+			DivisionParticipantId: o.DivisionParticipantId,
+			Position:              o.Position,
+			Score:                 o.Score,
+			ResultStatus:          o.ResultStatus,
+			Comments:              o.Comments,
+		})
+	}
+
+	if err := app.store.DivisionRepository.CreateDivisionResultOutcomes(ctx, outcomes, user.Id); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "Could not create division outcomes")
+		return
+	}
 
 	// trigger bet settlement process (will likely have to implement Kafka/RabbitMQ
 	// to asynchronously batch process all the bets tied to the division result)
 
-	if err := app.jsonResponse(w, http.StatusOK, divisionDetails); err != nil {
+	if err := app.jsonResponse(w, http.StatusCreated, divisionDetails); err != nil {
 		log.Printf("showDetailsHandler err: %v", err)
 		app.internalServerError(w, r, err)
 	}
