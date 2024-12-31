@@ -1,5 +1,4 @@
-// migrations/migrations.go
-package migrations
+package migrationService
 
 import (
 	"context"
@@ -8,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	_ "github.com/lib/pq"
 	"github.com/pressly/goose/v3"
 )
 
@@ -101,7 +101,7 @@ func (ms *MigrationService) executeWithLock(ctx context.Context, operation func(
 
 func (ms *MigrationService) MigrateUp(ctx context.Context) error {
 	return ms.executeWithLock(ctx, func() error {
-		if err := goose.Up(ms.db, "migrations"); err != nil {
+		if err := goose.Up(ms.db, "./migrations"); err != nil {
 			return fmt.Errorf("failed to run migrations: %v", err)
 		}
 		return nil
@@ -110,7 +110,7 @@ func (ms *MigrationService) MigrateUp(ctx context.Context) error {
 
 func (ms *MigrationService) MigrateDown(ctx context.Context) error {
 	return ms.executeWithLock(ctx, func() error {
-		if err := goose.Down(ms.db, "migrations"); err != nil {
+		if err := goose.Down(ms.db, "./migrations"); err != nil {
 			return fmt.Errorf("failed to rollback migrations: %v", err)
 		}
 		return nil
@@ -119,7 +119,7 @@ func (ms *MigrationService) MigrateDown(ctx context.Context) error {
 
 func (ms *MigrationService) MigrateTo(ctx context.Context, version int64) error {
 	return ms.executeWithLock(ctx, func() error {
-		if err := goose.UpTo(ms.db, "migrations", version); err != nil {
+		if err := goose.UpTo(ms.db, "./migrations", version); err != nil {
 			return fmt.Errorf("failed to migrate to version %d: %v", version, err)
 		}
 		return nil
@@ -128,7 +128,7 @@ func (ms *MigrationService) MigrateTo(ctx context.Context, version int64) error 
 
 func (ms *MigrationService) Status(ctx context.Context) error {
 	// Status doesn't modify anything, so we don't need a lock
-	if err := goose.Status(ms.db, "migrations"); err != nil {
+	if err := goose.Status(ms.db, "./migrations"); err != nil {
 		return fmt.Errorf("failed to get migration status: %v", err)
 	}
 	return nil
@@ -136,7 +136,7 @@ func (ms *MigrationService) Status(ctx context.Context) error {
 
 func (ms *MigrationService) Reset(ctx context.Context) error {
 	return ms.executeWithLock(ctx, func() error {
-		if err := goose.Reset(ms.db, "migrations"); err != nil {
+		if err := goose.Reset(ms.db, "./migrations"); err != nil {
 			return fmt.Errorf("failed to reset migrations: %v", err)
 		}
 		return nil
