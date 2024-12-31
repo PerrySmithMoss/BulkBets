@@ -45,7 +45,7 @@ type User struct {
 	Email               string     `json:"email"`
 	IsEmailVerified     bool       `json:"is_email_verified"`
 	EmailVerifiedAt     *time.Time `json:"email_verified_at"`
-	Password            password   `json:"-"`
+	Password            Password   `json:"-"`
 	ProfileImage        *string    `json:"profile_image"`
 	RefreshTokenVersion int64      `json:"refresh_token_version"`
 	DefaultCurrency     string     `json:"default_currency"`
@@ -58,12 +58,12 @@ type User struct {
 	GithubId *string `json:"github_id"`
 }
 
-type password struct {
+type Password struct {
 	text *string
 	hash string
 }
 
-func (p *password) Set(text string) error {
+func (p *Password) Set(text string) error {
 	// Using default parameters: time=1, memory=64*1024 KiB, parallelism=4, salt length=16, key length=32
 	hash, err := argon2id.CreateHash(text, argon2id.DefaultParams)
 	if err != nil {
@@ -76,7 +76,11 @@ func (p *password) Set(text string) error {
 	return nil
 }
 
-func (p *password) IsSet() bool {
+func (p *Password) GetPasswordHash() string {
+	return p.hash
+}
+
+func (p *Password) IsSet() bool {
 	return p.hash != ""
 }
 
@@ -95,9 +99,12 @@ func (u *User) CheckPassword(password string) (bool, error) {
 	return true, nil
 }
 
-// UserBuilder helps in constructing User instances
 type UserBuilder struct {
 	user *User
+}
+
+func NewUserBuilder() *UserBuilder {
+	return &UserBuilder{user: &User{}}
 }
 
 func (s *UsersStore) Builder() *UserBuilder {
@@ -116,6 +123,19 @@ func (b *UserBuilder) SetLastName(lastName string) *UserBuilder {
 
 func (b *UserBuilder) SetEmail(email string) *UserBuilder {
 	b.user.Email = email
+	return b
+}
+
+func (b *UserBuilder) SetPassword(password string) *UserBuilder {
+	// Set the password hash using the password struct's Set method
+	var pass Password
+	err := pass.Set(password) // This will hash the password
+	if err != nil {
+		// Handle error if password setting fails (optional: return an error)
+		// For now, we will panic, but in production, you might want to return an error
+		panic("Failed to set password: " + err.Error())
+	}
+	b.user.Password = pass
 	return b
 }
 
@@ -140,6 +160,9 @@ func (b *UserBuilder) SetGoogleId(id string) *UserBuilder {
 }
 
 func (b *UserBuilder) Build() *User {
+	if b.user == nil {
+		panic("UserBuilder is not properly initialised")
+	}
 	return b.user
 }
 
