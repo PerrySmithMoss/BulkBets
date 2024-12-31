@@ -20,12 +20,118 @@ By organizing our code in a modular and flexible way, it makes it more easy to i
 
 ## Migrations
 
-### How to create a migration
-
-- Using goose e.g `./scripts/run.sh goose-create create_shows_table sql` or `./scripts/run.sh goose-create create_shows_table go` if you would like to write your migration using go
-- Using migrate package e.g `./scripts/run.sh migrate-create create_shows_table`
-
 ### How to run migrations
 
-1. Using MAKE commands inside MakeFile but prefixing the command with the path to run.sh scripts e.g `./scripts/run.sh migrate-up` / `./scripts/run.sh migrate-down` or `./scripts/run.sh goose-up` / `./scripts/run.sh goose-down`. This run.sh script allows us to expose environment variables inside a .env file to the Make command.
-2. Using CLI tool [migrate](https://github.com/golang-migrate/migrate?tab=readme-ov-file#cli-usage) e.g `migrate -path=./cmd/migrate/migrations -database=$DB_ADDR up`
+1. Custom home made Go migration CLI
+
+# Go Migration CLI Documentation
+
+## Overview
+
+The Go Migration CLI tool helps manage database migrations efficiently. It supports common actions such as running migrations, rolling back changes, resetting the database, and checking migration status.
+
+## Prerequisites
+
+- **Go**: Ensure Go is installed on your system.
+- **Database**: A PostgreSQL database is required.
+- **Environment Variables**: Define the following in a `.env` file:
+  - `DB_ADDR`: The connection string for your PostgreSQL database.
+  - `ADMIN_USER_PASSWORD`: Password for the admin user (used in migrations).
+
+## Installation
+
+1. Navigate to the project root directory.
+2. Build the CLI binary:
+   ```bash
+   go build -o cmd/migrate/migrator cmd/migrate/*.go
+   ```
+3. The binary will be created in the `cmd/migrate` directory.
+
+## Usage
+
+Run the binary with the desired action:
+
+```bash
+./migrator --action=<action> [--version=<version>]
+```
+
+### Actions
+
+- **`up`**: Applies all pending migrations.
+- **`down`**: Rolls back the most recent migration.
+- **`reset`**: Rolls back all migrations and re-applies them.
+- **`status`**: Displays the current migration status.
+- **`to`**: Migrates to a specific version.
+
+### Examples
+
+#### Apply All Migrations
+
+```bash
+./migrator --action=up
+```
+
+#### Roll Back the Last Migration
+
+```bash
+./migrator --action=down
+```
+
+#### Reset Migrations
+
+```bash
+./migrator --action=reset
+```
+
+#### Check Migration Status
+
+```bash
+./migrator --action=status
+```
+
+#### Migrate to a Specific Version
+
+```bash
+./migrator --action=to --version=20241231000100
+```
+
+## Directory Structure
+
+- **`cmd/migrate/migrations`**: Contains migration files.
+- **`cmd/migrate/migrator`**: The built binary for the migration CLI.
+
+## Writing Migrations
+
+Migrations are defined in Go or SQL files inside the `cmd/migrate/migrations` directory. Each migration has an `up` and `down` function for applying and rolling back changes, respectively.
+
+### Adding Migrations
+
+Install the goose package (https://github.com/pressly/goose) and then simply run command `goose create MIGRATION_NAME`, if you want to create an SQL migration file instead of a Go file you can use command `goose create MIGRATION_NAME sql`
+
+## Debugging
+
+- Ensure your `.env` file is correctly set up.
+- Check the logs for errors.
+- Verify the database connection string (`DB_ADDR`).
+
+## Best Practices
+
+- Always test migrations locally before applying them in production.
+- Use version control to track changes to migration files.
+- Ensure the `cmd/migrate/migrator` binary is ignored in `.gitignore`:
+  ```plaintext
+  cmd/migrate/migrator
+  ```
+
+## FAQ
+
+### How do I create a new admin user?
+
+Update the `ADMIN_USER_PASSWORD` environment variable and run the `up` action.
+
+---
+
+For further assistance, refer to the project README or contact the development team.
+
+2. Using MAKE commands inside MakeFile but prefixing the command with the path to run.sh scripts e.g `./scripts/run.sh migrate-up` / `./scripts/run.sh migrate-down` or `./scripts/run.sh goose-up` / `./scripts/run.sh goose-down`. This run.sh script allows us to expose environment variables inside a .env file to the Make command.
+3. Using CLI tool [migrate](https://github.com/golang-migrate/migrate?tab=readme-ov-file#cli-usage) e.g `migrate -path=./cmd/migrate/migrations -database=$DB_ADDR up`
