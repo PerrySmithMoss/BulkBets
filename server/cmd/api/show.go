@@ -140,6 +140,7 @@ func (app *application) showDivisionResultHandler(w http.ResponseWriter, r *http
 		Comments:   showDivisionResults.Comments,
 	}
 	if err := app.store.DivisionRepository.CreateDivisionResult(ctx, divisionResultParams, user.Id); err != nil {
+		log.Printf("Error creating division result: %v: ", err)
 		writeJSONError(w, http.StatusInternalServerError, "Could not create division result")
 		return
 	}
