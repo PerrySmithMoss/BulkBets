@@ -18,6 +18,7 @@ var (
 
 type UserRepository interface {
 	GetUserByID(ctx context.Context, userId string) (*User, error)
+	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	Create(ctx context.Context, user *User) error
 	Upsert(ctx context.Context, user *User) error
 	SetRefreshTokenVersion(ctx context.Context, refreshTokenVersion int64, userId string) (int64, error)

@@ -178,8 +178,10 @@ func NewUsersStore(db *sql.DB) *UsersStore {
 func (s *UsersStore) Create(ctx context.Context, user *User) error {
 	return withTx(s.db, ctx, func(tx *sql.Tx) error {
 		query := `
-		INSERT INTO users (first_name, last_name, email, password) VALUES ($1, $2, $3, $4) returning id, created_at
-	`
+			INSERT INTO users (first_name, last_name, email, PASSWORD)
+			    VALUES ($1, $2, $3, $4)
+			RETURNING
+			    id, created_at`
 
 		ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 		defer cancel()
@@ -211,21 +213,13 @@ func (s *UsersStore) Create(ctx context.Context, user *User) error {
 func (s *UsersStore) Upsert(ctx context.Context, user *User) error {
 	return withTx(s.db, ctx, func(tx *sql.Tx) error {
 		query := `
-		INSERT INTO users (first_name, last_name, email, password_hash, google_id, github_id, x_id, is_email_verified, email_verified_at, profile_image)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		ON CONFLICT (email) DO UPDATE 
-		SET first_name = EXCLUDED.first_name,
-			last_name = EXCLUDED.last_name,
-			password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash),
-			google_id = COALESCE(EXCLUDED.google_id, users.google_id),
-			github_id = COALESCE(EXCLUDED.github_id, users.github_id),
-			x_id = COALESCE(EXCLUDED.x_id, users.x_id),
-			is_email_verified = EXCLUDED.is_email_verified,
-			email_verified_at = COALESCE(EXCLUDED.email_verified_at, users.email_verified_at),
-			profile_image = COALESCE(EXCLUDED.profile_image, users.profile_image),
-			refresh_token_version = users.refresh_token_version + 1 -- Increment version on update
-		RETURNING id, created_at, updated_at, refresh_token_version
-		`
+			INSERT INTO users (first_name, last_name, email, password_hash, google_id, github_id, x_id, is_email_verified, email_verified_at, profile_image)
+			    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (email)
+			    DO UPDATE SET
+			        first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash), google_id = COALESCE(EXCLUDED.google_id, users.google_id), github_id = COALESCE(EXCLUDED.github_id, users.github_id), x_id = COALESCE(EXCLUDED.x_id, users.x_id), is_email_verified = EXCLUDED.is_email_verified, email_verified_at = COALESCE(EXCLUDED.email_verified_at, users.email_verified_at), profile_image = COALESCE(EXCLUDED.profile_image, users.profile_image), refresh_token_version = users.refresh_token_version + 1 -- Increment version on update
+			    RETURNING
+			        id, created_at, updated_at, refresh_token_version`
 
 		// 1. Create user
 		var passwordHash *string
@@ -285,10 +279,10 @@ func (s *UsersStore) Upsert(ctx context.Context, user *User) error {
 		// 2. Create corresponding balance entry
 		//   TODO: extract into user_balances store
 		_, err = tx.Exec(`
-		  INSERT INTO user_balances (user_id, balance, version) 
-		  VALUES ($1, 0.00, 0)
-		  ON CONFLICT (user_id) DO NOTHING
-	  	`, user.Id)
+			INSERT INTO user_balances (user_id, balance, version)
+			    VALUES ($1, 0.00, 0)
+			ON CONFLICT (user_id)
+			    DO NOTHING`, user.Id)
 		if err != nil {
 			return err
 		}
@@ -299,26 +293,27 @@ func (s *UsersStore) Upsert(ctx context.Context, user *User) error {
 
 func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, error) {
 	query := `
-		SELECT 
-			u.id, 
-			u.first_name, 
-			u.last_name, 
-			u.email, 
-			u.is_email_verified, 
-			u.email_verified_at, 
-			u.profile_image, 
-			u.google_id, 
-			u.x_id, 
-			u.github_id, 
-			u.refresh_token_version, 
-			u.default_currency, 
-			COALESCE(ub.balance, 0.00) AS balance,
-			u.created_at, 
-			u.updated_at
-		FROM users u
-		LEFT JOIN user_balances ub ON u.id = ub.user_id
-		WHERE u.id = $1
-	`
+		SELECT
+		    u.id,
+		    u.first_name,
+		    u.last_name,
+		    u.email,
+		    u.is_email_verified,
+		    u.email_verified_at,
+		    u.profile_image,
+		    u.google_id,
+		    u.x_id,
+		    u.github_id,
+		    u.refresh_token_version,
+		    u.default_currency,
+		    COALESCE(ub.balance, 0.00) AS balance,
+		    u.created_at,
+		    u.updated_at
+		FROM
+		    users u
+		    LEFT JOIN user_balances ub ON u.id = ub.user_id
+		WHERE
+		    u.id = $1`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
@@ -371,11 +366,16 @@ func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, err
 
 func (s *UsersStore) SetRefreshTokenVersion(ctx context.Context, refreshTokenVersion int64, userId string) (int64, error) {
 	query := `
-        UPDATE users
-        SET refresh_token_version = $1
-        WHERE id = $2
-        RETURNING refresh_token_version;
-    `
+		UPDATE
+		    users
+		SET
+		    refresh_token_version = $1
+		WHERE
+		    id = $2
+		RETURNING
+		    refresh_token_version;
+		
+		`
 
 	var updatedVersion int64
 	err := s.db.QueryRowContext(ctx, query, refreshTokenVersion, userId).Scan(&updatedVersion)
@@ -388,15 +388,18 @@ func (s *UsersStore) SetRefreshTokenVersion(ctx context.Context, refreshTokenVer
 
 func (s *UsersStore) HasPermission(userID string, resource Resource, action Action) (bool, error) {
 	query := `
-        SELECT EXISTS (
-            SELECT 1 
-            FROM user_roles ur
-            JOIN role_permissions rp ON ur.role_id = rp.role_id
-            JOIN permissions p ON rp.permission_id = p.id
-            WHERE ur.user_id = $1 
-            AND p.resource = $2 
-            AND p.action::text = $3
-        )`
+		SELECT
+		    EXISTS (
+		        SELECT
+		            1
+		        FROM
+		            user_roles ur
+		            JOIN role_permissions rp ON ur.role_id = rp.role_id
+		            JOIN permissions p ON rp.permission_id = p.id
+		        WHERE
+		            ur.user_id = $1
+		            AND p.resource = $2
+		            AND p.action::TEXT = $3)`
 
 	var hasPermission bool
 	err := s.db.QueryRow(query, userID, resource, action).Scan(&hasPermission)
@@ -404,4 +407,62 @@ func (s *UsersStore) HasPermission(userID string, resource Resource, action Acti
 		return false, err
 	}
 	return hasPermission, nil
+}
+
+func (s *UsersStore) GetUserByEmail(ctx context.Context, email string) (*User, error) {
+	query := `
+		SELECT
+		    id,
+		    first_name,
+		    last_name,
+		    email,
+		    is_email_verified,
+		    email_verified_at,
+		    profile_image,
+		    password_hash,
+		    created_at,
+		    updated_at
+		FROM
+		    users
+		WHERE
+		    email = $1`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
+
+	user := &User{}
+
+	var emailVerifiedAt *time.Time
+	var profileImage *string
+
+	err := s.db.QueryRowContext(
+		ctx,
+		query,
+		email,
+	).Scan(
+		&user.Id,
+		&user.FirstName,
+		&user.LastName,
+		&user.Email,
+		&user.IsEmailVerified,
+		&emailVerifiedAt,
+		&profileImage,
+		&user.Password.hash,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	// Set the pointer fields in the User struct
+	user.EmailVerifiedAt = emailVerifiedAt
+	user.ProfileImage = profileImage
+
+	return user, nil
 }

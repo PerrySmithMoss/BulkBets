@@ -189,6 +189,7 @@ func (app *application) oauth2CallbackHandler(w http.ResponseWriter, r *http.Req
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
+// Handles access/refresh token renewal
 func (app *application) tokenRenewalHandler(w http.ResponseWriter, r *http.Request) {
 	// Check for refresh token if access token is expired or invalid
 	refreshTokenCookie, err := r.Cookie(auth.RefreshTokenCookieName)
@@ -330,6 +331,111 @@ func (app *application) tokenRenewalHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	app.jsonResponse(w, http.StatusUnauthorized, nil)
+}
+
+type LoginRequestBody struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+func (app *application) loginUserHandler(w http.ResponseWriter, r *http.Request) {
+	var reqBody LoginRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		log.Printf("Error %v: ", err)
+		writeJSONError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	ctx := r.Context()
+
+	// Query the database for the user by email
+	user, err := app.store.UserRepository.GetUserByEmail(ctx, reqBody.Email)
+	if err != nil {
+		log.Printf("Could not get user with email %v. Err: %v", reqBody.Email, err)
+		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+	}
+
+	// Verify the password
+	match, err := user.CheckPassword(reqBody.Password)
+	if err != nil || !match {
+		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+		return
+	}
+
+	// Create access and refresh tokens
+	accessTokenDurationExp, err := time.ParseDuration(app.cfg.Auth.Token.AccessToken.Exp)
+	if err != nil {
+		log.Printf("Error parsing accessToken exp of: %s\n%v", app.cfg.Auth.Token.AccessToken.Exp, err)
+		http.Error(w, "Invalid or expired refresh token.", http.StatusInternalServerError)
+		return
+	}
+
+	accessTokenClaims := jwt.MapClaims{
+		"sub": user.Id,
+		"exp": time.Now().Add(accessTokenDurationExp).Unix(),
+		"iat": time.Now().Unix(),
+		"iss": app.cfg.Auth.Token.AccessToken.Iss,
+		"aud": app.cfg.Auth.Token.AccessToken.Iss,
+	}
+	accessToken, err := app.authenticator.AccessTokenAuthenticator.GenerateToken(accessTokenClaims)
+	if err != nil {
+		log.Printf("Error signing access token: %v", err)
+		http.Error(w, "Error signing access token", http.StatusInternalServerError)
+		return
+	}
+
+	refreshTokenDurationExp, err := time.ParseDuration(app.cfg.Auth.Token.RefreshToken.Exp)
+	if err != nil {
+		log.Printf("Error parsing refreshToken exp: %s.\n%v", app.cfg.Auth.Token.RefreshToken.Exp, err)
+		http.Error(w, "Unauthorised.", http.StatusUnauthorized)
+		return
+	}
+
+	updatedRefreshTokenVersion, err := app.store.UserRepository.SetRefreshTokenVersion(r.Context(), user.RefreshTokenVersion+1, user.Id.String())
+	if err != nil {
+		http.Error(w, "Failed to increment refresh token version", http.StatusInternalServerError)
+		return
+	}
+
+	refreshTokenClaims := jwt.MapClaims{
+		"sub":                 user.Id,
+		"refreshTokenVersion": updatedRefreshTokenVersion,
+		"exp":                 time.Now().Add(refreshTokenDurationExp).Unix(),
+		"iat":                 time.Now().Unix(),
+		"iss":                 app.cfg.Auth.Token.RefreshToken.Iss,
+		"aud":                 app.cfg.Auth.Token.AccessToken.Iss,
+	}
+	refreshToken, err := app.authenticator.RefreshTokenAuthenticator.GenerateToken(refreshTokenClaims)
+	if err != nil {
+		log.Printf("Error signing refresh token: %v", err)
+		http.Error(w, "Error signing refresh token", http.StatusInternalServerError)
+		return
+	}
+
+	// Set cookies
+	// TODO extract this into util func?
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    accessToken,
+		HttpOnly: true,
+		Secure:   app.cfg.App.AppEnv == "production",
+		SameSite: http.SameSiteLaxMode,
+		// SameSite: http.SameSiteNoneMode, // uncomment in prod
+		Path:    "/",
+		Expires: time.Now().Add(accessTokenDurationExp),
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshToken,
+		HttpOnly: true,
+		Secure:   app.cfg.App.AppEnv == "production",
+		SameSite: http.SameSiteLaxMode,
+		// SameSite: http.SameSiteNoneMode, // uncomment in prod
+		Path:    "/",
+		Expires: time.Now().Add(refreshTokenDurationExp),
+	})
+
+	writeJSON(w, http.StatusOK, nil)
 }
 
 func (app *application) logoutUserHandler(w http.ResponseWriter, r *http.Request) {

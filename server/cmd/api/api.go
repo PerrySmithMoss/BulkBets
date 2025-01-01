@@ -41,10 +41,13 @@ func (app *application) mount() http.Handler {
 		r.Get("/health", app.healthCheckHandler)
 
 		r.Route("/auth", func(r chi.Router) {
-			r.Use(app.DeserialiseUserMiddleware)
-
-			r.Get("/token/refresh", app.tokenRenewalHandler)
+			r.Post("/login", app.loginUserHandler)
 			r.Delete("/logout", app.logoutUserHandler)
+
+			r.Group(func(r chi.Router) {
+				r.Use(app.DeserialiseUserMiddleware)
+				r.Get("/token/refresh", app.tokenRenewalHandler)
+			})
 		})
 
 		r.Route("/oauth2", func(r chi.Router) {
