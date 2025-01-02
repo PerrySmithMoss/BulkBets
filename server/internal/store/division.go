@@ -95,27 +95,12 @@ func (s *DivisionsStore) GetDivisionByID(ctx context.Context, divisionId int, sh
 }
 
 type DivisionResultParams struct {
-	DivisionId int64   `json:"division_id"`
-	Comments   *string `json:"comments"`
+	DivisionId int64                   `json:"division_id"`
+	Comments   *string                 `json:"comments"`
+	Results    []DivisionOutcomeParams `json:"results"`
 }
 
-func (s *DivisionsStore) CreateDivisionResult(ctx context.Context, params DivisionResultParams, userId uuid.UUID) (int64, error) {
-	var resultID int64
-	query := `
-		INSERT INTO division_results (division_id, finalised_by, comments)
-		    VALUES ($1, $2, $3)
-			Returning id`
-
-	err := s.db.QueryRowContext(ctx, query, params.DivisionId, userId, params.Comments).Scan(&resultID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to create division result: %w", err)
-	}
-
-	return resultID, nil
-}
-
-type DivisionOutcome struct {
-	ID                    int64         `json:"id"`
+type DivisionOutcomeParams struct {
 	DivisionResultId      int64         `json:"division_result_id"`
 	DivisionParticipantId string        `json:"division_participant_id"`
 	Position              *int8         `json:"position"`
@@ -124,25 +109,46 @@ type DivisionOutcome struct {
 	Comments              *string       `json:"comments"`
 }
 
-func (s *DivisionsStore) CreateDivisionResultOutcomes(ctx context.Context, outcomes []DivisionOutcome, userId uuid.UUID) error {
+func (s *DivisionsStore) CreateDivisionResult(ctx context.Context, params DivisionResultParams, userId uuid.UUID) error {
 	return withTx(s.db, ctx, func(tx *sql.Tx) error {
+		var divisionResultID int64
 		query := `
-            INSERT INTO division_result_outcomes (division_result_id, division_participant_id, position, score, result_status, comments)
-                VALUES
-                    %s`
+		INSERT INTO division_results (division_id, finalised_by, comments)
+		    VALUES ($1, $2, $3)
+		RETURNING
+		    id`
 
+		err := tx.QueryRowContext(ctx, query, params.DivisionId, userId, params.Comments).Scan(&divisionResultID)
+		if err != nil {
+			return fmt.Errorf("failed to create division result: %w", err)
+		}
+
+		// Map outcomes
+		var outcomes []DivisionOutcomeParams
+		for _, o := range params.Results {
+			outcomes = append(outcomes, DivisionOutcomeParams{
+				DivisionResultId:      divisionResultID,
+				DivisionParticipantId: o.DivisionParticipantId,
+				Position:              o.Position,
+				Score:                 o.Score,
+				ResultStatus:          o.ResultStatus,
+				Comments:              o.Comments,
+			})
+		}
+
+		// Batch-insert outcomes
 		var valueStrings []string
 		var valueArgs []interface{}
 
 		for i, outcome := range outcomes {
-			// Create a new string for each nil status
 			if outcome.ResultStatus == nil {
 				status := ResultStatusFinished
-				outcome.ResultStatus = &status
+				outcomes[i].ResultStatus = &status
 			}
 
 			valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d)",
 				i*6+1, i*6+2, i*6+3, i*6+4, i*6+5, i*6+6))
+
 			valueArgs = append(valueArgs,
 				outcome.DivisionResultId,
 				outcome.DivisionParticipantId,
@@ -153,9 +159,13 @@ func (s *DivisionsStore) CreateDivisionResultOutcomes(ctx context.Context, outco
 			)
 		}
 
-		query = fmt.Sprintf(query, strings.Join(valueStrings, ","))
+		outcomesQuery := `
+			INSERT INTO division_result_outcomes (division_result_id, division_participant_id, position, score, result_status, comments)
+	    		VALUES
+	        		%s`
+		outcomesQuery = fmt.Sprintf(outcomesQuery, strings.Join(valueStrings, ","))
 
-		if _, err := tx.ExecContext(ctx, query, valueArgs...); err != nil {
+		if _, err := tx.ExecContext(ctx, outcomesQuery, valueArgs...); err != nil {
 			return fmt.Errorf("failed to batch-insert outcomes: %w", err)
 		}
 
