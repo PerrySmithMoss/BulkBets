@@ -32,7 +32,7 @@ type ShowRepository interface {
 
 type DivisionRepository interface {
 	GetDivisionByID(ctx context.Context, divisionId int, showId int) (*Division, error)
-	CreateDivisionResult(ctx context.Context, params DivisionResultParams, userId uuid.UUID) error
+	CreateDivisionResult(ctx context.Context, params DivisionResultParams, userId uuid.UUID) (int64, error)
 	CreateDivisionResultOutcomes(ctx context.Context, outcomes []DivisionOutcome, userId uuid.UUID) error
 }
 

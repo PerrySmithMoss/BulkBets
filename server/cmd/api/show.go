@@ -50,12 +50,12 @@ type ShowDivisionResult struct {
 }
 
 type DivisionParticipantOutcomes struct {
-	DivisionResultId      int64   `json:"division_result_id"`
-	DivisionParticipantId string  `json:"division_participant_id"`
-	ResultStatus          *string `json:"result_status"`
-	Score                 *int8   `json:"score"`
-	Position              *int8   `json:"position"`
-	Comments              *string `json:"comments"`
+	DivisionResultId      int64               `json:"division_result_id"`
+	DivisionParticipantId string              `json:"division_participant_id"`
+	ResultStatus          *store.ResultStatus `json:"result_status"`
+	Score                 *int8               `json:"score"`
+	Position              *int8               `json:"position"`
+	Comments              *string             `json:"comments"`
 }
 
 func (app *application) showDivisionResultHandler(w http.ResponseWriter, r *http.Request) {
@@ -139,8 +139,9 @@ func (app *application) showDivisionResultHandler(w http.ResponseWriter, r *http
 		DivisionId: divisionDetails.ID,
 		Comments:   showDivisionResults.Comments,
 	}
-	if err := app.store.DivisionRepository.CreateDivisionResult(ctx, divisionResultParams, user.Id); err != nil {
-		log.Printf("Error creating division result: %v: ", err)
+	divisionResultID, err := app.store.DivisionRepository.CreateDivisionResult(ctx, divisionResultParams, user.Id)
+	if err != nil {
+		log.Printf("Error creating division result: %v", err)
 		writeJSONError(w, http.StatusInternalServerError, "Could not create division result")
 		return
 	}
@@ -149,7 +150,7 @@ func (app *application) showDivisionResultHandler(w http.ResponseWriter, r *http
 	var outcomes []store.DivisionOutcome
 	for _, o := range showDivisionResults.Results {
 		outcomes = append(outcomes, store.DivisionOutcome{
-			DivisionResultId:      divisionDetails.ID,
+			DivisionResultId:      divisionResultID,
 			DivisionParticipantId: o.DivisionParticipantId,
 			Position:              o.Position,
 			Score:                 o.Score,
@@ -158,6 +159,7 @@ func (app *application) showDivisionResultHandler(w http.ResponseWriter, r *http
 		})
 	}
 
+	// TODO: refactor so that if the method below fails it rolls back previous queries
 	if err := app.store.DivisionRepository.CreateDivisionResultOutcomes(ctx, outcomes, user.Id); err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "Could not create division outcomes")
 		return
