@@ -55,6 +55,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     stakeMultiplierDisplayValue,
     stakeMultiplierRawValue,
     potentialReturn,
+    totalAccumulatorBetReturn,
   } = state;
   const containsBetsWithStake = activeBets.some((bet) =>
     isValidNumber(bet.amount)
@@ -70,6 +71,8 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
   const [rememberStake, setRememberStake] = useState(false);
   const stakeRef = useRef<HTMLInputElement | null>(null);
   const stakeMultiplierContainerRef = useRef<HTMLDivElement | null>(null);
+  const expandedBetSlipStakeMultiplierContainerRef =
+    useRef<HTMLDivElement | null>(null);
   const betSlipContainerRef = useRef<HTMLDivElement | null>(null);
 
   const memoizedAlert = useCallback(alert, [alert]);
@@ -114,6 +117,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     if (numericValue > MAX_BETTING_STAKE) return;
 
     updateStakeMultiplier(cleanValue);
+    setIsEditingStake(true);
   };
 
   const handleStakeBlur = useCallback((): void => {
@@ -147,8 +151,12 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
   const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
     // Only handle blur if clicking outside the container
     if (
-      stakeMultiplierContainerRef.current &&
-      !stakeMultiplierContainerRef.current.contains(event.relatedTarget)
+      (expandedBetSlipStakeMultiplierContainerRef.current &&
+        !expandedBetSlipStakeMultiplierContainerRef.current.contains(
+          event.relatedTarget
+        )) ||
+      (stakeMultiplierContainerRef.current &&
+        !stakeMultiplierContainerRef.current.contains(event.relatedTarget))
     ) {
       handleStakeBlur();
     }
@@ -279,7 +287,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
   }, [alertMsg, memoizedAlert]);
 
   useEffect(() => {
-    if (stakeMultiplierDisplayValue) {
+    if (isValidNumber(stakeMultiplierDisplayValue)) {
       setIsEditingStake(true);
     }
     // we only need check this on initial render as the onChange
@@ -293,6 +301,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
         betSlipContainerRef.current &&
         !betSlipContainerRef.current.contains(event.target as Node)
       ) {
+        handleStakeBlur();
         setIsExpanded(false);
       }
     };
@@ -304,7 +313,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isExpanded, setIsExpanded]);
+  }, [isExpanded, setIsExpanded, handleStakeBlur]);
 
   useEffect(() => {
     // clear stake multiplier if it's not a valid accumulator
@@ -543,7 +552,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
               </div>
             </div>
             {!containsBetsInSameDivision && activeBets.length > 1 && (
-              <div className="flex gap-3 w-full pt-3">
+              <div className="flex gap-3 w-full px-2.5 pb-[15px]">
                 <div className="flex flex-col gap-3 w-full flex-[1_1_100%]">
                   <div className="flex gap-2 w-full">
                     <div className="w-full mt-2.5">
@@ -560,7 +569,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                         </div>
                       </div>
                     </div>
-                    <div>
+                    <div ref={expandedBetSlipStakeMultiplierContainerRef}>
                       <Input
                         type="text"
                         ref={stakeRef}
@@ -569,8 +578,13 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                         onBlur={handleBlur}
                         aria-label="Stake amount"
                         placeholder="Stake"
-                        className="w-28 h-[38px] text-sm text-right rounded-sm bg-white outline-none focus:ring-0 focus-visible:ring-0 focus:outline-none focus-visible:ring-offset-0 focus-visible:ring-transparent placeholder:text-muted-foreground text-card"
+                        className="w-28 h-[38px] text-sm text-right border-[#999] rounded bg-white outline-none focus-visible:ring-offset-1 focus-visible:ring-transparent focus:placeholder:font-semibold focus:placeholder:text-background placeholder:text-muted-foreground text-card"
                       />
+                      {totalAccumulatorBetReturn ? (
+                        <div className="text-secondary pt-[5px] text-right text-[11px] pb-2">
+                          To Return {formatCurrency(totalAccumulatorBetReturn)}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>

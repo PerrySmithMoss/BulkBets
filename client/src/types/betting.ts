@@ -22,6 +22,7 @@ export interface BetSlipState {
   activeBets: ActiveBet[];
   stakeMultiplierRawValue: string;
   stakeMultiplierDisplayValue: string;
+  totalAccumulatorBetReturn: number | null;
   totalStake: number;
   totalFractionalOdds: string;
   potentialWinnings: number;

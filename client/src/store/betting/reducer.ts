@@ -1,6 +1,5 @@
 import {
   betExistsForCompetitor,
-  betExistsInSameDivision,
   calculateBetSlipTotals,
 } from "@/lib/utils/betting";
 import {
@@ -17,6 +16,7 @@ export const initialState: BetSlipState = {
   totalFractionalOdds: "",
   stakeMultiplierRawValue: "",
   stakeMultiplierDisplayValue: "",
+  totalAccumulatorBetReturn: null,
   potentialWinnings: 0,
   potentialReturn: 0,
   rememberBets: false,
