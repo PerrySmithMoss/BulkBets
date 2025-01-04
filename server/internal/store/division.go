@@ -109,14 +109,15 @@ type DivisionOutcomeParams struct {
 	Comments              *string       `json:"comments"`
 }
 
-func (s *DivisionsStore) CreateDivisionResult(ctx context.Context, params DivisionResultParams, userId uuid.UUID) error {
-	return withTx(s.db, ctx, func(tx *sql.Tx) error {
-		var divisionResultID int64
+func (s *DivisionsStore) CreateDivisionResult(ctx context.Context, params DivisionResultParams, userId uuid.UUID) (int64, error) {
+	var divisionResultID int64
+
+	err := withTx(s.db, ctx, func(tx *sql.Tx) error {
 		query := `
-		INSERT INTO division_results (division_id, finalised_by, comments)
-		    VALUES ($1, $2, $3)
-		RETURNING
-		    id`
+			INSERT INTO division_results (division_id, finalised_by, comments)
+			    VALUES ($1, $2, $3)
+			RETURNING
+			    id`
 
 		err := tx.QueryRowContext(ctx, query, params.DivisionId, userId, params.Comments).Scan(&divisionResultID)
 		if err != nil {
@@ -161,8 +162,8 @@ func (s *DivisionsStore) CreateDivisionResult(ctx context.Context, params Divisi
 
 		outcomesQuery := `
 			INSERT INTO division_result_outcomes (division_result_id, division_participant_id, position, score, result_status, comments)
-	    		VALUES
-	        		%s`
+			    VALUES
+			        %s`
 		outcomesQuery = fmt.Sprintf(outcomesQuery, strings.Join(valueStrings, ","))
 
 		if _, err := tx.ExecContext(ctx, outcomesQuery, valueArgs...); err != nil {
@@ -171,4 +172,10 @@ func (s *DivisionsStore) CreateDivisionResult(ctx context.Context, params Divisi
 
 		return nil
 	})
+
+	if err != nil {
+		return 0, err
+	}
+
+	return divisionResultID, nil
 }

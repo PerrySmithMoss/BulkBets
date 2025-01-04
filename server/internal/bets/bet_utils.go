@@ -3,11 +3,65 @@ package bets
 import (
 	"fmt"
 	"math"
+
+	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
 )
 
 // validateBet ensures the bet has a non-negative amount and positive odds
 func validateBet(bet ActiveBet) bool {
 	return bet.Amount >= 0 && bet.Odds > 0
+}
+
+// func betExistsInSameDivision(bets []ActiveBet) bool {
+// 	// Use a map to track division IDs for O(1) lookup
+// 	divisionSet := make(map[int64]struct{})
+
+// 	for _, bet := range bets {
+// 		if _, exists := divisionSet[bet.DivisionId]; exists {
+// 			return true
+// 		}
+// 		divisionSet[bet.DivisionId] = struct{}{}
+// 	}
+// 	return false
+// }
+
+func IsAccumulatorBet(betSlip BetSlip) bool {
+	// An accumulator bet requires:
+	// 1. A valid, positive StakeMultiplier
+	// 2. At least two active bets
+	if betSlip.StakeMultiplier == nil || *betSlip.StakeMultiplier <= 0 {
+		return false
+	}
+
+	return len(betSlip.ActiveBets) >= 2
+}
+
+func IsValidAccumulatorBet(betSlip BetSlip) error {
+	if betSlip.StakeMultiplier == nil || *betSlip.StakeMultiplier <= 0 {
+		return fmt.Errorf("stakeMultiplier must be a valid number greater than 0")
+	}
+
+	divisionSet := make(map[int64]struct{})
+	hasValidBetAmount := false
+
+	for _, bet := range betSlip.ActiveBets {
+		// Check for duplicate division IDs
+		if _, exists := divisionSet[bet.DivisionId]; exists {
+			return fmt.Errorf("cannot bet on competitors in the same division")
+		}
+		divisionSet[bet.DivisionId] = struct{}{}
+
+		// Ensure at least one valid bet amount
+		if currency.IsNumber(bet.Amount) && bet.Amount > 0 {
+			hasValidBetAmount = true
+		}
+	}
+
+	if !hasValidBetAmount {
+		return fmt.Errorf("all activeBets must contain a valid number greater than 0")
+	}
+
+	return nil
 }
 
 func CalculateTotalBetsAmount(bets []ActiveBet) float64 {
@@ -19,8 +73,13 @@ func CalculateTotalBetsAmount(bets []ActiveBet) float64 {
 	return totalBetsAmount
 }
 
-func CalculateTotalStake(stakeMultiplier float64, bets []ActiveBet) float64 {
-	return CalculateTotalBetsAmount(bets) + stakeMultiplier
+func CalculateTotalStake(betSlip BetSlip) float64 {
+	multiplier := 0.0
+	if betSlip.StakeMultiplier != nil {
+		multiplier = *betSlip.StakeMultiplier
+	}
+
+	return CalculateTotalBetsAmount(betSlip.ActiveBets) + multiplier
 }
 
 func CalculateTotalDecimalOdds(odds []float64) (float64, error) {
@@ -81,7 +140,12 @@ func CalculateAccumulatorBetTotalReturn(betSlip BetSlip) (float64, error) {
 		return 0, fmt.Errorf("error calculating total decimal odds: %w", err)
 	}
 
-	totalReturn := betSlip.StakeMultiplier * totalOdds
+	multiplier := 0.0
+	if betSlip.StakeMultiplier != nil {
+		multiplier = *betSlip.StakeMultiplier
+	}
+
+	totalReturn := multiplier * totalOdds
 	return math.Round(totalReturn*100) / 100, nil // Round to two decimal places
 }
 
@@ -100,7 +164,13 @@ func CalculateBetSlipTotals(betSlip BetSlip) (BetSlipTotals, error) {
 	}
 
 	betsAmount := CalculateTotalBetsAmount(betSlip.ActiveBets)
-	totalStake := betsAmount + betSlip.StakeMultiplier
+
+	multiplier := 0.0
+	if betSlip.StakeMultiplier != nil {
+		multiplier = *betSlip.StakeMultiplier
+	}
+
+	totalStake := betsAmount + multiplier
 
 	totalSingularBetReturn := CalculateSingularBetsTotalReturn(betSlip.ActiveBets)
 	totalAccumulatorBetReturn, err := CalculateAccumulatorBetTotalReturn(betSlip)

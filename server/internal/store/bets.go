@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
-	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
@@ -51,7 +51,8 @@ type Bet struct {
 
 type BetResponse struct {
 	ID                    string   `json:"id"`
-	DivisionParticipantID string   `json:"division_participant_id,omitempty"`
+	UserID                string   `json:"user_id"`
+	DivisionParticipantID *string  `json:"division_participant_id,omitempty"`
 	BetType               int64    `json:"bet_type"`
 	BetTypeName           string   `json:"bet_type_name"`
 	Amount                float64  `json:"amount"`
@@ -61,6 +62,7 @@ type BetResponse struct {
 	Status                string   `json:"status"`
 	CancelledAt           *string  `json:"cancelled_at,omitempty"`
 	CreatedAt             string   `json:"created_at"`
+	UpdatedAt             string   `json:"updated_at"`
 	SettledAt             *string  `json:"settled_at,omitempty"`
 	IsAccumulator         bool     `json:"is_accumulator"`
 	Components            []string `json:"components,omitempty"`
@@ -167,12 +169,18 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 	if len(betSlip.ActiveBets) == 0 {
 		return ErrNoBetComponents
 	}
-	if !currency.IsNumber(betSlip.StakeMultiplier) || betSlip.StakeMultiplier <= 0 {
-		return ErrInvalidStakeMultiplier
+
+	// Check if the bet is an accumulator
+	isAccumulator := bets.IsAccumulatorBet(*betSlip)
+
+	// Validate accumulator bet rules
+	if isAccumulator {
+		if err := bets.IsValidAccumulatorBet(*betSlip); err != nil {
+			return ErrInvalidStakeMultiplier
+		}
 	}
 
-	isAccumulator := betSlip.StakeMultiplier > 0 && len(betSlip.ActiveBets) >= 2
-	totalStake := bets.CalculateTotalStake(betSlip.StakeMultiplier, betSlip.ActiveBets)
+	totalStake := bets.CalculateTotalStake(*betSlip)
 
 	return withTx(s.db, ctx, func(tx *sql.Tx) error {
 		// Lock and get user's current balance
@@ -248,8 +256,13 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 				return err
 			}
 
+			multiplier := 0.0
+			if betSlip.StakeMultiplier != nil {
+				multiplier = *betSlip.StakeMultiplier
+			}
+
 			// Calculate balances for accumulator transaction
-			balanceAfter := runningBalance - betSlip.StakeMultiplier
+			balanceAfter := runningBalance - multiplier
 
 			// Create transaction for accumulator bet
 			err = s.createBetTransaction(ctx, tx, accumulatorBet, runningBalance, balanceAfter)
@@ -286,14 +299,13 @@ func (s *BetsStore) FetchUserBets(ctx context.Context, userId string, status []s
 		    b.created_at,
 		    b.settled_at,
 		    bt.name AS bet_type_name,
-		    CASE 
-				WHEN bc.accumulator_bet_id IS NOT NULL THEN
-		        	TRUE
-		    	ELSE
-		        	FALSE
-		    	END AS is_accumulator,
+		    CASE WHEN bc.accumulator_bet_id IS NOT NULL THEN
+		        TRUE
+		    ELSE
+		        FALSE
+		    END AS is_accumulator,
 		    COALESCE(bc.component_ids, ARRAY[]::UUID[]) AS component_ids,
-			s.id AS show_id,
+		    s.id AS show_id,
 		    s.name AS show_name,
 		    s.location AS show_location,
 		    s.start_time AS show_start_time,
@@ -304,11 +316,11 @@ func (s *BetsStore) FetchUserBets(ctx context.Context, userId string, status []s
 		    a.last_name AS athlete_last_name,
 		    a.nationality AS athlete_nationality,
 		    a.gender AS athlete_gender,
-			d.id as division_id,
-			d.name as division_name,
-			d.category as division_category,
-			d.status as division_status,
-			d.start_time as division_start_time
+		    d.id AS division_id,
+		    d.name AS division_name,
+		    d.category AS division_category,
+		    d.status AS division_status,
+		    d.start_time AS division_start_time
 		FROM
 		    bets b
 		    LEFT JOIN bet_types bt ON b.bet_type_id = bt.id
@@ -460,7 +472,8 @@ func (s *BetsStore) FetchUserBets(ctx context.Context, userId string, status []s
 		}
 
 		if divisionParticipantID.Valid {
-			bet.DivisionParticipantID = divisionParticipantID.String
+			divisionParticipantID := divisionParticipantID.String
+			bet.DivisionParticipantID = &divisionParticipantID
 		}
 		if cancelledAt.Valid {
 			cancelledAt := cancelledAt.String
@@ -487,4 +500,171 @@ func (s *BetsStore) FetchUserBets(ctx context.Context, userId string, status []s
 	}
 
 	return bets, nil
+}
+
+func (s *BetsStore) GetUnsettledBetsForDivision(ctx context.Context, tx *sql.Tx, divisionID int64) ([]BetResponse, error) {
+	query := `
+		WITH unsettled_singular_bets AS (
+		    SELECT
+		        b.id AS bet_id,
+		        b.user_id,
+		        b.division_participant_id,
+		        b.bet_type_id,
+		        bt.name AS bet_type_name,
+		        b.amount,
+		        b.currency_code,
+		        b.odds_at_time,
+		        b.potential_payout,
+		        b.status,
+		        b.created_at,
+		        b.updated_at,
+		        b.settled_at,
+		        b.cancelled_at
+		    FROM
+		        bets b
+		        INNER JOIN bet_types bt ON b.bet_type_id = bt.id
+		        INNER JOIN division_participants dp ON b.division_participant_id = dp.id
+		    WHERE
+		        b.status = 'pending'
+		        AND b.settled_at IS NULL
+		        AND b.cancelled_at IS NULL
+		        AND dp.division_id = $1
+		),
+		unsettled_accumulator_bets AS (
+		    SELECT DISTINCT
+		        ab.id AS bet_id,
+		        ab.user_id,
+		        NULL AS division_participant_id,
+		        ab.bet_type_id,
+		        bt.name AS bet_type_name,
+		        ab.amount,
+		        ab.currency_code,
+		        ab.total_odds AS odds_at_time,
+		        ab.potential_payout,
+		        ab.status,
+		        ab.created_at,
+		        ab.updated_at,
+		        ab.settled_at,
+		        ab.cancelled_at
+		    FROM
+		        accumulator_bets ab
+		        INNER JOIN bet_types bt ON ab.bet_type_id = bt.id
+		        INNER JOIN accumulator_bet_components abc ON ab.id = abc.accumulator_bet_id
+		        INNER JOIN bets sb ON abc.singular_bet_id = sb.id
+		        INNER JOIN division_participants dp ON sb.division_participant_id = dp.id
+		    WHERE
+		        ab.status = 'pending'
+		        AND ab.settled_at IS NULL
+		        AND ab.cancelled_at IS NULL
+		        AND dp.division_id = $1
+		)
+		SELECT
+		    *
+		FROM (
+		    SELECT
+		        *
+		    FROM
+		        unsettled_singular_bets
+		    UNION ALL
+		    SELECT
+		        *
+		    FROM
+		        unsettled_accumulator_bets) combined_bets
+		ORDER BY
+		    created_at DESC`
+
+	// Use provided transaction if available, otherwise use db
+	// queryer := s.db
+	// if tx != nil {
+	//     queryer = tx
+	// }
+
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
+
+	rows, err := tx.QueryContext(ctxWithTimeout, query, divisionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute unsettled bets query: %w", err)
+	}
+	defer rows.Close()
+
+	var bets []BetResponse
+	for rows.Next() {
+		var bet BetResponse
+		var divisionParticipantID, settledAt, cancelledAt sql.NullString
+
+		err := rows.Scan(
+			&bet.ID,
+			&bet.UserID,
+			&divisionParticipantID,
+			&bet.BetType,
+			&bet.BetTypeName,
+			&bet.Amount,
+			&bet.Currency,
+			&bet.OddsAtTime,
+			&bet.PotentialPayout,
+			&bet.Status,
+			&bet.CreatedAt,
+			&bet.UpdatedAt,
+			&settledAt,
+			&cancelledAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan bet row: %w", err)
+		}
+
+		if divisionParticipantID.Valid {
+			bet.DivisionParticipantID = &divisionParticipantID.String
+		}
+		if settledAt.Valid {
+			bet.SettledAt = &settledAt.String
+		}
+		if cancelledAt.Valid {
+			bet.CancelledAt = &cancelledAt.String
+		}
+
+		bets = append(bets, bet)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating bet rows: %w", err)
+	}
+
+	return bets, nil
+}
+
+type BetSettlement struct {
+	DivisionID       int64
+	DivisionResultID int64
+	Outcomes         []DivisionOutcomeParams
+}
+
+func (s *BetsStore) SettleDivisionBets(ctx context.Context, settlement BetSettlement) error {
+	return withTx(s.db, ctx, func(tx *sql.Tx) error {
+		// TODO: fetch and settle bets in batches (will likely have to implement Kafka/RabbitMQ
+		// to asynchronously batch process all the bets tied to the division result)
+		bets, err := s.GetUnsettledBetsForDivision(ctx, tx, settlement.DivisionID)
+		if err != nil {
+			return fmt.Errorf("failed to get unsettled bets: %w", err)
+		}
+
+		log.Printf("bets: %v", bets)
+
+		// // 2. Process single bets
+		// if err := processSingleBets(ctx, tx, bets.SingleBets, settlement); err != nil {
+		// 	return fmt.Errorf("failed to process single bets: %w", err)
+		// }
+
+		// // 3. Process accumulator bets
+		// if err := processAccumulatorBets(ctx, tx, bets.AccumulatorBets, settlement); err != nil {
+		// 	return fmt.Errorf("failed to process accumulator bets: %w", err)
+		// }
+
+		// // Commit the transaction
+		// if err := tx.Commit(); err != nil {
+		// 	return fmt.Errorf("failed to commit transaction: %w", err)
+		// }
+
+		return nil
+	})
 }

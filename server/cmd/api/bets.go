@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
-	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
 	"github.com/PerrySmithMoss/BulkBets/server/internal/store"
 	"github.com/go-playground/validator/v10"
 )
@@ -16,30 +15,32 @@ var validate = validator.New()
 
 func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request) {
 	var betSlip bets.BetSlip
+
 	if err := json.NewDecoder(r.Body).Decode(&betSlip); err != nil {
 		log.Printf("Error %v: ", err)
 		writeJSONError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
 
-	// Validate request betSlip
+	if err := validate.Struct(betSlip); err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	if len(betSlip.ActiveBets) == 0 {
 		writeJSONError(w, http.StatusBadRequest, "At least one active bet is required")
-	}
-
-	isValidStakeMultiplier := currency.IsNumber(betSlip.StakeMultiplier)
-
-	if !isValidStakeMultiplier || betSlip.StakeMultiplier <= 0 {
-		writeJSONError(w, http.StatusBadRequest, "Stake Multiplier must be valid number and greater than 0")
-	}
-
-	if isValidStakeMultiplier && len(betSlip.ActiveBets) < 2 {
-		writeJSONError(w, http.StatusBadRequest, "An accumulator bet requires at least two bets")
-	}
-
-	if err := validate.Struct(betSlip); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	// Check if the bet is an accumulator
+	isAccumulator := bets.IsAccumulatorBet(betSlip)
+
+	// Validate accumulator bet rules
+	if isAccumulator {
+		if err := bets.IsValidAccumulatorBet(betSlip); err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 
 	userID, ok := r.Context().Value(userCtx).(string)
@@ -66,7 +67,7 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 	// ? TODO: Check if the stake multiplier is within betting limits AND
 	// Check if the amount of each bet is within the betting limits?
 
-	totalStake := bets.CalculateTotalStake(betSlip.StakeMultiplier, betSlip.ActiveBets)
+	totalStake := bets.CalculateTotalStake(betSlip)
 
 	// Check if user has enough funds to make bet
 	if user.Balance < totalStake {

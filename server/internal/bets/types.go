@@ -2,7 +2,7 @@ package bets
 
 type BetSlip struct {
 	ActiveBets      []ActiveBet `json:"activeBets"`
-	StakeMultiplier float64     `json:"stakeMultiplier"`
+	StakeMultiplier *float64    `json:"stakeMultiplier"`
 	OddsAtTime      float64     `json:"odds_at_time"`
 	PotentialPayout float64     `json:"potential_payout"`
 }

@@ -32,7 +32,7 @@ type ShowRepository interface {
 
 type DivisionRepository interface {
 	GetDivisionByID(ctx context.Context, divisionId int, showId int) (*Division, error)
-	CreateDivisionResult(ctx context.Context, params DivisionResultParams, userId uuid.UUID) error
+	CreateDivisionResult(ctx context.Context, params DivisionResultParams, userId uuid.UUID) (int64, error)
 }
 
 type OddsRepository interface {
@@ -42,6 +42,7 @@ type OddsRepository interface {
 type BetsRepository interface {
 	CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *User) error
 	FetchUserBets(ctx context.Context, userId string, status []string, limit int, offset int) ([]BetResponse, error)
+	SettleDivisionBets(ctx context.Context, settlement BetSettlement) error
 }
 
 type TransactionsRepository interface {

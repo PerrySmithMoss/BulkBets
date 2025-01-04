@@ -122,7 +122,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
 
   const handleStakeBlur = useCallback((): void => {
     if (!stakeMultiplierRawValue) {
-      setIsEditingStake(!isEditingStake);
+      setIsEditingStake(false);
       return;
     }
 
@@ -142,11 +142,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     }
 
     updateStakeMultiplier(formattedValue);
-
-    if (!stakeMultiplierRawValue) {
-      setIsEditingStake(false);
-    }
-  }, [isEditingStake, stakeMultiplierRawValue, updateStakeMultiplier]);
+  }, [stakeMultiplierRawValue, updateStakeMultiplier]);
 
   const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
     // Only handle blur if clicking outside the container
@@ -269,7 +265,32 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isEditingStake, stakeMultiplierRawValue, handleStakeBlur]);
+  }, [
+    stakeMultiplierContainerRef,
+    isEditingStake,
+    stakeMultiplierRawValue,
+    handleStakeBlur,
+  ]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        betSlipContainerRef.current &&
+        !betSlipContainerRef.current.contains(event.target as Node)
+      ) {
+        handleStakeBlur();
+        setIsExpanded(false);
+      }
+    };
+
+    if (isExpanded) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [betSlipContainerRef, isExpanded, setIsExpanded, handleStakeBlur]);
 
   useEffect(() => {
     if (alertMsg) {
@@ -294,26 +315,6 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     // handlers take care of value changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        betSlipContainerRef.current &&
-        !betSlipContainerRef.current.contains(event.target as Node)
-      ) {
-        handleStakeBlur();
-        setIsExpanded(false);
-      }
-    };
-
-    if (isExpanded) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isExpanded, setIsExpanded, handleStakeBlur]);
 
   useEffect(() => {
     // clear stake multiplier if it's not a valid accumulator
@@ -497,7 +498,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                 {activeBets.map((bet) => (
                   <div
                     key={bet._id}
-                    className={cn("flex gap-2 w-full pb-[15px] pl-1 pr-2.5", {
+                    className={cn("flex gap-2 w-full pb-[15px] p-2.5", {
                       "border-l-[3px]": betExistsForDivision(
                         activeBets,
                         bet.division.id
@@ -627,7 +628,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
             )}
           </Button>
         ) : (
-          !containsBetsWithStake &&
+          // !containsBetsWithStake &&
           !containsBetsInSameDivision && (
             <div className="flex">
               <div
@@ -694,7 +695,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
               >
                 <div className="text-base font-extrabold">Place Bet</div>
                 {activeBets.length > 0 &&
-                  stakeMultiplierRawValue &&
+                  // stakeMultiplierRawValue &&
                   potentialReturn > 0 && (
                     <div className="text-[11px] leading-[13px] font-bold">
                       To Return {formatCurrency(potentialReturn)}
