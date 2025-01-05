@@ -1,10 +1,7 @@
 import { tryFetcher } from "@/lib/utils/tryFetcher";
 import { BetSlipState } from "@/types/betting";
 
-export const placeBet = async (
-  betSlip: BetSlipState
-  //   TODO: Replace return value with actual response type from API
-): Promise<true | false> => {
+export const placeBet = async (betSlip: BetSlipState) => {
   try {
     const stakeMultiplier = parseFloat(betSlip.stakeMultiplierRawValue);
 
@@ -21,7 +18,8 @@ export const placeBet = async (
         amount: parseFloat(bet.amount),
       })),
     };
-    const { data: response, error: fetchError } = await tryFetcher(
+
+    const { data, error } = await tryFetcher<{ data: null }>(
       fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/v1/bets`, {
         method: "POST",
         cache: "no-store",
@@ -30,24 +28,17 @@ export const placeBet = async (
       })
     );
 
-    if (fetchError) {
-      console.error(`[placeBet] - error placing bet: `, fetchError);
-      return false;
+    if (error) {
+      console.error(`[placeBet] - error placing bet: `, String(error));
+      return { data: null, error: String(error) };
     }
 
-    if (!response) {
-      console.error(
-        `[placeBet] - no response received while attempting to place bet`
-      );
-      return false;
-    }
-
-    return true;
+    return { data: data?.data ?? null, error };
   } catch (error) {
     const errorMessage = `[placeBet] - unexpected error: ${
       error instanceof Error ? error.message : "Unknown error"
     }`;
     console.error(errorMessage);
-    return false;
+    return { data: null, error: errorMessage };
   }
 };

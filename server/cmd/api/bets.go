@@ -144,7 +144,7 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, nil)
+	app.jsonResponse(w, http.StatusCreated, nil)
 }
 
 func (app *application) getBetsHandler(w http.ResponseWriter, r *http.Request) {

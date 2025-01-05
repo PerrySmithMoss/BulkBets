@@ -10,9 +10,7 @@ export interface GetUserBetsOptions {
   offset?: number;
 }
 
-export const getUserBets = async (
-  opts?: GetUserBetsOptions
-): Promise<BetResponse | null> => {
+export const getUserBets = async (opts?: GetUserBetsOptions) => {
   const authCookies = await getAuthCookies();
   const cookieHeader = formatCookieHeader(authCookies);
 
@@ -34,7 +32,7 @@ export const getUserBets = async (
     params.toString() ? `?${params.toString()}` : ""
   }`;
 
-  const { data: response, error: fetchError } = await tryFetcher(
+  const { data, error } = await tryFetcher<BetResponse>(
     fetch(url, {
       method: "GET",
       cache: "no-store",
@@ -45,27 +43,10 @@ export const getUserBets = async (
     })
   );
 
-  if (fetchError) {
-    console.error(`[getUserBets] - Error fetching user's bets`, fetchError);
-    return null;
+  if (error) {
+    console.error(`[getUserBets] - Error fetching user's bets`, String(error));
+    return { data: null, error: String(error) };
   }
 
-  if (!response) {
-    console.error("[getUserBets] - No response received");
-    return null;
-  }
-
-  const { data: responseData, error: parseError } = await tryFetcher(
-    response.json()
-  );
-
-  if (parseError) {
-    console.error(
-      "[getUserBets] - Error parsing response in utils:",
-      parseError
-    );
-    return null;
-  }
-
-  return responseData?.data ?? null;
+  return { data: data?.data ?? null, error };
 };

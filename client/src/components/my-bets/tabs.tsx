@@ -15,7 +15,7 @@ import { BetCard } from "../bets/bet-card";
 import { tabs } from "@/constants/tabs";
 
 interface Props {
-  initialBets: BetResponse | null;
+  initialBets: BetResponse["data"] | null;
 }
 
 export const Tabs: React.FC<Props> = ({ initialBets }) => {

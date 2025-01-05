@@ -34,6 +34,8 @@ import { useUser } from "@/store/user/user-context";
 import { Badge } from "../ui/badge";
 import { Overlay } from "../overlay";
 import { placeBet } from "@/lib/api/bets/place-bet";
+import { Dialog } from "@/types/dialog";
+import { useDialog } from "@/store/dialog/dialog-context";
 
 interface Props {}
 
@@ -47,6 +49,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     updateBetAmount,
   } = useBetActions();
   const { state } = useBet();
+  const { openDialog } = useDialog();
   const {
     totalStake,
     activeBets,
@@ -68,6 +71,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
   const latestBet = findMostRecentBet(activeBets);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditingStake, setIsEditingStake] = useState(false);
+  const [isPlacingBet, setIsPlacingBet] = useState(false);
   const [rememberStake, setRememberStake] = useState(false);
   const stakeRef = useRef<HTMLInputElement | null>(null);
   const stakeMultiplierContainerRef = useRef<HTMLDivElement | null>(null);
@@ -237,15 +241,26 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
   };
 
   const handlePlaceBet = async () => {
-    // ! TODO: remove when we have ability to deposit funds
-    // if (user && user.balance < totalStake) {
-    //   setIsExpanded(false);
-    //   openDialog(Dialog.NoFundsInAccount);
-    //   return;
-    // }
+    setIsPlacingBet(true);
 
-    // ? TODO figure out why I am getting 400 status (bad request)
-    await placeBet(state);
+    if (user && user.balance < totalStake) {
+      setIsPlacingBet(false);
+      setIsExpanded(false);
+      openDialog(Dialog.NoFundsInAccount);
+      return;
+    }
+
+    const res = await placeBet(state);
+
+    if (res?.error) {
+      memoizedAlert(res.error);
+      setIsPlacingBet(false);
+      return;
+    }
+
+    // bet placed successfully
+    clearAllBets();
+    setIsPlacingBet(false);
   };
 
   useEffect(() => {

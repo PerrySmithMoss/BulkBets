@@ -24,7 +24,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const user = await fetchCurrentUser();
+  const { data: user } = await fetchCurrentUser();
   return (
     <html lang="en" suppressHydrationWarning>
       <head />

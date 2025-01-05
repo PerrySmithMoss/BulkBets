@@ -12,7 +12,10 @@ import {
 import { useBetActions } from "../betting";
 
 const UserContext = createContext<
-  | { user: User | null; setUser: Dispatch<SetStateAction<User | null>> }
+  | {
+      user: User["data"] | null;
+      setUser: Dispatch<SetStateAction<User["data"] | null>>;
+    }
   | undefined
 >(undefined);
 
@@ -20,10 +23,10 @@ export function UserProvider({
   initialUser,
   children,
 }: {
-  initialUser: User | null;
+  initialUser: User["data"] | null;
   children: React.ReactNode;
 }) {
-  const [user, setUser] = useState<User | null>(initialUser);
+  const [user, setUser] = useState<User["data"] | null>(initialUser);
   const { clearAllBets } = useBetActions();
 
   useEffect(() => {

@@ -12,12 +12,12 @@ export default async function Page({
   const currentTab = tabs.find((tab) => tab.title === initialTab);
   const betStatuses = currentTab?.statuses || tabs[0].statuses;
 
-  const bets = await getUserBets({ status: betStatuses });
+  const { data } = await getUserBets({ status: betStatuses });
   // console.log("server bets: ", bets);
   return (
     <div className="max-w-[1450px] my-0 mx-auto flex items-stretch">
       <div className="px-8 py-4 w-full">
-        <Tabs initialBets={bets} />
+        <Tabs initialBets={data} />
       </div>
     </div>
   );

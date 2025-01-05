@@ -15,7 +15,7 @@ import { CompetitorTable } from "@/components/competitor-table";
 import { fetchShowById } from "@/lib/api/shows/fetch-show-by-id";
 
 export default async function Home() {
-  const olympiaShow = await fetchShowById(1);
+  const { data: olympiaShow } = await fetchShowById(1);
   return (
     <div className="max-w-[1450px] my-0 mx-auto flex items-stretch">
       <div className="grid w-full md:grid-cols-[250px_1fr] lg:grid-cols-[300px_1fr]">
