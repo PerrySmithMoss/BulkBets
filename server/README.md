@@ -49,7 +49,7 @@ The Go Migration CLI tool helps manage database migrations efficiently. It suppo
 
 ## Usage
 
-Run the binary with the desired action:
+In the root of the project navigate to migrator binary e.g (`cd ./cmd/migrate`) and run the binary with the desired action:
 
 ```bash
 ./migrator --action=<action> [--version=<version>]
