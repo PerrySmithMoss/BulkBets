@@ -43,6 +43,12 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	// Validate singular bets
+	if err := bets.IsBetsValid(betSlip.ActiveBets); err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	userID, ok := r.Context().Value(userCtx).(string)
 	if !ok || userID == "" {
 		writeJSONError(w, http.StatusUnauthorized, "Unauthorised")

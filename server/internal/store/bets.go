@@ -16,6 +16,7 @@ import (
 var (
 	ErrInsufficientFunds      = errors.New("insufficient funds")
 	ErrInvalidStakeMultiplier = errors.New("stake multiplier must be a valid number and greater than 0")
+	ErrInvalidActiveBets      = errors.New("all activeBets must contain a valid number greater than 0")
 	ErrNoBetComponents        = errors.New("at least one bet component is required")
 	ErrConcurrentModification = errors.New("concurrent modification detected or balance update failed")
 )
@@ -51,10 +52,11 @@ type Bet struct {
 
 type BetResponse struct {
 	ID                    string   `json:"id"`
-	UserID                string   `json:"user_id"`
+	UserID                string   `json:"user_id,omitempty"`
 	DivisionParticipantID *string  `json:"division_participant_id,omitempty"`
 	BetType               int64    `json:"bet_type"`
 	BetTypeName           string   `json:"bet_type_name"`
+	IsComponent           string   `json:"is_component"`
 	Amount                float64  `json:"amount"`
 	Currency              string   `json:"currency"`
 	OddsAtTime            float64  `json:"odds_at_time"`
@@ -62,7 +64,7 @@ type BetResponse struct {
 	Status                string   `json:"status"`
 	CancelledAt           *string  `json:"cancelled_at,omitempty"`
 	CreatedAt             string   `json:"created_at"`
-	UpdatedAt             string   `json:"updated_at"`
+	UpdatedAt             string   `json:"updated_at,omitempty"`
 	SettledAt             *string  `json:"settled_at,omitempty"`
 	IsAccumulator         bool     `json:"is_accumulator"`
 	Components            []string `json:"components,omitempty"`
@@ -73,15 +75,17 @@ type BetResponse struct {
 }
 
 // createSingularBet handles the creation of a single bet record
-func (s *BetsStore) createSingularBet(ctx context.Context, tx *sql.Tx, user *User, bet *bets.ActiveBet) (*SingularBet, error) {
+func (s *BetsStore) createSingularBet(ctx context.Context, tx *sql.Tx, user *User, bet *bets.ActiveBet, isAccumulator bool) (*SingularBet, error) {
+	log.Printf("isAccumulator: %v", isAccumulator)
+	log.Printf("bet: %v", bet)
 	singularBet := &SingularBet{}
 	err := tx.QueryRowContext(ctx, `
-		INSERT INTO bets (user_id, division_participant_id, bet_type_id, amount, currency_code, odds_at_time, potential_payout)
-		    VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO bets (user_id, division_participant_id, bet_type_id, amount, currency_code, odds_at_time, potential_payout, is_component)
+		    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING
 		    id, user_id, amount, currency_code, odds_at_time`,
 		user.Id, bet.CompetitorId, bet.BetTypeId, bet.Amount,
-		user.DefaultCurrency, bet.Odds, bet.PotentialPayout,
+		user.DefaultCurrency, bet.Odds, bet.PotentialPayout, isAccumulator,
 	).Scan(&singularBet.Id, &singularBet.UserId, &singularBet.Amount,
 		&singularBet.CurrencyCode, &singularBet.OddsAtTime)
 
@@ -97,7 +101,7 @@ func (s *BetsStore) createAccumulatorBet(ctx context.Context, tx *sql.Tx, user *
 
 	accumulatorBet := &SingularBet{}
 	err := tx.QueryRowContext(ctx, `
-		INSERT INTO bets (user_id, bet_type_id, amount, currency_code, odds_at_time, potential_payout)
+		INSERT INTO bets (user_id, bet_type_id, amount, currency_code, odds_at_time, potential_payout, is_component)
 		    VALUES ($1, (
 		            SELECT
 		                id
@@ -105,7 +109,7 @@ func (s *BetsStore) createAccumulatorBet(ctx context.Context, tx *sql.Tx, user *
 		                bet_types
 		            WHERE
 		                name = 'accumulator'), -- Fetch the bet_type_id dynamically
-		            $2, $3, $4, $5)
+		            $2, $3, $4, $5, false)
 		RETURNING
 		    id,
 		    user_id,
@@ -180,6 +184,11 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 		}
 	}
 
+	// Validate singular bets
+	if err := bets.IsBetsValid(betSlip.ActiveBets); err != nil {
+		return ErrInvalidActiveBets
+	}
+
 	totalStake := bets.CalculateTotalStake(*betSlip)
 
 	return withTx(s.db, ctx, func(tx *sql.Tx) error {
@@ -226,12 +235,12 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 			return errors.New("concurrent modification detected or balance update failed")
 		}
 
-		// Create singular bets
 		var singularBets []SingularBet
 		runningBalance := currentBalance
 
+		// TODO: refactor to bulk insert singular bets and related transactions
 		for _, bet := range betSlip.ActiveBets {
-			singularBet, err := s.createSingularBet(ctx, tx, user, &bet)
+			singularBet, err := s.createSingularBet(ctx, tx, user, &bet, isAccumulator)
 			if err != nil {
 				return err
 			}
@@ -529,33 +538,41 @@ func (s *BetsStore) GetUnsettledBetsForDivision(ctx context.Context, tx *sql.Tx,
 		        AND b.settled_at IS NULL
 		        AND b.cancelled_at IS NULL
 		        AND dp.division_id = $1
+		        -- Exclude bets that are components of accumulators
+		        AND NOT EXISTS (
+		            SELECT
+		                1
+		            FROM
+		                accumulator_bet_components abc
+		            WHERE
+		                abc.singular_bet_id = b.id)
 		),
 		unsettled_accumulator_bets AS (
 		    SELECT DISTINCT
-		        ab.id AS bet_id,
-		        ab.user_id,
-		        NULL AS division_participant_id,
-		        ab.bet_type_id,
+		        b.id AS bet_id,
+		        b.user_id,
+		        b.division_participant_id,
+		        b.bet_type_id,
 		        bt.name AS bet_type_name,
-		        ab.amount,
-		        ab.currency_code,
-		        ab.total_odds AS odds_at_time,
-		        ab.potential_payout,
-		        ab.status,
-		        ab.created_at,
-		        ab.updated_at,
-		        ab.settled_at,
-		        ab.cancelled_at
+		        b.amount,
+		        b.currency_code,
+		        b.odds_at_time,
+		        b.potential_payout,
+		        b.status,
+		        b.created_at,
+		        b.updated_at,
+		        b.settled_at,
+		        b.cancelled_at
 		    FROM
-		        accumulator_bets ab
-		        INNER JOIN bet_types bt ON ab.bet_type_id = bt.id
-		        INNER JOIN accumulator_bet_components abc ON ab.id = abc.accumulator_bet_id
+		        bets b
+		        INNER JOIN bet_types bt ON b.bet_type_id = bt.id
+		        INNER JOIN accumulator_bet_components abc ON b.id = abc.accumulator_bet_id
 		        INNER JOIN bets sb ON abc.singular_bet_id = sb.id
 		        INNER JOIN division_participants dp ON sb.division_participant_id = dp.id
 		    WHERE
-		        ab.status = 'pending'
-		        AND ab.settled_at IS NULL
-		        AND ab.cancelled_at IS NULL
+		        b.status = 'pending'
+		        AND b.settled_at IS NULL
+		        AND b.cancelled_at IS NULL
 		        AND dp.division_id = $1
 		)
 		SELECT
@@ -650,8 +667,8 @@ func (s *BetsStore) SettleDivisionBets(ctx context.Context, settlement BetSettle
 
 		log.Printf("bets: %v", bets)
 
-		// // 2. Process single bets
-		// if err := processSingleBets(ctx, tx, bets.SingleBets, settlement); err != nil {
+		// 2. Process single bets
+		// if err := s.processSingleBets(ctx, tx, bets.SingleBets, settlement); err != nil {
 		// 	return fmt.Errorf("failed to process single bets: %w", err)
 		// }
 
@@ -668,3 +685,100 @@ func (s *BetsStore) SettleDivisionBets(ctx context.Context, settlement BetSettle
 		return nil
 	})
 }
+
+// func (s *BetsStore) processSingleBets(ctx context.Context, tx *sql.Tx, bets []BetResponse, settlement BetSettlement) error {
+// 	for _, bet := range bets {
+// 		// Find matching outcome for this bet
+// 		var matchingOutcome *DivisionOutcomeParams
+// 		for _, outcome := range settlement.Outcomes {
+// 			if outcome.DivisionParticipantId == *bet.DivisionParticipantID {
+// 				matchingOutcome = &outcome
+// 				break
+// 			}
+// 		}
+
+// 		if matchingOutcome == nil {
+// 			log.Printf("No matching outcome found for bet ID: %d", bet.ID)
+// 			continue
+// 		}
+
+// 		// Determine if bet is won
+// 		won := s.determineBetResult(bet, *matchingOutcome)
+
+// 		// Calculate payout if won
+// 		var payout float64
+// 		if won {
+// 			payout = bet.Amount * bet.OddsAtTime
+// 		}
+
+// 		// Update bet status and process payout
+// 		if err := s.settleBet(ctx, tx, bet.ID, bet.UserID, won, payout); err != nil {
+// 			return fmt.Errorf("failed to settle bet %d: %w", bet.ID, err)
+// 		}
+// 	}
+// 	return nil
+// }
+
+// func (s *BetsStore) processAccumulatorBets(ctx context.Context, tx *sql.Tx, bets []BetResponse, settlement BetSettlement) error {
+// 	for _, bet := range bets {
+// 		// Check if all legs are settled
+// 		allSettled, err := s.areAllLegsSettled(ctx, tx, bet.ID)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to check accumulator legs: %w", err)
+// 		}
+
+// 		if !allSettled {
+// 			continue // Skip if not all legs are settled
+// 		}
+
+// 		// Check if all legs were won
+// 		allWon, err := s.areAllLegsWon(ctx, tx, bet.ID)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to check accumulator results: %w", err)
+// 		}
+
+// 		var payout float64
+// 		if allWon {
+// 			payout = bet.Amount * bet.OddsAtTime
+// 		}
+
+// 		// Update accumulator bet status and process payout
+// 		if err := s.settleBet(ctx, tx, bet.ID, bet.UserID, allWon, payout); err != nil {
+// 			return fmt.Errorf("failed to settle accumulator bet %d: %w", bet.ID, err)
+// 		}
+// 	}
+// 	return nil
+// }
+
+// func (s *BetsStore) settleBet(ctx context.Context, tx *sql.Tx, betID string, userID string, won bool, payout float64) error {
+// 	// Update bet status
+// 	if err := s.betRepo.UpdateBetStatus(ctx, tx, betID, "settled"); err != nil {
+// 		return err
+// 	}
+
+// 	// If bet was won, process payout
+// 	if won && payout > 0 {
+// 		if err := s.walletRepo.ProcessPayout(ctx, tx, userID, payout, betID); err != nil {
+// 			return fmt.Errorf("failed to process payout: %w", err)
+// 		}
+// 	}
+
+// 	return nil
+// }
+
+// // Helper functions
+// func (s *BetsStore) determineBetResult(bet BetResponse, outcome DivisionOutcomeParams) bool {
+// 	// Implement bet winning logic based on bet type and outcome
+// 	// This will vary based on your specific bet types (e.g., winner, place, score)
+// 	return false // Placeholder
+// }
+
+// func (s *BetsStore) areAllLegsSettled(ctx context.Context, tx *sql.Tx, accumulatorID uuid.UUID) (bool, error) {
+// 	// Implementation to check if all legs of an accumulator are settled
+// 	return false, nil // Placeholder
+// }
+
+// func (s *BetsStore) areAllLegsWon(ctx context.Context, tx *sql.Tx, accumulatorID uuid.UUID) (bool, error) {
+// 	// Implementation to check if all legs of an accumulator were won
+// 	return false, nil // Placeholder
+// }

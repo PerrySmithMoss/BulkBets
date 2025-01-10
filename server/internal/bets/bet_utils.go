@@ -25,6 +25,27 @@ func validateBet(bet ActiveBet) bool {
 // 	return false
 // }
 
+func IsBetsValid(bets []ActiveBet) error {
+	if len(bets) == 0 {
+		return fmt.Errorf("no bets")
+	}
+
+	hasValidBetAmount := false
+
+	for _, bet := range bets {
+		// Ensure at least one valid bet amount
+		if currency.IsNumber(bet.Amount) && bet.Amount > 0 {
+			hasValidBetAmount = true
+		}
+	}
+
+	if !hasValidBetAmount {
+		return fmt.Errorf("activeBets must contain a valid number greater than 0")
+	}
+
+	return nil
+}
+
 func IsAccumulatorBet(betSlip BetSlip) bool {
 	// An accumulator bet requires:
 	// 1. A valid, positive StakeMultiplier
