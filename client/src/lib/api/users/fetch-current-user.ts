@@ -21,10 +21,6 @@ export const fetchCurrentUser = async () => {
     );
 
     if (error) {
-      console.error(
-        `[fetchCurrentUser] - error fetching current user: `,
-        String(error)
-      );
       return { data: null, error: String(error) };
     }
 

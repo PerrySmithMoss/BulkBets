@@ -14,7 +14,6 @@ export const refreshClientTokens = async (): Promise<boolean> => {
     if (response.ok) {
       return true;
     } else {
-      console.error("Token refresh failed, response not ok.");
       return false;
     }
   } catch (error) {
