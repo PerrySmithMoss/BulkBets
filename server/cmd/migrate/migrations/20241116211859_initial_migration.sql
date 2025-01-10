@@ -184,8 +184,14 @@ CREATE TABLE bets (
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     division_participant_id UUID REFERENCES division_participants(id) ON DELETE CASCADE,
     bet_type_id BIGSERIAL REFERENCES bet_types(id),
-    -- The total amount (singular bets + accumulator bets) the user set's as stake
-    amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
+    -- is the bet part of an accumulator
+    is_component BOOLEAN NOT NULL DEFAULT FALSE,
+    -- The total amount the user sets as stake
+    amount DECIMAL(10,2) CHECK (
+        (is_component = FALSE AND amount > 0)
+        OR 
+        (is_component = TRUE AND (amount IS NULL OR amount > 0))
+    ),
     currency_code CHAR(3) REFERENCES currencies(code),
     odds_at_time DECIMAL(10,2) NOT NULL CHECK (odds_at_time > 0),
     -- Winnings = potential return - amount (stake) 
@@ -266,6 +272,7 @@ CREATE INDEX idx_divisions_show_id ON divisions(show_id);
 CREATE INDEX idx_division_participants_division_id ON division_participants(division_id);
 CREATE INDEX idx_division_participants_scores ON division_participants(pre_judge_score, final_score);
 CREATE INDEX idx_odds_division_participant_id ON odds(division_participant_id);
+CREATE INDEX idx_bets_is_component ON bets(is_component);
 CREATE INDEX idx_bets_user_id ON bets(user_id);
 CREATE INDEX idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX idx_bets_status_created_at ON bets(status, created_at);
@@ -291,6 +298,7 @@ DROP INDEX IF EXISTS idx_shows_status_start_time;
 DROP INDEX IF EXISTS idx_transactions_created_at;
 DROP INDEX IF EXISTS idx_bets_status_created_at;
 DROP INDEX IF EXISTS idx_transactions_user_id;
+DROP INDEX IF EXISTS idx_bets_is_component;
 DROP INDEX IF EXISTS idx_bets_user_id;
 DROP INDEX IF EXISTS idx_odds_division_participant_id;
 DROP INDEX IF EXISTS idx_division_participants_scores;
