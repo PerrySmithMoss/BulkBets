@@ -222,7 +222,7 @@ CREATE TABLE transactions (
     currency_code CHAR(3) REFERENCES currencies(code),
     balance_before DECIMAL(10,2) NOT NULL,
     balance_after DECIMAL(10,2) NOT NULL,
-    transaction_type VARCHAR(20) NOT NULL,
+    transaction_type VARCHAR(20) NOT NULL, -- TODO: use enum instead here?
     reference_id UUID,
     status transaction_status DEFAULT 'pending',
     created_at TIMESTAMPTZ DEFAULT NOW(),
