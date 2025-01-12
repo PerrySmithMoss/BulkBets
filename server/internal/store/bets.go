@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
@@ -15,6 +16,7 @@ import (
 var (
 	ErrInsufficientFunds      = errors.New("insufficient funds")
 	ErrInvalidStakeMultiplier = errors.New("stake multiplier must be a valid number and greater than 0")
+	ErrInvalidSingularBet     = errors.New("stakeMultiplier or bet amount must contain valid amount")
 	ErrInvalidActiveBets      = errors.New("all activeBets must contain a valid number greater than 0")
 	ErrNoBetComponents        = errors.New("at least one bet component is required")
 	ErrConcurrentModification = errors.New("concurrent modification detected or balance update failed")
@@ -74,7 +76,7 @@ type BetResponse struct {
 }
 
 // createSingularBet handles the creation of a single bet record
-func (s *BetsStore) createSingularBet(ctx context.Context, tx *sql.Tx, user *User, bet *bets.ActiveBet, isAccumulator bool) (*SingularBet, error) {
+func (s *BetsStore) createSingularBet(ctx context.Context, tx *sql.Tx, user *User, bet *bets.ActiveBet, IsComponent bool) (*SingularBet, error) {
 	singularBet := &SingularBet{}
 	err := tx.QueryRowContext(ctx, `
 		INSERT INTO bets (user_id, division_participant_id, bet_type_id, amount, currency_code, odds_at_time, potential_payout, is_component)
@@ -82,7 +84,7 @@ func (s *BetsStore) createSingularBet(ctx context.Context, tx *sql.Tx, user *Use
 		RETURNING
 		    id, user_id, amount, currency_code, odds_at_time`,
 		user.Id, bet.CompetitorId, bet.BetTypeId, bet.Amount,
-		user.DefaultCurrency, bet.Odds, bet.PotentialPayout, isAccumulator,
+		user.DefaultCurrency, bet.Odds, bet.PotentialPayout, IsComponent,
 	).Scan(&singularBet.Id, &singularBet.UserId, &singularBet.Amount,
 		&singularBet.CurrencyCode, &singularBet.OddsAtTime)
 
@@ -182,8 +184,26 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 	}
 
 	// Validate singular bets
-	if err := bets.IsBetsValid(betSlip.ActiveBets); err != nil {
-		return ErrInvalidActiveBets
+	if len(betSlip.ActiveBets) > 1 {
+		if err := bets.IsBetsValid(betSlip.ActiveBets); err != nil {
+			return ErrInvalidActiveBets
+		}
+	}
+
+	if len(betSlip.ActiveBets) == 1 {
+		// if no valid bet amount and no valid stake multiplier
+		if !currency.IsNumber(betSlip.ActiveBets[0].Amount) ||
+			(betSlip.ActiveBets[0].Amount <= 0 &&
+				(betSlip.StakeMultiplier == nil || *betSlip.StakeMultiplier <= 0)) {
+			return ErrInvalidSingularBet
+		}
+
+		// if there is only 1 bet and it contains a StakeMultiplier that
+		// essentially means the StakeMultiplier is the bet amount, therefore we
+		// can set the bet amount as the StakeMultiplier and set the StakeMultiplier to 0
+		betSlip.ActiveBets[0].Amount = *betSlip.StakeMultiplier
+		zero := 0.0
+		betSlip.StakeMultiplier = &zero
 	}
 
 	totalStake := bets.CalculateTotalStake(*betSlip)
@@ -670,6 +690,8 @@ type BetSettlement struct {
 func (s *BetsStore) SettleDivisionBets(ctx context.Context, settlement BetSettlement) error {
 	return withTx(s.db, ctx, func(tx *sql.Tx) error {
 		// 1. Mark all component bets for this division as won/lost
+		// TODO: figure out why its updating the status of the accumulator bet even if some of
+		// the bets linked to that accumulator still have a status of 'pending'
 		if err := s.markComponentBetsStatus(ctx, tx, settlement); err != nil {
 			return fmt.Errorf("failed to mark component bets: %w", err)
 		}

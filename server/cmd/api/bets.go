@@ -44,8 +44,15 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Validate singular bets
-	if err := bets.IsBetsValid(betSlip.ActiveBets); err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
+	if len(betSlip.ActiveBets) > 1 {
+		if err := bets.IsBetsValid(betSlip.ActiveBets); err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
+	if len(betSlip.ActiveBets) == 1 && betSlip.StakeMultiplier == nil || *betSlip.StakeMultiplier <= 0 {
+		writeJSONError(w, http.StatusBadRequest, "bet must contain valid amount or stakeMultiplier")
 		return
 	}
 
