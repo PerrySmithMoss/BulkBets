@@ -113,7 +113,7 @@ func (s *DivisionsStore) CreateDivisionResult(ctx context.Context, params Divisi
 	var divisionResultID int64
 
 	err := withTx(s.db, ctx, func(tx *sql.Tx) error {
-		// TODO: update division table status column to 'completed' here or separate?
+		// TODO: update division table status column to 'completed' here or separate??
 
 		query := `
 			INSERT INTO division_results (division_id, finalised_by, comments)

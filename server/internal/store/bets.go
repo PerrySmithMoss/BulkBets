@@ -36,7 +36,7 @@ type SingularBet struct {
 	DivisionParticipantId uuid.UUID `json:"division_participant_id"`
 	BetTypeId             int       `json:"bet_type_id"`
 	CurrencyCode          string    `json:"currency_code"`
-	Amount                float64   `json:"amount"`
+	Amount                *float64  `json:"amount"`
 	OddsAtTime            float64   `json:"odds_at_time"`
 	PotentialPayout       float64   `json:"potential_payout"`
 }
@@ -146,7 +146,10 @@ func (s *BetsStore) createAccumulatorBet(ctx context.Context, tx *sql.Tx, user *
 func (s *BetsStore) createBetTransaction(ctx context.Context, tx *sql.Tx,
 	bet *SingularBet, balanceBefore, balanceAfter float64) error {
 	// Negate the amount for bets since they decrease the balance
-	transactionAmount := -bet.Amount
+	var transactionAmount float64
+	if bet.Amount != nil {
+		transactionAmount = -(*bet.Amount) // Dereference bet.Amount to get the float64 value and negate it
+	}
 
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO transactions (user_id, amount, currency_code, balance_before, balance_after, transaction_type, reference_id, status)
@@ -192,8 +195,8 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 
 	if len(betSlip.ActiveBets) == 1 {
 		// if no valid bet amount and no valid stake multiplier
-		if !currency.IsNumber(betSlip.ActiveBets[0].Amount) ||
-			(betSlip.ActiveBets[0].Amount <= 0 &&
+		if betSlip.ActiveBets[0].Amount == nil || !currency.IsNumber(*betSlip.ActiveBets[0].Amount) ||
+			(*betSlip.ActiveBets[0].Amount <= 0 &&
 				(betSlip.StakeMultiplier == nil || *betSlip.StakeMultiplier <= 0)) {
 			return ErrInvalidSingularBet
 		}
@@ -201,7 +204,8 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 		// if there is only 1 bet and it contains a StakeMultiplier that
 		// essentially means the StakeMultiplier is the bet amount, therefore we
 		// can set the bet amount as the StakeMultiplier and set the StakeMultiplier to 0
-		betSlip.ActiveBets[0].Amount = *betSlip.StakeMultiplier
+		*betSlip.ActiveBets[0].Amount = *betSlip.StakeMultiplier
+		betSlip.ActiveBets[0].PotentialPayout = *betSlip.StakeMultiplier * betSlip.ActiveBets[0].Odds
 		zero := 0.0
 		betSlip.StakeMultiplier = &zero
 	}
@@ -264,7 +268,12 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 			singularBets = append(singularBets, *singularBet)
 
 			// Calculate balances for this specific transaction
-			balanceAfter := runningBalance - bet.Amount
+			amount := bet.Amount
+			if amount == nil {
+				amount = new(float64) // Create a new float64 pointer with the default value 0.0
+			}
+
+			balanceAfter := runningBalance - *amount
 
 			// Create transaction for singular bet
 			err = s.createBetTransaction(ctx, tx, singularBet, runningBalance, balanceAfter)
@@ -854,6 +863,8 @@ func (s *BetsStore) settleStandaloneBets(ctx context.Context, tx *sql.Tx, settle
 }
 
 func (s *BetsStore) settleReadyAccumulators(ctx context.Context, tx *sql.Tx, settlement BetSettlement) error {
+	// TODO: split the complex CTE query into separate operations for
+	// better control and error handling like done in settleStandaloneBets
 	query := `
 		WITH settleable_accumulators AS (
 		    SELECT
@@ -922,7 +933,6 @@ func (s *BetsStore) settleReadyAccumulators(ctx context.Context, tx *sql.Tx, set
 		}
 
 		if payout > 0 {
-			// TODO:
 			// Lock and get user's current balance
 			var currentBalance float64
 			var userVersion int

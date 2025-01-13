@@ -187,6 +187,7 @@ CREATE TABLE bets (
     -- is the bet part of an accumulator
     is_component BOOLEAN NOT NULL DEFAULT FALSE,
     -- The total amount the user sets as stake
+    -- will be NULL if bet is part of an accumulator and is not a singular bet
     amount DECIMAL(10,2) CHECK (
         (is_component = FALSE AND amount > 0)
         OR 

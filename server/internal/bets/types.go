@@ -8,14 +8,14 @@ type BetSlip struct {
 }
 
 type ActiveBet struct {
-	ShowId          int64   `json:"showId" validate:"required"`
-	DivisionId      int64   `json:"divisionId" validate:"required"`
-	CompetitorId    string  `json:"competitorId" validate:"required"`
-	BetTypeId       int64   `json:"betTypeId" validate:"required"`
-	BetType         BetType `json:"betType" validate:"required"`
-	Amount          float64 `json:"amount"`
-	PotentialPayout float64 `json:"potential_payout"`
-	Odds            float64 `json:"odds" validate:"required"`
+	ShowId          int64    `json:"showId" validate:"required"`
+	DivisionId      int64    `json:"divisionId" validate:"required"`
+	CompetitorId    string   `json:"competitorId" validate:"required"`
+	BetTypeId       int64    `json:"betTypeId" validate:"required"`
+	BetType         BetType  `json:"betType" validate:"required"`
+	Amount          *float64 `json:"amount"`
+	PotentialPayout float64  `json:"potential_payout"`
+	Odds            float64  `json:"odds" validate:"required"`
 }
 
 type BetType string

@@ -9,7 +9,10 @@ import (
 
 // validateBet ensures the bet has a non-negative amount and positive odds
 func validateBet(bet ActiveBet) bool {
-	return bet.Amount >= 0 && bet.Odds > 0
+	if bet.Amount == nil {
+		return false // If Amount is nil, it's invalid
+	}
+	return *bet.Amount >= 0 && bet.Odds > 0
 }
 
 // func betExistsInSameDivision(bets []ActiveBet) bool {
@@ -34,7 +37,7 @@ func IsBetsValid(bets []ActiveBet) error {
 
 	for _, bet := range bets {
 		// Ensure at least one valid bet amount
-		if currency.IsNumber(bet.Amount) && bet.Amount > 0 {
+		if bet.Amount != nil && currency.IsNumber(*bet.Amount) && *bet.Amount > 0 {
 			hasValidBetAmount = true
 		}
 	}
@@ -73,7 +76,7 @@ func IsValidAccumulatorBet(betSlip BetSlip) error {
 		divisionSet[bet.DivisionId] = struct{}{}
 
 		// Ensure at least one valid bet amount
-		if currency.IsNumber(bet.Amount) && bet.Amount > 0 {
+		if bet.Amount != nil && currency.IsNumber(*bet.Amount) && *bet.Amount > 0 {
 			hasValidBetAmount = true
 		}
 	}
@@ -88,7 +91,9 @@ func IsValidAccumulatorBet(betSlip BetSlip) error {
 func CalculateTotalBetsAmount(bets []ActiveBet) float64 {
 	var totalBetsAmount float64
 	for _, bet := range bets {
-		totalBetsAmount += bet.Amount
+		if bet.Amount != nil { // Check if Amount is not nil before dereferencing
+			totalBetsAmount += *bet.Amount // Dereference Amount to get the float64 value
+		}
 	}
 
 	return totalBetsAmount
@@ -121,7 +126,9 @@ func CalculateTotalDecimalOdds(odds []float64) (float64, error) {
 func GetBetAmounts(bets []ActiveBet) []float64 {
 	amounts := make([]float64, 0, len(bets))
 	for _, bet := range bets {
-		amounts = append(amounts, bet.Amount)
+		if bet.Amount != nil {
+			amounts = append(amounts, *bet.Amount)
+		}
 	}
 	return amounts
 }
@@ -135,7 +142,10 @@ func GetBetOdds(bets []ActiveBet) []float64 {
 }
 
 func CalculateBetPotentialReturn(bet ActiveBet) float64 {
-	potentialReturn := bet.Amount * bet.Odds
+	if bet.Amount == nil { // Check if Amount is nil to avoid dereferencing nil
+		return 0 // Return 0 if Amount is nil
+	}
+	potentialReturn := *bet.Amount * bet.Odds    // Dereference bet.Amount to get the float64 value
 	return math.Round(potentialReturn*100) / 100 // Round to two decimal places
 }
 
@@ -145,7 +155,9 @@ func CalculateSingularBetsTotalReturn(bets []ActiveBet) float64 {
 		if !validateBet(bet) {
 			continue
 		}
-		totalReturn += bet.Amount * bet.Odds
+		if bet.Amount != nil { // Check if Amount is not nil
+			totalReturn += *bet.Amount * bet.Odds // Dereference Amount to get the float64 value
+		}
 	}
 	return math.Round(totalReturn*100) / 100 // Round to two decimal places
 }
