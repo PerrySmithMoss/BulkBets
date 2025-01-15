@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
-	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
@@ -38,6 +37,7 @@ type SingularBet struct {
 	CurrencyCode          string    `json:"currency_code"`
 	Amount                *float64  `json:"amount"`
 	OddsAtTime            float64   `json:"odds_at_time"`
+	Status                string    `json:"status"`
 	PotentialPayout       float64   `json:"potential_payout"`
 }
 
@@ -143,12 +143,21 @@ func (s *BetsStore) createAccumulatorBet(ctx context.Context, tx *sql.Tx, user *
 }
 
 // createBetTransaction creates a transaction record for a bet
+// isAddingFunds determines whether the transaction is positive (adding funds) or negative (removing funds)
 func (s *BetsStore) createBetTransaction(ctx context.Context, tx *sql.Tx,
-	bet *SingularBet, balanceBefore, balanceAfter float64) error {
-	// Negate the amount for bets since they decrease the balance
+	bet *SingularBet, balanceBefore, balanceAfter float64, isAddingFunds bool) error {
+	// we don't need to create a transaction for bets with 0 value
+	// AKA bets which are part of an accumulator
+	if bet.Amount == nil || *bet.Amount <= 0 {
+		return nil
+	}
+
+	// Determine the transaction amount based on isAddingFunds flag
 	var transactionAmount float64
-	if bet.Amount != nil {
-		transactionAmount = -(*bet.Amount) // Dereference bet.Amount to get the float64 value and negate it
+	if isAddingFunds {
+		transactionAmount = *bet.Amount // Positive transaction, add funds
+	} else {
+		transactionAmount = -(*bet.Amount) // Negative transaction, subtract funds
 	}
 
 	_, err := tx.ExecContext(ctx, `
@@ -194,20 +203,24 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 	}
 
 	if len(betSlip.ActiveBets) == 1 {
-		// if no valid bet amount and no valid stake multiplier
-		if betSlip.ActiveBets[0].Amount == nil || !currency.IsNumber(*betSlip.ActiveBets[0].Amount) ||
-			(*betSlip.ActiveBets[0].Amount <= 0 &&
-				(betSlip.StakeMultiplier == nil || *betSlip.StakeMultiplier <= 0)) {
+		// Check if both Amount and StakeMultiplier are missing or invalid
+		if (betSlip.ActiveBets[0].Amount == nil || *betSlip.ActiveBets[0].Amount <= 0) &&
+			(betSlip.StakeMultiplier == nil || *betSlip.StakeMultiplier <= 0) {
 			return ErrInvalidSingularBet
 		}
 
-		// if there is only 1 bet and it contains a StakeMultiplier that
-		// essentially means the StakeMultiplier is the bet amount, therefore we
-		// can set the bet amount as the StakeMultiplier and set the StakeMultiplier to 0
-		*betSlip.ActiveBets[0].Amount = *betSlip.StakeMultiplier
-		betSlip.ActiveBets[0].PotentialPayout = *betSlip.StakeMultiplier * betSlip.ActiveBets[0].Odds
-		zero := 0.0
-		betSlip.StakeMultiplier = &zero
+		// Use StakeMultiplier as the bet amount if StakeMultiplier is valid
+		if betSlip.StakeMultiplier != nil && *betSlip.StakeMultiplier > 0 {
+			if betSlip.ActiveBets[0].Amount == nil {
+				betSlip.ActiveBets[0].Amount = new(float64) // Allocate memory for Amount if nil
+			}
+			*betSlip.ActiveBets[0].Amount = *betSlip.StakeMultiplier
+			betSlip.ActiveBets[0].PotentialPayout = *betSlip.StakeMultiplier * betSlip.ActiveBets[0].Odds
+
+			// Reset StakeMultiplier to 0
+			zero := 0.0
+			betSlip.StakeMultiplier = &zero
+		}
 	}
 
 	totalStake := bets.CalculateTotalStake(*betSlip)
@@ -276,7 +289,7 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 			balanceAfter := runningBalance - *amount
 
 			// Create transaction for singular bet
-			err = s.createBetTransaction(ctx, tx, singularBet, runningBalance, balanceAfter)
+			err = s.createBetTransaction(ctx, tx, singularBet, runningBalance, balanceAfter, false)
 			if err != nil {
 				return err
 			}
@@ -300,7 +313,7 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 			balanceAfter := runningBalance - multiplier
 
 			// Create transaction for accumulator bet
-			err = s.createBetTransaction(ctx, tx, accumulatorBet, runningBalance, balanceAfter)
+			err = s.createBetTransaction(ctx, tx, accumulatorBet, runningBalance, balanceAfter, false)
 			if err != nil {
 				return err
 			}
@@ -756,7 +769,6 @@ func (s *BetsStore) markComponentBetsStatus(ctx context.Context, tx *sql.Tx, set
 }
 
 func (s *BetsStore) settleStandaloneBets(ctx context.Context, tx *sql.Tx, settlement BetSettlement) error {
-	// Prepare the values for the query
 	divisionParticipantIDs := make([]string, len(settlement.Outcomes))
 	winningParticipantIDs := make([]string, 0)
 
@@ -767,27 +779,31 @@ func (s *BetsStore) settleStandaloneBets(ctx context.Context, tx *sql.Tx, settle
 		}
 	}
 
-	// Split the operation into two separate queries for better control
-	// First query: Update bets and get results
 	betResultsQuery := `
-		UPDATE bets b
+		UPDATE
+		    bets b
 		SET
-			status = CASE 
-				WHEN b.division_participant_id = ANY ($2) THEN 'won'::bet_status
-				ELSE 'lost'::bet_status
-			END,
-			settled_at = NOW()
+		    status = CASE WHEN b.division_participant_id = ANY ($2) THEN
+		        'won'::bet_status
+		    ELSE
+		        'lost'::bet_status
+		    END,
+		    settled_at = NOW()
 		WHERE
-			b.division_participant_id = ANY ($1)
-			AND b.is_component = FALSE
-			AND b.bet_type_id != 9999999999
-			AND b.status = 'pending'::bet_status
+		    b.division_participant_id = ANY ($1)
+		    AND b.is_component = FALSE
+		    AND b.bet_type_id != 9999999999
+		    AND b.status = 'pending'::bet_status
 		RETURNING
-			id,
-			user_id,
-			status,
-			amount,
-			odds_at_time`
+		    id,
+		    user_id,
+		    division_participant_id,
+		    bet_type_id,
+		    currency_code,
+		    status,
+		    amount,
+		    odds_at_time,
+		    potential_payout`
 
 	betRows, err := tx.QueryContext(ctx, betResultsQuery,
 		pq.Array(divisionParticipantIDs),
@@ -798,18 +814,10 @@ func (s *BetsStore) settleStandaloneBets(ctx context.Context, tx *sql.Tx, settle
 	}
 	defer betRows.Close()
 
-	type betResult struct {
-		ID         string
-		UserID     string
-		Status     string
-		Amount     float64
-		OddsAtTime float64
-	}
-
-	var betsToProcess []betResult
+	var betsToProcess []SingularBet
 	for betRows.Next() {
-		var br betResult
-		if err := betRows.Scan(&br.ID, &br.UserID, &br.Status, &br.Amount, &br.OddsAtTime); err != nil {
+		var br SingularBet
+		if err := betRows.Scan(&br.Id, &br.UserId, &br.DivisionParticipantId, &br.BetTypeId, &br.CurrencyCode, &br.Status, &br.Amount, &br.OddsAtTime, &br.PotentialPayout); err != nil {
 			return fmt.Errorf("failed to scan bet result: %w", err)
 		}
 		betsToProcess = append(betsToProcess, br)
@@ -824,156 +832,292 @@ func (s *BetsStore) settleStandaloneBets(ctx context.Context, tx *sql.Tx, settle
 			continue
 		}
 
-		payout := bet.Amount * bet.OddsAtTime
+		var currentBalance float64
+		var userVersion int
+		err := tx.QueryRow(`
+			SELECT
+			    balance,
+			    version
+			FROM
+			    user_balances
+			WHERE
+			    user_id = $1
+			FOR UPDATE`, bet.UserId).Scan(&currentBalance, &userVersion)
+		if err != nil {
+			return fmt.Errorf("failed to retrieve user balance: %v", err)
+		}
+
+		payout := 0.0
+		if bet.Amount != nil {
+			payout = *bet.Amount * bet.OddsAtTime
+		} else {
+			fmt.Println("bet.Amount is nil??")
+		}
+
+		runningBalance := currentBalance
 
 		// Use a CTE for atomic balance update with optimistic locking
 		updateBalanceQuery := `
 			WITH balance_update AS (
-				UPDATE user_balances
-				SET 
-					balance = balance + $1,
-					version = version + 1
-				WHERE 
-					user_id = $2
-					AND version = (
-						SELECT version 
-						FROM user_balances 
-						WHERE user_id = $2 
-						FOR UPDATE
-					)
-				RETURNING balance, version
+			    UPDATE
+			        user_balances
+			    SET
+			        balance = balance + $1,
+			        version = version + 1
+			    WHERE
+			        user_id = $2
+			        AND version = (
+			            SELECT
+			                version
+			            FROM
+			                user_balances
+			            WHERE
+			                user_id = $2
+			            FOR UPDATE)
+			    RETURNING
+			        balance,
+			        version
 			)
-			SELECT balance, version FROM balance_update`
+			SELECT
+			    balance,
+			    version
+			FROM
+			    balance_update`
 
 		var newBalance float64
-		var newVersion int
-		err := tx.QueryRowContext(ctx, updateBalanceQuery, payout, bet.UserID).Scan(&newBalance, &newVersion)
+		err = tx.QueryRowContext(ctx, updateBalanceQuery, payout, bet.UserId).Scan(&newBalance, &userVersion)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				return fmt.Errorf("optimistic lock failed for user %s: concurrent modification detected", bet.UserID)
+				return fmt.Errorf("optimistic lock failed for user %s: concurrent modification detected", bet.UserId)
 			}
-			return fmt.Errorf("failed to update balance for user %s: %w", bet.UserID, err)
+			return fmt.Errorf("failed to update balance for user %s: %w", bet.UserId, err)
 		}
 
-		// TODO: create transaction record for adding funds to the user's balance
-		// Consider using a separate table for transaction history
+		balanceAfter := runningBalance + payout
+
+		bet := &SingularBet{
+			Id:                    bet.Id,
+			UserId:                bet.UserId,
+			DivisionParticipantId: bet.DivisionParticipantId,
+			BetTypeId:             bet.BetTypeId,
+			CurrencyCode:          bet.CurrencyCode,
+			Amount:                &payout,
+			OddsAtTime:            bet.OddsAtTime,
+			Status:                bet.Status,
+			PotentialPayout:       bet.PotentialPayout,
+		}
+
+		err = s.createBetTransaction(ctx, tx, bet, runningBalance, balanceAfter, true)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
 func (s *BetsStore) settleReadyAccumulators(ctx context.Context, tx *sql.Tx, settlement BetSettlement) error {
-	// TODO: split the complex CTE query into separate operations for
-	// better control and error handling like done in settleStandaloneBets
-	query := `
-		WITH settleable_accumulators AS (
-		    SELECT
-		        abc.accumulator_bet_id,
-		        b.user_id,
-		        b.amount,
-		        b.odds_at_time,
-		        bool_and(cb.status IN ('won', 'lost')) AS all_components_settled,
-		        bool_and(cb.status = 'won') AS all_components_won
-		    FROM
-		        accumulator_bet_components abc
-		        JOIN bets b ON abc.accumulator_bet_id = b.id
-		        JOIN bets cb ON abc.singular_bet_id = cb.id
-		    WHERE
-		        EXISTS (
-		            SELECT
-		                1
-		            FROM
-		                bets b2
-		                JOIN division_participants dp2 ON b2.division_participant_id = dp2.id
-		            WHERE
-		                dp2.division_id = $1
-		                AND b2.id = abc.singular_bet_id)
-		            AND b.status = 'pending'::bet_status
-		        GROUP BY
-		            abc.accumulator_bet_id,
-		            b.user_id,
-		            b.amount,
-		            b.odds_at_time
-		        HAVING
-		            bool_and(cb.status IN ('won', 'lost')))
-		UPDATE
-		    bets b
-		SET
-		    status = CASE WHEN sa.all_components_won THEN
-		        'won'::bet_status
-		    ELSE
-		        'lost'::bet_status
-		    END,
-		    settled_at = NOW()
+	findSettleableQuery := `
+		SELECT
+		    abc.accumulator_bet_id,
+		    b.user_id,
+		    b.division_participant_id,
+		    b.bet_type_id,
+		    b.currency_code,
+		    b.status,
+		    b.amount,
+		    b.odds_at_time,
+		    b.potential_payout,
+		    bool_and(cb.status = 'won') AS all_components_won
 		FROM
-		    settleable_accumulators sa
+		    accumulator_bet_components abc
+		    JOIN bets b ON abc.accumulator_bet_id = b.id
+		    JOIN bets cb ON abc.singular_bet_id = cb.id
 		WHERE
-		    b.id = sa.accumulator_bet_id
-		RETURNING
-		    b.id,
-		    sa.user_id,
-		    CASE WHEN sa.all_components_won THEN
-		        sa.amount * sa.odds_at_time
-		    ELSE
-		        0
-		    END AS payout`
+		    EXISTS (
+		        SELECT
+		            1
+		        FROM
+		            bets b2
+		            JOIN division_participants dp2 ON b2.division_participant_id = dp2.id
+		        WHERE
+		            dp2.division_id = $1
+		            AND b2.id = abc.singular_bet_id)
+		    AND b.status = 'pending'::bet_status
+		GROUP BY
+		    abc.accumulator_bet_id,
+		    b.user_id,
+		    b.division_participant_id,
+		    b.bet_type_id,
+		    b.currency_code,
+		    b.status,
+		    b.amount,
+		    b.odds_at_time,
+		    b.potential_payout
+		HAVING
+		    bool_and(cb.status IN ('won', 'lost'))`
 
-	rows, err := tx.QueryContext(ctx, query, settlement.DivisionID)
+	type AccumulatorResult struct {
+		AccumulatorBetID      uuid.UUID
+		UserId                uuid.UUID
+		DivisionParticipantId uuid.UUID
+		BetTypeId             int
+		CurrencyCode          string
+		Amount                *float64
+		OddsAtTime            float64
+		Status                string
+		PotentialPayout       float64
+		AllComponentsWon      bool
+	}
+
+	rows, err := tx.QueryContext(ctx, findSettleableQuery, settlement.DivisionID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find settleable accumulators: %w", err)
 	}
 	defer rows.Close()
 
+	var accumulatorsToProcess []AccumulatorResult
 	for rows.Next() {
-		var betID, userID string
-		var payout float64
+		var ar AccumulatorResult
+		if err := rows.Scan(
+			&ar.AccumulatorBetID,
+			&ar.UserId,
+			&ar.DivisionParticipantId,
+			&ar.BetTypeId,
+			&ar.CurrencyCode,
+			&ar.Status,
+			&ar.Amount,
+			&ar.OddsAtTime,
+			&ar.PotentialPayout,
+			&ar.AllComponentsWon,
+		); err != nil {
+			return fmt.Errorf("failed to scan accumulator result: %w", err)
+		}
+		accumulatorsToProcess = append(accumulatorsToProcess, ar)
+	}
+	if err = rows.Err(); err != nil {
+		return fmt.Errorf("error iterating accumulator results: %w", err)
+	}
 
-		if err := rows.Scan(&betID, &userID, &payout); err != nil {
-			return err
+	// Second query: Update accumulator bets status
+	for _, acc := range accumulatorsToProcess {
+		// TODO: Only process the accumulator bet if the result of all linked
+		// bets (components) has been added to db. With the code below all
+		// accumulators will have their status changed to lost or won
+		// even if the division result of that bet hasn't been added to db yet...
+
+		status := "lost"
+		if acc.AllComponentsWon {
+			status = "won"
 		}
 
-		if payout > 0 {
-			// Lock and get user's current balance
-			var currentBalance float64
-			var userVersion int
-			err := tx.QueryRow(`
+		var currentBalance float64
+		var userVersion int
+		err := tx.QueryRow(`
+			SELECT
+			    balance,
+			    version
+			FROM
+			    user_balances
+			WHERE
+			    user_id = $1
+			FOR UPDATE`, acc.UserId).Scan(&currentBalance, &userVersion)
+		if err != nil {
+			return fmt.Errorf("failed to retrieve user balance: %v", err)
+		}
+
+		updateQuery := `
+			UPDATE
+			    bets
+			SET
+			    status = $1::bet_status,
+			    settled_at = NOW()
+			WHERE
+			    id = $2
+			    AND status = 'pending'::bet_status`
+
+		result, err := tx.ExecContext(ctx, updateQuery, status, acc.AccumulatorBetID)
+		if err != nil {
+			return fmt.Errorf("failed to update accumulator bet status: %w", err)
+		}
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("failed to get rows affected for accumulator update: %w", err)
+		}
+		if rowsAffected == 0 {
+			return fmt.Errorf("accumulator bet %s was not updated, possible concurrent modification", acc.AccumulatorBetID)
+		}
+
+		// Process winning bets
+		if acc.AllComponentsWon {
+
+			payout := 0.0
+			if acc.Amount != nil {
+				payout = *acc.Amount * acc.OddsAtTime
+			} else {
+				fmt.Println("bet.Amount is nil??")
+			}
+
+			runningBalance := currentBalance
+
+			// Use a CTE for atomic balance update with optimistic locking
+			updateBalanceQuery := `
+				WITH balance_update AS (
+				    UPDATE
+				        user_balances
+				    SET
+				        balance = balance + $1,
+				        version = version + 1
+				    WHERE
+				        user_id = $2
+				        AND version = (
+				            SELECT
+				                version
+				            FROM
+				                user_balances
+				            WHERE
+				                user_id = $2
+				            FOR UPDATE)
+				    RETURNING
+				        balance,
+				        version
+				)
 				SELECT
 				    balance,
 				    version
 				FROM
-				    user_balances
-				WHERE
-				    user_id = $1
-				FOR UPDATE`, userID).Scan(&currentBalance, &userVersion)
+				    balance_update`
+
+			var newBalance float64
+			err := tx.QueryRowContext(ctx, updateBalanceQuery, payout, acc.UserId).Scan(&newBalance, &userVersion)
 			if err != nil {
-				return fmt.Errorf("failed to retrieve user balance: %v", err)
+				if err == sql.ErrNoRows {
+					return fmt.Errorf("optimistic lock failed for user %s: concurrent modification detected", acc.UserId)
+				}
+				return fmt.Errorf("failed to update balance for user %s: %w", acc.UserId, err)
 			}
 
-			//  Update balance with optimistic locking
-			newBalance := currentBalance + payout
-			result, err := tx.ExecContext(ctx, `
-				UPDATE
-				    user_balances
-				SET
-				    balance = $1,
-				    version = version + 1
-				WHERE
-				    user_id = $2
-				    AND version = $3`,
-				newBalance, userID, userVersion)
+			balanceAfter := runningBalance + payout
+
+			bet := &SingularBet{
+				Id:                    acc.AccumulatorBetID,
+				UserId:                acc.UserId,
+				DivisionParticipantId: acc.DivisionParticipantId,
+				BetTypeId:             acc.BetTypeId,
+				CurrencyCode:          acc.CurrencyCode,
+				Amount:                &payout,
+				OddsAtTime:            acc.OddsAtTime,
+				Status:                acc.Status,
+				PotentialPayout:       acc.PotentialPayout,
+			}
+
+			err = s.createBetTransaction(ctx, tx, bet, runningBalance, balanceAfter, true)
 			if err != nil {
-				return fmt.Errorf("failed to update balance: %w", err)
+				return err
 			}
-
-			// Verify balance deduction was successful
-			rowsAffected, err := result.RowsAffected()
-			if err != nil || rowsAffected == 0 {
-				return errors.New("concurrent modification detected or balance update failed")
-			}
-
-			// TODO: create transaction for adding funds to the user's balance
 		}
 	}
 
-	return rows.Err()
+	return nil
 }

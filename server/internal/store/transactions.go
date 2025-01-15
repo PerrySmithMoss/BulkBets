@@ -30,18 +30,10 @@ func (s *TransactionsStore) CreateBetTransaction(ctx context.Context, params Cre
 
 	withTx(s.db, ctx, func(tx *sql.Tx) error {
 		query := `
-    INSERT INTO transactions (
-        user_id, 
-        amount, 
-        currency_code, 
-        balance_before, 
-        balance_after, 
-        transaction_type, 
-        reference_id,
-        status
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    RETURNING id
-    `
+			INSERT INTO transactions (user_id, amount, currency_code, balance_before, balance_after, transaction_type, reference_id, status)
+			    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			RETURNING
+			    id`
 
 		err := tx.QueryRowContext(ctx,
 			query,
