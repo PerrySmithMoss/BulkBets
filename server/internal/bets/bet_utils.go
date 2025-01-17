@@ -5,7 +5,6 @@ import (
 	"math"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
-	json_utils "github.com/PerrySmithMoss/BulkBets/server/internal/json"
 )
 
 // validateBet ensures the bet has a non-negative amount and positive odds
@@ -183,8 +182,6 @@ func CalculateAccumulatorBetTotalReturn(betSlip BetSlip) (float64, error) {
 	}
 
 	totalReturn := multiplier * totalOdds
-	json_utils.LogPretty("totalReturn", totalReturn)
-	json_utils.LogPretty("totalOdds", totalOdds)
 
 	return math.Round(totalReturn*100) / 100, nil // Round to two decimal places
 }
@@ -220,12 +217,6 @@ func CalculateBetSlipTotals(betSlip BetSlip) (BetSlipTotals, error) {
 
 	potentialReturn := totalSingularBetReturn + totalAccumulatorBetReturn
 	potentialWinnings := potentialReturn - totalStake
-	json_utils.LogPretty("odds", odds)
-	json_utils.LogPretty("betsAmount", betsAmount)
-	json_utils.LogPretty("totalSingularBetReturn", totalSingularBetReturn)
-	json_utils.LogPretty("totalAccumulatorBetReturn", totalAccumulatorBetReturn)
-	json_utils.LogPretty("totalDecimalOdds", totalDecimalOdds)
-	json_utils.LogPretty("potentialWinnings", potentialWinnings)
 
 	return BetSlipTotals{
 		TotalDecimalOdds:  totalDecimalOdds,

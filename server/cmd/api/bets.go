@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
-	json_utils "github.com/PerrySmithMoss/BulkBets/server/internal/json"
 	"github.com/PerrySmithMoss/BulkBets/server/internal/store"
 	"github.com/go-playground/validator/v10"
 )
@@ -165,7 +164,6 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 		OddsAtTime:      totals.TotalDecimalOdds,
 		PotentialPayout: &roundedPayout,
 	}
-	json_utils.LogPretty("betSlip", betSlip)
 
 	err = app.store.BetsRepository.CreateBet(ctx, &betSlip, user)
 	if err != nil {
