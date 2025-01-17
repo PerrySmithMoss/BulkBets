@@ -3,10 +3,12 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
+	json_utils "github.com/PerrySmithMoss/BulkBets/server/internal/json"
 	"github.com/PerrySmithMoss/BulkBets/server/internal/store"
 	"github.com/go-playground/validator/v10"
 )
@@ -114,7 +116,7 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 
 	for i, bet := range betSlip.ActiveBets {
 		newBet := bet
-		potentialReturn := bets.CalculateBetPotentialReturn(bet)
+		potentialPayout := bets.CalculateBetPotentialPayout(bet)
 
 		key := store.OddsKey{
 			CompetitorId: bet.CompetitorId,
@@ -122,10 +124,16 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 		}
 		if odds, found := oddsMap[key]; found {
 			newBet.Odds = odds
-			newBet.PotentialPayout = potentialReturn
+
+			if potentialPayout == 0 {
+				newBet.PotentialPayout = nil
+			} else {
+				newBet.PotentialPayout = &potentialPayout
+			}
 		} else {
 			newBet.Odds = 0.0
-			newBet.PotentialPayout = 0.00
+			payout := 0.0
+			newBet.PotentialPayout = &payout
 		}
 
 		newActiveBets[i] = newBet
@@ -143,12 +151,21 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	multiplier := 0.0
+	if betSlip.StakeMultiplier != nil {
+		multiplier = *betSlip.StakeMultiplier
+	}
+
+	potentialAccumulatorPayout := (multiplier * totals.TotalDecimalOdds) - multiplier
+	roundedPayout := math.Round(potentialAccumulatorPayout*100) / 100
+
 	betSlip = bets.BetSlip{
 		ActiveBets:      newActiveBets,
 		StakeMultiplier: betSlip.StakeMultiplier,
 		OddsAtTime:      totals.TotalDecimalOdds,
-		PotentialPayout: totals.PotentialWinnings,
+		PotentialPayout: &roundedPayout,
 	}
+	json_utils.LogPretty("betSlip", betSlip)
 
 	err = app.store.BetsRepository.CreateBet(ctx, &betSlip, user)
 	if err != nil {

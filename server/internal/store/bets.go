@@ -98,6 +98,7 @@ func (s *BetsStore) createSingularBet(ctx context.Context, tx *sql.Tx, user *Use
 func (s *BetsStore) createAccumulatorBet(ctx context.Context, tx *sql.Tx, user *User,
 	betSlip *bets.BetSlip, singularBets []SingularBet) (*SingularBet, error) {
 
+	// TODO: If singular bet is part of of an accumulator with no amount the potential payout is being stored as 0.0 instead of NULL?
 	accumulatorBet := &SingularBet{}
 	err := tx.QueryRowContext(ctx, `
 		INSERT INTO bets (user_id, bet_type_id, amount, currency_code, odds_at_time, potential_payout, is_component)
@@ -215,7 +216,9 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 				betSlip.ActiveBets[0].Amount = new(float64) // Allocate memory for Amount if nil
 			}
 			*betSlip.ActiveBets[0].Amount = *betSlip.StakeMultiplier
-			betSlip.ActiveBets[0].PotentialPayout = *betSlip.StakeMultiplier * betSlip.ActiveBets[0].Odds
+
+			potentialPayout := *betSlip.StakeMultiplier * betSlip.ActiveBets[0].Odds
+			betSlip.ActiveBets[0].PotentialPayout = &potentialPayout
 
 			// Reset StakeMultiplier to 0
 			zero := 0.0

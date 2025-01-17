@@ -195,8 +195,13 @@ CREATE TABLE bets (
     ),
     currency_code CHAR(3) REFERENCES currencies(code),
     odds_at_time DECIMAL(10,2) NOT NULL CHECK (odds_at_time > 0),
-    -- Winnings = potential return - amount (stake) 
-    potential_payout DECIMAL(10,2) NOT NULL CHECK (potential_payout >= 0),
+    -- potential_payout = potential return - amount (stake) 
+    -- potential_payout will be NULL if it's part of an accumulator
+    potential_payout DECIMAL(10,2) CHECK (
+        (is_component = FALSE AND potential_payout IS NOT NULL AND potential_payout >= 0)
+        OR 
+        (is_component = TRUE AND (potential_payout IS NULL OR potential_payout >= 0))
+    ),
     status bet_status DEFAULT 'pending',
     cancelled_at TIMESTAMPTZ,
     cancelled_by UUID REFERENCES users(id),

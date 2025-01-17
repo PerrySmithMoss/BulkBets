@@ -155,7 +155,7 @@ export const roundOddsToFractional = (
   const fractionalValue = decimalOdds - 1;
 
   // Multiply by 100 to work with 2 decimal places
-  const roundedFractionalValue = Math.round(fractionalValue * 10000) / 10000;
+  const roundedFractionalValue = Math.round(fractionalValue * 100) / 100;
 
   // Convert to fractional representation with a denominator of 1
   const numerator = Math.round(roundedFractionalValue * 1000); // Multiply to preserve precision
@@ -218,7 +218,9 @@ export const calculateAccumulatorBetReturn = (
     return product * bet.odds;
   }, 1);
 
-  return stake * totalOdds;
+  const roundedTotalOdds = Math.round(totalOdds * 100) / 100;
+
+  return stake * roundedTotalOdds;
 };
 
 export const calculateBetSlipTotals = (betSlip: BetSlipState) => {

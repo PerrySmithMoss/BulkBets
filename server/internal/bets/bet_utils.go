@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
+	json_utils "github.com/PerrySmithMoss/BulkBets/server/internal/json"
 )
 
 // validateBet ensures the bet has a non-negative amount and positive odds
@@ -120,6 +121,9 @@ func CalculateTotalDecimalOdds(odds []float64) (float64, error) {
 		}
 		totalOdds *= currOdds
 	}
+
+	totalOdds = math.Round(totalOdds*100) / 100
+
 	return totalOdds, nil
 }
 
@@ -141,12 +145,12 @@ func GetBetOdds(bets []ActiveBet) []float64 {
 	return odds
 }
 
-func CalculateBetPotentialReturn(bet ActiveBet) float64 {
+func CalculateBetPotentialPayout(bet ActiveBet) float64 {
 	if bet.Amount == nil { // Check if Amount is nil to avoid dereferencing nil
 		return 0 // Return 0 if Amount is nil
 	}
-	potentialReturn := *bet.Amount * bet.Odds    // Dereference bet.Amount to get the float64 value
-	return math.Round(potentialReturn*100) / 100 // Round to two decimal places
+	potentialReturn := (*bet.Amount * bet.Odds) - *bet.Amount // Dereference bet.Amount to get the float64 value
+	return math.Round(potentialReturn*100) / 100              // Round to two decimal places
 }
 
 func CalculateSingularBetsTotalReturn(bets []ActiveBet) float64 {
@@ -179,6 +183,9 @@ func CalculateAccumulatorBetTotalReturn(betSlip BetSlip) (float64, error) {
 	}
 
 	totalReturn := multiplier * totalOdds
+	json_utils.LogPretty("totalReturn", totalReturn)
+	json_utils.LogPretty("totalOdds", totalOdds)
+
 	return math.Round(totalReturn*100) / 100, nil // Round to two decimal places
 }
 
@@ -213,6 +220,12 @@ func CalculateBetSlipTotals(betSlip BetSlip) (BetSlipTotals, error) {
 
 	potentialReturn := totalSingularBetReturn + totalAccumulatorBetReturn
 	potentialWinnings := potentialReturn - totalStake
+	json_utils.LogPretty("odds", odds)
+	json_utils.LogPretty("betsAmount", betsAmount)
+	json_utils.LogPretty("totalSingularBetReturn", totalSingularBetReturn)
+	json_utils.LogPretty("totalAccumulatorBetReturn", totalAccumulatorBetReturn)
+	json_utils.LogPretty("totalDecimalOdds", totalDecimalOdds)
+	json_utils.LogPretty("potentialWinnings", potentialWinnings)
 
 	return BetSlipTotals{
 		TotalDecimalOdds:  totalDecimalOdds,
