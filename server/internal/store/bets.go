@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
+	json_utils "github.com/PerrySmithMoss/BulkBets/server/internal/json"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
@@ -715,8 +716,6 @@ type BetSettlement struct {
 func (s *BetsStore) SettleDivisionBets(ctx context.Context, settlement BetSettlement) error {
 	return withTx(s.db, ctx, func(tx *sql.Tx) error {
 		// 1. Mark all component bets for this division as won/lost
-		// TODO: figure out why its updating the status of the accumulator bet even if some of
-		// the bets linked to that accumulator still have a status of 'pending'
 		if err := s.markComponentBetsStatus(ctx, tx, settlement); err != nil {
 			return fmt.Errorf("failed to mark component bets: %w", err)
 		}
@@ -746,29 +745,58 @@ func (s *BetsStore) markComponentBetsStatus(ctx context.Context, tx *sql.Tx, set
 		}
 	}
 
-	query := `
-		UPDATE
-		    bets b
-		SET
-		    status = CASE WHEN b.division_participant_id = ANY ($2) THEN
-		        'won'::bet_status
-		    ELSE
-		        'lost'::bet_status
-		    END
-		WHERE
-		    b.division_participant_id = ANY ($1)
-		    AND b.is_component = TRUE
-		    AND b.status = 'pending'::bet_status
-		RETURNING
-		    id,
-		    user_id,
-		    status`
+	// First, update the component bets for this division
+	componentQuery := `
+        UPDATE bets b
+        SET status = CASE 
+            WHEN b.division_participant_id = ANY($2) THEN 'won'::bet_status
+            ELSE 'lost'::bet_status
+        END
+        WHERE b.division_participant_id = ANY($1)
+        AND b.is_component = TRUE
+        AND b.status = 'pending'::bet_status
+        RETURNING id, user_id, status;`
 
-	_, err := tx.ExecContext(ctx, query,
+	// Then, update accumulator bets only if all their components are settled
+	accumulatorQuery := `
+        WITH component_status AS (
+            -- Get all components for each accumulator
+            SELECT 
+                abc.accumulator_bet_id,
+                COUNT(*) as total_components,
+                COUNT(CASE WHEN cb.status IN ('won', 'lost') THEN 1 END) as settled_components,
+                bool_and(cb.status = 'won') as all_won
+            FROM accumulator_bet_components abc
+            JOIN bets cb ON abc.singular_bet_id = cb.id
+            GROUP BY abc.accumulator_bet_id
+        )
+        UPDATE bets b
+        SET 
+            status = CASE 
+                WHEN cs.all_won THEN 'won'::bet_status
+                ELSE 'lost'::bet_status
+            END,
+            settled_at = NOW()
+        FROM component_status cs
+        WHERE b.id = cs.accumulator_bet_id
+        AND b.status = 'pending'::bet_status
+        AND cs.total_components = cs.settled_components  -- Only update if all components are settled
+        RETURNING b.id, b.user_id, b.status;`
+
+	_, err := tx.ExecContext(ctx, componentQuery,
 		pq.Array(divisionParticipantIDs),
 		pq.Array(winningParticipantIDs),
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to update component bets: %w", err)
+	}
+
+	_, err = tx.ExecContext(ctx, accumulatorQuery)
+	if err != nil {
+		return fmt.Errorf("failed to update accumulator bets: %w", err)
+	}
+
+	return nil
 }
 
 func (s *BetsStore) settleStandaloneBets(ctx context.Context, tx *sql.Tx, settlement BetSettlement) error {
@@ -807,15 +835,18 @@ func (s *BetsStore) settleStandaloneBets(ctx context.Context, tx *sql.Tx, settle
 		    amount,
 		    odds_at_time,
 		    potential_payout`
+	json_utils.LogPretty("betResultsQuery", betResultsQuery)
 
 	betRows, err := tx.QueryContext(ctx, betResultsQuery,
 		pq.Array(divisionParticipantIDs),
 		pq.Array(winningParticipantIDs),
 	)
+
 	if err != nil {
 		return fmt.Errorf("failed to update bets: %w", err)
 	}
 	defer betRows.Close()
+	json_utils.LogPretty("betRows", betRows)
 
 	var betsToProcess []SingularBet
 	for betRows.Next() {
@@ -828,6 +859,7 @@ func (s *BetsStore) settleStandaloneBets(ctx context.Context, tx *sql.Tx, settle
 	if err = betRows.Err(); err != nil {
 		return fmt.Errorf("error iterating bet results: %w", err)
 	}
+	json_utils.LogPretty("betsToProcess", betsToProcess)
 
 	// Process winning bets
 	for _, bet := range betsToProcess {
@@ -978,6 +1010,7 @@ func (s *BetsStore) settleReadyAccumulators(ctx context.Context, tx *sql.Tx, set
 		return fmt.Errorf("failed to find settleable accumulators: %w", err)
 	}
 	defer rows.Close()
+	json_utils.LogPretty("rows", rows)
 
 	var accumulatorsToProcess []AccumulatorResult
 	for rows.Next() {
@@ -1054,7 +1087,6 @@ func (s *BetsStore) settleReadyAccumulators(ctx context.Context, tx *sql.Tx, set
 
 		// Process winning bets
 		if acc.AllComponentsWon {
-
 			payout := 0.0
 			if acc.Amount != nil {
 				payout = *acc.Amount * acc.OddsAtTime
