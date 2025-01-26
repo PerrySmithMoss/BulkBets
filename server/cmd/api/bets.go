@@ -44,7 +44,7 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	// Validate singular bets
+	// Validate multiple bets
 	if len(betSlip.ActiveBets) > 1 {
 		if err := bets.IsBetsValid(betSlip.ActiveBets); err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
@@ -52,9 +52,16 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	if len(betSlip.ActiveBets) == 1 && betSlip.StakeMultiplier == nil || *betSlip.StakeMultiplier <= 0 {
-		writeJSONError(w, http.StatusBadRequest, "bet must contain valid amount or stakeMultiplier")
-		return
+	// Validate singular bets
+	if len(betSlip.ActiveBets) == 1 {
+		amountValid := betSlip.ActiveBets[0].Amount != nil && *betSlip.ActiveBets[0].Amount > 0
+		stakeMultiplierValid := betSlip.StakeMultiplier != nil && *betSlip.StakeMultiplier > 0
+
+		// Return an error only if both are invalid
+		if !amountValid && !stakeMultiplierValid {
+			writeJSONError(w, http.StatusBadRequest, "bet must contain a valid amount or stakeMultiplier")
+			return
+		}
 	}
 
 	userID, ok := r.Context().Value(userCtx).(string)
