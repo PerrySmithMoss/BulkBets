@@ -50,10 +50,10 @@ type ShowDivisionResult struct {
 }
 
 func (app *application) showDivisionResultHandler(w http.ResponseWriter, r *http.Request) {
-	showId := chi.URLParam(r, "id")
+	showId := chi.URLParam(r, "show_id")
 	divisionId := chi.URLParam(r, "division_id")
 
-	i, err := strconv.Atoi(showId)
+	parsedShowId, err := strconv.Atoi(showId)
 	if err != nil {
 		app.internalServerError(w, r, err)
 		return
@@ -67,7 +67,7 @@ func (app *application) showDivisionResultHandler(w http.ResponseWriter, r *http
 
 	ctx := r.Context()
 
-	showDetails, err := app.store.ShowRepository.GetShowByID(ctx, i)
+	showDetails, err := app.store.ShowRepository.GetShowByID(ctx, parsedShowId)
 	if err != nil {
 		switch err {
 		case store.ErrNotFound:
@@ -83,7 +83,7 @@ func (app *application) showDivisionResultHandler(w http.ResponseWriter, r *http
 		return
 	}
 
-	divisionDetails, dErr := app.store.DivisionRepository.GetDivisionByID(ctx, i, parsedDivisionId)
+	divisionDetails, dErr := app.store.DivisionRepository.GetDivisionByID(ctx, parsedDivisionId, parsedShowId)
 	if dErr != nil {
 		switch dErr {
 		case store.ErrNotFound:

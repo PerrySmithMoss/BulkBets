@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
-	json_utils "github.com/PerrySmithMoss/BulkBets/server/internal/json"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
@@ -30,6 +30,16 @@ func NewBetsStore(db *sql.DB) *BetsStore {
 	return &BetsStore{db: db}
 }
 
+type BetStatus string
+
+const (
+	BetStatusWon       BetStatus = "won"
+	BetStatusLost      BetStatus = "lost"
+	BetStatusPending   BetStatus = "pending"
+	BetStatusVoid      BetStatus = "void"
+	BetStatusCancelled BetStatus = "cancelled"
+)
+
 type SingularBet struct {
 	Id                    uuid.UUID `json:"id"`
 	UserId                uuid.UUID `json:"user_id"`
@@ -38,7 +48,7 @@ type SingularBet struct {
 	CurrencyCode          string    `json:"currency_code"`
 	Amount                *float64  `json:"amount"`
 	OddsAtTime            float64   `json:"odds_at_time"`
-	Status                string    `json:"status"`
+	Status                BetStatus `json:"status"`
 	PotentialPayout       float64   `json:"potential_payout"`
 }
 
@@ -48,28 +58,28 @@ type Bet struct {
 	Amount          float64       `json:"amount"`
 	OddsAtTime      float64       `json:"odds_at_time"`
 	PotentialPayout float64       `json:"potential_payout"`
-	Status          string        `json:"status"`
+	Status          BetStatus     `json:"status"`
 	SingularBets    []SingularBet `json:"singular_bets"`
 }
 
 type BetResponse struct {
-	ID                    string   `json:"id"`
-	UserID                string   `json:"user_id,omitempty"`
-	DivisionParticipantID *string  `json:"division_participant_id,omitempty"`
-	BetType               int64    `json:"bet_type"`
-	BetTypeName           string   `json:"bet_type_name"`
-	IsComponent           string   `json:"is_component,omitempty"`
-	Amount                float64  `json:"amount"`
-	Currency              string   `json:"currency"`
-	OddsAtTime            float64  `json:"odds_at_time"`
-	PotentialPayout       float64  `json:"potential_payout"`
-	Status                string   `json:"status"`
-	CancelledAt           *string  `json:"cancelled_at,omitempty"`
-	CreatedAt             string   `json:"created_at"`
-	UpdatedAt             string   `json:"updated_at,omitempty"`
-	SettledAt             *string  `json:"settled_at,omitempty"`
-	IsAccumulator         bool     `json:"is_accumulator"`
-	Components            []string `json:"components,omitempty"`
+	ID                    string    `json:"id"`
+	UserID                string    `json:"user_id,omitempty"`
+	DivisionParticipantID *string   `json:"division_participant_id,omitempty"`
+	BetType               int64     `json:"bet_type"`
+	BetTypeName           string    `json:"bet_type_name"`
+	IsComponent           string    `json:"is_component,omitempty"`
+	Amount                float64   `json:"amount"`
+	Currency              string    `json:"currency"`
+	OddsAtTime            float64   `json:"odds_at_time"`
+	PotentialPayout       float64   `json:"potential_payout"`
+	Status                BetStatus `json:"status"`
+	CancelledAt           *string   `json:"cancelled_at,omitempty"`
+	CreatedAt             string    `json:"created_at"`
+	UpdatedAt             string    `json:"updated_at,omitempty"`
+	SettledAt             *string   `json:"settled_at,omitempty"`
+	IsAccumulator         bool      `json:"is_accumulator"`
+	Components            []string  `json:"components,omitempty"`
 
 	Show     *Show     `json:"show,omitempty"`
 	Athlete  *Athlete  `json:"athlete,omitempty"`
@@ -713,6 +723,7 @@ type BetSettlement struct {
 	Outcomes         []DivisionOutcomeParams
 }
 
+// TODO: add unit/integration tests for the functions below
 func (s *BetsStore) SettleDivisionBets(ctx context.Context, settlement BetSettlement) error {
 	return withTx(s.db, ctx, func(tx *sql.Tx) error {
 		// 1. Mark all component bets for this division as won/lost
@@ -721,7 +732,7 @@ func (s *BetsStore) SettleDivisionBets(ctx context.Context, settlement BetSettle
 		}
 
 		// 2. Settle standalone bets and process payouts
-		if err := s.settleStandaloneBets(ctx, tx, settlement); err != nil {
+		if err := s.settleStandaloneBets(ctx, tx); err != nil {
 			return fmt.Errorf("failed to settle standalone bets: %w", err)
 		}
 
@@ -729,6 +740,9 @@ func (s *BetsStore) SettleDivisionBets(ctx context.Context, settlement BetSettle
 		if err := s.settleReadyAccumulators(ctx, tx, settlement); err != nil {
 			return fmt.Errorf("failed to settle accumulators: %w", err)
 		}
+
+		// TODO: if anything errors out we need a way to record the error and the ability to address
+		// the issue and re-run the function
 
 		return nil
 	})
@@ -747,41 +761,70 @@ func (s *BetsStore) markComponentBetsStatus(ctx context.Context, tx *sql.Tx, set
 
 	// First, update the component bets for this division
 	componentQuery := `
-        UPDATE bets b
-        SET status = CASE 
-            WHEN b.division_participant_id = ANY($2) THEN 'won'::bet_status
-            ELSE 'lost'::bet_status
-        END
-        WHERE b.division_participant_id = ANY($1)
-        AND b.is_component = TRUE
-        AND b.status = 'pending'::bet_status
-        RETURNING id, user_id, status;`
+		UPDATE
+		    bets b
+		SET
+		    status = CASE WHEN b.division_participant_id = ANY ($2) THEN
+		        'won'::bet_status
+		    ELSE
+		        'lost'::bet_status
+		    END
+		WHERE
+		    b.division_participant_id IS NOT NULL -- Exclude bets without a valid division_participant_id (e.g., accumulators)
+		    AND b.division_participant_id = ANY ($1) -- Only target bets linked to division participants in settlement
+		    AND b.is_component = TRUE -- Ensure we target only component bets
+		    AND b.status = 'pending'::bet_status -- Only update bets still pending
+		RETURNING
+		    id,
+		    user_id,
+		    status;
+		
+		`
 
 	// Then, update accumulator bets only if all their components are settled
 	accumulatorQuery := `
-        WITH component_status AS (
-            -- Get all components for each accumulator
-            SELECT 
-                abc.accumulator_bet_id,
-                COUNT(*) as total_components,
-                COUNT(CASE WHEN cb.status IN ('won', 'lost') THEN 1 END) as settled_components,
-                bool_and(cb.status = 'won') as all_won
-            FROM accumulator_bet_components abc
-            JOIN bets cb ON abc.singular_bet_id = cb.id
-            GROUP BY abc.accumulator_bet_id
-        )
-        UPDATE bets b
-        SET 
-            status = CASE 
-                WHEN cs.all_won THEN 'won'::bet_status
-                ELSE 'lost'::bet_status
-            END,
-            settled_at = NOW()
-        FROM component_status cs
-        WHERE b.id = cs.accumulator_bet_id
-        AND b.status = 'pending'::bet_status
-        AND cs.total_components = cs.settled_components  -- Only update if all components are settled
-        RETURNING b.id, b.user_id, b.status;`
+		WITH component_status AS (
+		    -- Gather the status of all components for each accumulator
+		    SELECT
+		        abc.accumulator_bet_id,
+		        COUNT(*) AS total_components,
+		        COUNT(
+		            CASE WHEN cb.status IN ('won', 'lost') THEN
+		                1
+		            END) AS settled_components,
+		        COUNT(
+		            CASE WHEN cb.status = 'pending' THEN
+		                1
+		            END) AS pending_components,
+		        bool_and(cb.status = 'won') AS all_won
+		    FROM
+		        accumulator_bet_components abc
+		        JOIN bets cb ON abc.singular_bet_id = cb.id
+		    GROUP BY
+		        abc.accumulator_bet_id)
+		UPDATE
+		    bets b
+		SET
+		    status = CASE WHEN cs.all_won THEN
+		        'won'::bet_status
+		    ELSE
+		        'lost'::bet_status
+		    END
+		    -- , settled_at = NOW() TODO: do we need this?
+		FROM
+		    component_status cs
+		WHERE
+		    b.id = cs.accumulator_bet_id
+		    -- Ensure accumulator is pending before updating
+		    AND b.status = 'pending'::bet_status
+		    -- Only update accumulators where all components are settled (no pending components)
+		    AND cs.pending_components = 0
+		    -- Ensure total settled components match the total number of components
+		    AND cs.total_components = cs.settled_components
+		RETURNING
+		    b.id,
+		    b.user_id,
+		    b.status`
 
 	_, err := tx.ExecContext(ctx, componentQuery,
 		pq.Array(divisionParticipantIDs),
@@ -799,33 +842,126 @@ func (s *BetsStore) markComponentBetsStatus(ctx context.Context, tx *sql.Tx, set
 	return nil
 }
 
-func (s *BetsStore) settleStandaloneBets(ctx context.Context, tx *sql.Tx, settlement BetSettlement) error {
-	divisionParticipantIDs := make([]string, len(settlement.Outcomes))
-	winningParticipantIDs := make([]string, 0)
-
-	for i, outcome := range settlement.Outcomes {
-		divisionParticipantIDs[i] = outcome.DivisionParticipantId
-		if outcome.Position != nil && *outcome.Position == 1 {
-			winningParticipantIDs = append(winningParticipantIDs, outcome.DivisionParticipantId)
-		}
+func (s *BetsStore) updateBetSettledAt(ctx context.Context, tx *sql.Tx, betId uuid.UUID) error {
+	result, err := tx.ExecContext(ctx, `
+        UPDATE bets 
+        SET settled_at = NOW() 
+        WHERE id = $1`, betId)
+	if err != nil {
+		return fmt.Errorf("failed to update bet settled_at with ID of %v: %w", betId, err)
 	}
 
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected for bet update: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("bet %s was not updated, possible concurrent modification", betId)
+	}
+	return nil
+}
+
+func (s *BetsStore) processWinningBet(ctx context.Context, tx *sql.Tx, bet *SingularBet) error {
+	// Get current balance with lock
+	var currentBalance float64
+	var userVersion int
+	err := tx.QueryRow(`
+        SELECT balance, version 
+        FROM user_balances 
+        WHERE user_id = $1 
+        FOR UPDATE`, bet.UserId).Scan(&currentBalance, &userVersion)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve user balance: %w", err)
+	}
+
+	// Calculate payout
+	if bet.Amount == nil {
+		return fmt.Errorf("bet amount is nil for bet %s", bet.Id)
+	}
+
+	payout := (*bet.Amount * bet.OddsAtTime) - *bet.Amount
+	if payout != bet.PotentialPayout {
+		log.Printf("bet %v payout mismatch: calculated=%v, recorded=%v",
+			bet.Id, payout, bet.PotentialPayout)
+	}
+
+	// Update balance with optimistic locking
+	var newBalance float64
+	err = tx.QueryRowContext(ctx, `
+        WITH balance_update AS (
+            UPDATE user_balances
+            SET balance = balance + $1, 
+                version = version + 1
+            WHERE user_id = $2 
+            AND version = (
+                SELECT version 
+                FROM user_balances 
+                WHERE user_id = $2 
+                FOR UPDATE
+            )
+            RETURNING balance, version
+        )
+        SELECT balance, version FROM balance_update`,
+		payout, bet.UserId).Scan(&newBalance, &userVersion)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("optimistic lock failed for user %s: concurrent modification detected", bet.UserId)
+		}
+		return fmt.Errorf("failed to update balance for user %s: %w", bet.UserId, err)
+	}
+
+	balanceAfter := currentBalance + payout
+	payoutBet := *bet
+	payoutBet.Amount = &payout
+
+	// Create transaction record
+	if err := s.createBetTransaction(ctx, tx, &payoutBet, currentBalance, balanceAfter, true); err != nil {
+		return err
+	}
+
+	return s.updateBetSettledAt(ctx, tx, bet.Id)
+}
+
+func (s *BetsStore) updateUserBalance(ctx context.Context, tx *sql.Tx, userId uuid.UUID, payout float64) (float64, error) {
+	var currentBalance float64
+	var userVersion int
+
+	err := tx.QueryRow(`
+        SELECT balance, version 
+        FROM user_balances 
+        WHERE user_id = $1 
+        FOR UPDATE`, userId).Scan(&currentBalance, &userVersion)
+	if err != nil {
+		return 0, fmt.Errorf("failed to retrieve user balance: %w", err)
+	}
+
+	var newBalance float64
+	err = tx.QueryRowContext(ctx, `
+        WITH balance_update AS (
+            UPDATE user_balances
+            SET balance = balance + $1, version = version + 1
+            WHERE user_id = $2 AND version = (
+                SELECT version FROM user_balances WHERE user_id = $2 FOR UPDATE
+            )
+            RETURNING balance, version
+        )
+        SELECT balance, version FROM balance_update`,
+		payout, userId).Scan(&newBalance, &userVersion)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, fmt.Errorf("optimistic lock failed for user %s: concurrent modification detected", userId)
+		}
+		return 0, fmt.Errorf("failed to update balance for user %s: %w", userId, err)
+	}
+
+	return currentBalance, nil
+}
+
+func (s *BetsStore) settleStandaloneBets(ctx context.Context, tx *sql.Tx) error {
 	betResultsQuery := `
-		UPDATE
-		    bets b
-		SET
-		    status = CASE WHEN b.division_participant_id = ANY ($2) THEN
-		        'won'::bet_status
-		    ELSE
-		        'lost'::bet_status
-		    END,
-		    settled_at = NOW()
-		WHERE
-		    b.division_participant_id = ANY ($1)
-		    AND b.is_component = FALSE
-		    AND b.bet_type_id != 9999999999
-		    AND b.status = 'pending'::bet_status
-		RETURNING
+		SELECT
 		    id,
 		    user_id,
 		    division_participant_id,
@@ -834,322 +970,153 @@ func (s *BetsStore) settleStandaloneBets(ctx context.Context, tx *sql.Tx, settle
 		    status,
 		    amount,
 		    odds_at_time,
-		    potential_payout`
-	json_utils.LogPretty("betResultsQuery", betResultsQuery)
+		    potential_payout
+		FROM
+		    bets b
+		WHERE
+		    b.division_participant_id IS NOT NULL
+		    AND b.bet_type_id != 9999999999
+		    AND b.amount IS NOT NULL
+        AND b.status IN ($1, $2)
+		    AND b.settled_at IS NULL`
 
-	betRows, err := tx.QueryContext(ctx, betResultsQuery,
-		pq.Array(divisionParticipantIDs),
-		pq.Array(winningParticipantIDs),
-	)
-
+	betRows, err := tx.QueryContext(ctx, betResultsQuery, BetStatusWon, BetStatusLost)
 	if err != nil {
 		return fmt.Errorf("failed to update bets: %w", err)
 	}
 	defer betRows.Close()
-	json_utils.LogPretty("betRows", betRows)
 
-	var betsToProcess []SingularBet
+	var bets []SingularBet
 	for betRows.Next() {
 		var br SingularBet
 		if err := betRows.Scan(&br.Id, &br.UserId, &br.DivisionParticipantId, &br.BetTypeId, &br.CurrencyCode, &br.Status, &br.Amount, &br.OddsAtTime, &br.PotentialPayout); err != nil {
-			return fmt.Errorf("failed to scan bet result: %w", err)
+			return fmt.Errorf("failed to scan bet: %w", err)
 		}
-		betsToProcess = append(betsToProcess, br)
+		bets = append(bets, br)
 	}
+
 	if err = betRows.Err(); err != nil {
-		return fmt.Errorf("error iterating bet results: %w", err)
+		return fmt.Errorf("error iterating bets: %w", err)
 	}
-	json_utils.LogPretty("betsToProcess", betsToProcess)
 
-	// Process winning bets
-	for _, bet := range betsToProcess {
-		if bet.Status != "won" {
-			continue
-		}
-
-		var currentBalance float64
-		var userVersion int
-		err := tx.QueryRow(`
-			SELECT
-			    balance,
-			    version
-			FROM
-			    user_balances
-			WHERE
-			    user_id = $1
-			FOR UPDATE`, bet.UserId).Scan(&currentBalance, &userVersion)
-		if err != nil {
-			return fmt.Errorf("failed to retrieve user balance: %v", err)
-		}
-
-		payout := 0.0
-		if bet.Amount != nil {
-			payout = *bet.Amount * bet.OddsAtTime
-		} else {
-			fmt.Println("bet.Amount is nil??")
-		}
-
-		runningBalance := currentBalance
-
-		// Use a CTE for atomic balance update with optimistic locking
-		updateBalanceQuery := `
-			WITH balance_update AS (
-			    UPDATE
-			        user_balances
-			    SET
-			        balance = balance + $1,
-			        version = version + 1
-			    WHERE
-			        user_id = $2
-			        AND version = (
-			            SELECT
-			                version
-			            FROM
-			                user_balances
-			            WHERE
-			                user_id = $2
-			            FOR UPDATE)
-			    RETURNING
-			        balance,
-			        version
-			)
-			SELECT
-			    balance,
-			    version
-			FROM
-			    balance_update`
-
-		var newBalance float64
-		err = tx.QueryRowContext(ctx, updateBalanceQuery, payout, bet.UserId).Scan(&newBalance, &userVersion)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return fmt.Errorf("optimistic lock failed for user %s: concurrent modification detected", bet.UserId)
+	for _, bet := range bets {
+		switch bet.Status {
+		case BetStatusWon:
+			if err := s.processWinningBet(ctx, tx, &bet); err != nil {
+				return err
 			}
-			return fmt.Errorf("failed to update balance for user %s: %w", bet.UserId, err)
-		}
-
-		balanceAfter := runningBalance + payout
-
-		bet := &SingularBet{
-			Id:                    bet.Id,
-			UserId:                bet.UserId,
-			DivisionParticipantId: bet.DivisionParticipantId,
-			BetTypeId:             bet.BetTypeId,
-			CurrencyCode:          bet.CurrencyCode,
-			Amount:                &payout,
-			OddsAtTime:            bet.OddsAtTime,
-			Status:                bet.Status,
-			PotentialPayout:       bet.PotentialPayout,
-		}
-
-		err = s.createBetTransaction(ctx, tx, bet, runningBalance, balanceAfter, true)
-		if err != nil {
-			return err
+		case BetStatusLost:
+			if err := s.updateBetSettledAt(ctx, tx, bet.Id); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
+// TODO: refactor to more 'clean' and more DRY
 func (s *BetsStore) settleReadyAccumulators(ctx context.Context, tx *sql.Tx, settlement BetSettlement) error {
 	findSettleableQuery := `
-		SELECT
-		    abc.accumulator_bet_id,
-		    b.user_id,
-		    b.division_participant_id,
-		    b.bet_type_id,
-		    b.currency_code,
-		    b.status,
-		    b.amount,
-		    b.odds_at_time,
-		    b.potential_payout,
-		    bool_and(cb.status = 'won') AS all_components_won
-		FROM
-		    accumulator_bet_components abc
-		    JOIN bets b ON abc.accumulator_bet_id = b.id
-		    JOIN bets cb ON abc.singular_bet_id = cb.id
-		WHERE
-		    EXISTS (
-		        SELECT
-		            1
-		        FROM
-		            bets b2
-		            JOIN division_participants dp2 ON b2.division_participant_id = dp2.id
-		        WHERE
-		            dp2.division_id = $1
-		            AND b2.id = abc.singular_bet_id)
-		    AND b.status = 'pending'::bet_status
-		GROUP BY
-		    abc.accumulator_bet_id,
-		    b.user_id,
-		    b.division_participant_id,
-		    b.bet_type_id,
-		    b.currency_code,
-		    b.status,
-		    b.amount,
-		    b.odds_at_time,
-		    b.potential_payout
-		HAVING
-		    bool_and(cb.status IN ('won', 'lost'))`
+        WITH accumulator_components_status AS (
+            SELECT
+                abc.accumulator_bet_id,
+                COUNT(*) AS total_components,
+                COUNT(CASE WHEN cb.status IN ('won', 'lost') THEN 1 END) AS settled_components,
+                bool_and(cb.status = 'won') AS all_components_won,
+                bool_and(cb.status IN ('won', 'lost')) AS all_components_settled
+            FROM accumulator_bet_components abc
+            JOIN bets cb ON abc.singular_bet_id = cb.id
+            GROUP BY abc.accumulator_bet_id
+        )
+        SELECT 
+            b.id, b.user_id, b.division_participant_id,
+            b.bet_type_id, b.currency_code, b.status,
+            b.amount, b.odds_at_time, b.potential_payout,
+            acs.all_components_won
+        FROM accumulator_bet_components abc
+        JOIN bets b ON abc.accumulator_bet_id = b.id
+        JOIN accumulator_components_status acs ON acs.accumulator_bet_id = abc.accumulator_bet_id
+        WHERE EXISTS (
+            SELECT 1 
+            FROM bets b2
+            JOIN division_participants dp2 ON b2.division_participant_id = dp2.id
+            WHERE dp2.division_id = $1 AND b2.id = abc.singular_bet_id
+        )
+        AND b.status IN ('won', 'lost')
+        AND acs.total_components = acs.settled_components
+        AND acs.all_components_settled = TRUE
+        GROUP BY 
+            b.id, b.user_id, b.division_participant_id,
+            b.bet_type_id, b.currency_code, b.status,
+            b.amount, b.odds_at_time, b.potential_payout,
+            acs.all_components_won`
 
-	type AccumulatorResult struct {
-		AccumulatorBetID      uuid.UUID
-		UserId                uuid.UUID
-		DivisionParticipantId uuid.UUID
-		BetTypeId             int
-		CurrencyCode          string
-		Amount                *float64
-		OddsAtTime            float64
-		Status                string
-		PotentialPayout       float64
-		AllComponentsWon      bool
-	}
-
-	rows, err := tx.QueryContext(ctx, findSettleableQuery, settlement.DivisionID)
+	// Prepare the statement explicitly
+	stmt, err := tx.PrepareContext(ctx, findSettleableQuery)
 	if err != nil {
-		return fmt.Errorf("failed to find settleable accumulators: %w", err)
+		return fmt.Errorf("failed to prepare settleable accumulators query: %w", err)
+	}
+	defer stmt.Close()
+
+	// Execute the prepared statement
+	rows, err := stmt.QueryContext(ctx, settlement.DivisionID)
+	if err != nil {
+		return fmt.Errorf("failed to execute settleable accumulators query: %w", err)
 	}
 	defer rows.Close()
-	json_utils.LogPretty("rows", rows)
 
-	var accumulatorsToProcess []AccumulatorResult
+	var betsToProcess []struct {
+		bet              SingularBet
+		allComponentsWon bool
+	}
+
+	// Collect all bets first
 	for rows.Next() {
-		var ar AccumulatorResult
+		var bet SingularBet
+		var allComponentsWon bool
 		if err := rows.Scan(
-			&ar.AccumulatorBetID,
-			&ar.UserId,
-			&ar.DivisionParticipantId,
-			&ar.BetTypeId,
-			&ar.CurrencyCode,
-			&ar.Status,
-			&ar.Amount,
-			&ar.OddsAtTime,
-			&ar.PotentialPayout,
-			&ar.AllComponentsWon,
+			&bet.Id, &bet.UserId, &bet.DivisionParticipantId,
+			&bet.BetTypeId, &bet.CurrencyCode, &bet.Status,
+			&bet.Amount, &bet.OddsAtTime, &bet.PotentialPayout,
+			&allComponentsWon,
 		); err != nil {
-			return fmt.Errorf("failed to scan accumulator result: %w", err)
+			return fmt.Errorf("failed to scan accumulator: %w", err)
 		}
-		accumulatorsToProcess = append(accumulatorsToProcess, ar)
+		betsToProcess = append(betsToProcess, struct {
+			bet              SingularBet
+			allComponentsWon bool
+		}{bet, allComponentsWon})
 	}
+
 	if err = rows.Err(); err != nil {
-		return fmt.Errorf("error iterating accumulator results: %w", err)
+		return fmt.Errorf("error iterating accumulators: %w", err)
 	}
 
-	// Second query: Update accumulator bets status
-	for _, acc := range accumulatorsToProcess {
-		// TODO: Only process the accumulator bet if the result of all linked
-		// bets (components) has been added to db. With the code below all
-		// accumulators will have their status changed to lost or won
-		// even if the division result of that bet hasn't been added to db yet...
-
-		status := "lost"
-		if acc.AllComponentsWon {
-			status = "won"
-		}
-
-		var currentBalance float64
-		var userVersion int
-		err := tx.QueryRow(`
-			SELECT
-			    balance,
-			    version
-			FROM
-			    user_balances
-			WHERE
-			    user_id = $1
-			FOR UPDATE`, acc.UserId).Scan(&currentBalance, &userVersion)
-		if err != nil {
-			return fmt.Errorf("failed to retrieve user balance: %v", err)
-		}
-
-		updateQuery := `
-			UPDATE
-			    bets
-			SET
-			    status = $1::bet_status,
-			    settled_at = NOW()
-			WHERE
-			    id = $2
-			    AND status = 'pending'::bet_status`
-
-		result, err := tx.ExecContext(ctx, updateQuery, status, acc.AccumulatorBetID)
-		if err != nil {
-			return fmt.Errorf("failed to update accumulator bet status: %w", err)
-		}
-
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("failed to get rows affected for accumulator update: %w", err)
-		}
-		if rowsAffected == 0 {
-			return fmt.Errorf("accumulator bet %s was not updated, possible concurrent modification", acc.AccumulatorBetID)
-		}
-
-		// Process winning bets
-		if acc.AllComponentsWon {
-			payout := 0.0
-			if acc.Amount != nil {
-				payout = *acc.Amount * acc.OddsAtTime
-			} else {
-				fmt.Println("bet.Amount is nil??")
+	// Process bets after collecting them all
+	for _, bp := range betsToProcess {
+		if bp.allComponentsWon {
+			if err := s.processWinningBet(ctx, tx, &bp.bet); err != nil {
+				return fmt.Errorf("failed to process winning bet %v: %w", bp.bet.Id, err)
 			}
-
-			runningBalance := currentBalance
-
-			// Use a CTE for atomic balance update with optimistic locking
-			updateBalanceQuery := `
-				WITH balance_update AS (
-				    UPDATE
-				        user_balances
-				    SET
-				        balance = balance + $1,
-				        version = version + 1
-				    WHERE
-				        user_id = $2
-				        AND version = (
-				            SELECT
-				                version
-				            FROM
-				                user_balances
-				            WHERE
-				                user_id = $2
-				            FOR UPDATE)
-				    RETURNING
-				        balance,
-				        version
-				)
-				SELECT
-				    balance,
-				    version
-				FROM
-				    balance_update`
-
-			var newBalance float64
-			err := tx.QueryRowContext(ctx, updateBalanceQuery, payout, acc.UserId).Scan(&newBalance, &userVersion)
+		} else {
+			// TODO: figure out why calling updateBetSettledAt here doesn't work
+			//  and why we have the do the update manually?
+			result, err := tx.ExecContext(ctx, `
+                UPDATE bets 
+                SET settled_at = CURRENT_TIMESTAMP 
+                WHERE id = $1 
+                AND settled_at IS NULL`, bp.bet.Id)
 			if err != nil {
-				if err == sql.ErrNoRows {
-					return fmt.Errorf("optimistic lock failed for user %s: concurrent modification detected", acc.UserId)
-				}
-				return fmt.Errorf("failed to update balance for user %s: %w", acc.UserId, err)
+				return fmt.Errorf("failed to update bet settled_at with ID of %v: %w", bp.bet.Id, err)
 			}
 
-			balanceAfter := runningBalance + payout
-
-			bet := &SingularBet{
-				Id:                    acc.AccumulatorBetID,
-				UserId:                acc.UserId,
-				DivisionParticipantId: acc.DivisionParticipantId,
-				BetTypeId:             acc.BetTypeId,
-				CurrencyCode:          acc.CurrencyCode,
-				Amount:                &payout,
-				OddsAtTime:            acc.OddsAtTime,
-				Status:                acc.Status,
-				PotentialPayout:       acc.PotentialPayout,
-			}
-
-			err = s.createBetTransaction(ctx, tx, bet, runningBalance, balanceAfter, true)
+			rowsAffected, err := result.RowsAffected()
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to get rows affected for bet update: %w", err)
+			}
+			if rowsAffected == 0 {
+				return fmt.Errorf("bet %v was not updated, possible concurrent modification", bp.bet.Id)
 			}
 		}
 	}

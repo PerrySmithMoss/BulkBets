@@ -68,7 +68,7 @@ func (app *application) mount() http.Handler {
 			r.Get("/{id}", app.showDetailsHandler)
 
 			r.With(app.DeserialiseUserMiddleware, app.RequirePermissionMiddleware(store.ResourceBettingResults, store.ActionWrite)).
-				Post("/{id}/divisions/{division_id}/result", app.showDivisionResultHandler)
+				Post("/{show_id}/divisions/{division_id}/result", app.showDivisionResultHandler)
 		})
 
 		r.Route("/bets", func(r chi.Router) {
