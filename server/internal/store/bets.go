@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
@@ -778,7 +779,6 @@ func (s *BetsStore) markComponentBetsStatus(ctx context.Context, tx *sql.Tx, set
 		    id,
 		    user_id,
 		    status;
-		
 		`
 
 	// Then, update accumulator bets only if all their components are settled
@@ -861,68 +861,6 @@ func (s *BetsStore) updateBetSettledAt(ctx context.Context, tx *sql.Tx, betId uu
 	return nil
 }
 
-func (s *BetsStore) processWinningBet(ctx context.Context, tx *sql.Tx, bet *SingularBet) error {
-	// Get current balance with lock
-	var currentBalance float64
-	var userVersion int
-	err := tx.QueryRow(`
-        SELECT balance, version 
-        FROM user_balances 
-        WHERE user_id = $1 
-        FOR UPDATE`, bet.UserId).Scan(&currentBalance, &userVersion)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve user balance: %w", err)
-	}
-
-	// Calculate payout
-	if bet.Amount == nil {
-		return fmt.Errorf("bet amount is nil for bet %s", bet.Id)
-	}
-
-	payout := (*bet.Amount * bet.OddsAtTime) - *bet.Amount
-	if payout != bet.PotentialPayout {
-		log.Printf("bet %v payout mismatch: calculated=%v, recorded=%v",
-			bet.Id, payout, bet.PotentialPayout)
-	}
-
-	// Update balance with optimistic locking
-	var newBalance float64
-	err = tx.QueryRowContext(ctx, `
-        WITH balance_update AS (
-            UPDATE user_balances
-            SET balance = balance + $1, 
-                version = version + 1
-            WHERE user_id = $2 
-            AND version = (
-                SELECT version 
-                FROM user_balances 
-                WHERE user_id = $2 
-                FOR UPDATE
-            )
-            RETURNING balance, version
-        )
-        SELECT balance, version FROM balance_update`,
-		payout, bet.UserId).Scan(&newBalance, &userVersion)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return fmt.Errorf("optimistic lock failed for user %s: concurrent modification detected", bet.UserId)
-		}
-		return fmt.Errorf("failed to update balance for user %s: %w", bet.UserId, err)
-	}
-
-	balanceAfter := currentBalance + payout
-	payoutBet := *bet
-	payoutBet.Amount = &payout
-
-	// Create transaction record
-	if err := s.createBetTransaction(ctx, tx, &payoutBet, currentBalance, balanceAfter, true); err != nil {
-		return err
-	}
-
-	return s.updateBetSettledAt(ctx, tx, bet.Id)
-}
-
 func (s *BetsStore) updateUserBalance(ctx context.Context, tx *sql.Tx, userId uuid.UUID, payout float64) (float64, error) {
 	var currentBalance float64
 	var userVersion int
@@ -957,6 +895,70 @@ func (s *BetsStore) updateUserBalance(ctx context.Context, tx *sql.Tx, userId uu
 	}
 
 	return currentBalance, nil
+}
+
+// TODO: Figure out why doing the manual user_balances updates below work but using the updateUserBalance causes errors
+func (s *BetsStore) processWinningBet(ctx context.Context, tx *sql.Tx, bet *SingularBet) error {
+	// Get current balance with lock
+	var currentBalance float64
+	var userVersion int
+	err := tx.QueryRow(`
+        SELECT balance, version 
+        FROM user_balances 
+        WHERE user_id = $1 
+        FOR UPDATE`, bet.UserId).Scan(&currentBalance, &userVersion)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve user balance: %w", err)
+	}
+
+	// Calculate payout
+	if bet.Amount == nil {
+		return fmt.Errorf("bet amount is nil for bet %s", bet.Id)
+	}
+
+	payout := (*bet.Amount * bet.OddsAtTime) - *bet.Amount
+	roundedPayout := currency.RoundCurrency(payout)
+	if roundedPayout != bet.PotentialPayout {
+		log.Printf("bet %v payout mismatch: calculated=%v, recorded=%v",
+			bet.Id, roundedPayout, bet.PotentialPayout)
+	}
+
+	// Update balance with optimistic locking
+	var newBalance float64
+	err = tx.QueryRowContext(ctx, `
+        WITH balance_update AS (
+            UPDATE user_balances
+            SET balance = balance + $1, 
+                version = version + 1
+            WHERE user_id = $2 
+            AND version = (
+                SELECT version 
+                FROM user_balances 
+                WHERE user_id = $2 
+                FOR UPDATE
+            )
+            RETURNING balance, version
+        )
+        SELECT balance, version FROM balance_update`,
+		bet.PotentialPayout, bet.UserId).Scan(&newBalance, &userVersion)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("optimistic lock failed for user %s: concurrent modification detected", bet.UserId)
+		}
+		return fmt.Errorf("failed to update balance for user %s: %w", bet.UserId, err)
+	}
+
+	balanceAfter := currentBalance + bet.PotentialPayout
+	payoutBet := *bet
+	payoutBet.Amount = &bet.PotentialPayout
+
+	// Create transaction record
+	if err := s.createBetTransaction(ctx, tx, &payoutBet, currentBalance, balanceAfter, true); err != nil {
+		return err
+	}
+
+	return s.updateBetSettledAt(ctx, tx, bet.Id)
 }
 
 func (s *BetsStore) settleStandaloneBets(ctx context.Context, tx *sql.Tx) error {
@@ -1015,9 +1017,13 @@ func (s *BetsStore) settleStandaloneBets(ctx context.Context, tx *sql.Tx) error 
 	return nil
 }
 
-// TODO: refactor to more 'clean' and more DRY
+type AccumulatorBetResult struct {
+	Bet              SingularBet
+	AllComponentsWon bool
+}
+
 func (s *BetsStore) settleReadyAccumulators(ctx context.Context, tx *sql.Tx, settlement BetSettlement) error {
-	findSettleableQuery := `
+	query := `
         WITH accumulator_components_status AS (
             SELECT
                 abc.accumulator_bet_id,
@@ -1052,71 +1058,39 @@ func (s *BetsStore) settleReadyAccumulators(ctx context.Context, tx *sql.Tx, set
             b.amount, b.odds_at_time, b.potential_payout,
             acs.all_components_won`
 
-	// Prepare the statement explicitly
-	stmt, err := tx.PrepareContext(ctx, findSettleableQuery)
-	if err != nil {
-		return fmt.Errorf("failed to prepare settleable accumulators query: %w", err)
-	}
-	defer stmt.Close()
-
-	// Execute the prepared statement
-	rows, err := stmt.QueryContext(ctx, settlement.DivisionID)
+	rows, err := tx.QueryContext(ctx, query, settlement.DivisionID)
 	if err != nil {
 		return fmt.Errorf("failed to execute settleable accumulators query: %w", err)
 	}
 	defer rows.Close()
 
-	var betsToProcess []struct {
-		bet              SingularBet
-		allComponentsWon bool
-	}
-
-	// Collect all bets first
+	var results []AccumulatorBetResult
 	for rows.Next() {
-		var bet SingularBet
-		var allComponentsWon bool
+		var result AccumulatorBetResult
 		if err := rows.Scan(
-			&bet.Id, &bet.UserId, &bet.DivisionParticipantId,
-			&bet.BetTypeId, &bet.CurrencyCode, &bet.Status,
-			&bet.Amount, &bet.OddsAtTime, &bet.PotentialPayout,
-			&allComponentsWon,
+			&result.Bet.Id, &result.Bet.UserId, &result.Bet.DivisionParticipantId,
+			&result.Bet.BetTypeId, &result.Bet.CurrencyCode, &result.Bet.Status,
+			&result.Bet.Amount, &result.Bet.OddsAtTime, &result.Bet.PotentialPayout,
+			&result.AllComponentsWon,
 		); err != nil {
 			return fmt.Errorf("failed to scan accumulator: %w", err)
 		}
-		betsToProcess = append(betsToProcess, struct {
-			bet              SingularBet
-			allComponentsWon bool
-		}{bet, allComponentsWon})
+		results = append(results, result)
 	}
 
 	if err = rows.Err(); err != nil {
 		return fmt.Errorf("error iterating accumulators: %w", err)
 	}
 
-	// Process bets after collecting them all
-	for _, bp := range betsToProcess {
-		if bp.allComponentsWon {
-			if err := s.processWinningBet(ctx, tx, &bp.bet); err != nil {
-				return fmt.Errorf("failed to process winning bet %v: %w", bp.bet.Id, err)
+	// Process each bet
+	for _, result := range results {
+		if result.AllComponentsWon {
+			if err := s.processWinningBet(ctx, tx, &result.Bet); err != nil {
+				return fmt.Errorf("failed to process winning accumulator bet %v: %w", result.Bet.Id, err)
 			}
 		} else {
-			// TODO: figure out why calling updateBetSettledAt here doesn't work
-			//  and why we have the do the update manually?
-			result, err := tx.ExecContext(ctx, `
-                UPDATE bets 
-                SET settled_at = CURRENT_TIMESTAMP 
-                WHERE id = $1 
-                AND settled_at IS NULL`, bp.bet.Id)
-			if err != nil {
-				return fmt.Errorf("failed to update bet settled_at with ID of %v: %w", bp.bet.Id, err)
-			}
-
-			rowsAffected, err := result.RowsAffected()
-			if err != nil {
-				return fmt.Errorf("failed to get rows affected for bet update: %w", err)
-			}
-			if rowsAffected == 0 {
-				return fmt.Errorf("bet %v was not updated, possible concurrent modification", bp.bet.Id)
+			if err := s.updateBetSettledAt(ctx, tx, result.Bet.Id); err != nil {
+				return fmt.Errorf("failed to update settled_at for accumulator bet %v: %w", result.Bet.Id, err)
 			}
 		}
 	}
