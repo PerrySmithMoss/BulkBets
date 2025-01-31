@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { CircleUser, Menu, Search } from "lucide-react";
+import { Bell, CircleUser, Eye, Menu, PlusCircle, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,6 +21,8 @@ import { Logo } from "./logo";
 import { useUser } from "@/store/user/user-context";
 import { logoutUser } from "@/lib/api/auth/logout-user";
 import { formatCurrency } from "@/lib/utils/currency";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import Image from "next/image";
 
 interface Props {}
 
@@ -70,20 +72,8 @@ export const NavBar: React.FC<Props> = ({}) => {
                 <SheetContent side="left">
                   <nav className="grid gap-6 text-lg font-medium">
                     <Logo />
-                    <Link href="#" className={getNavigationClassName("shows")}>
-                      Shows
-                    </Link>
-                    <Link
-                      href="#"
-                      className={getNavigationClassName("divisions")}
-                    >
-                      Divisions
-                    </Link>
-                    <Link
-                      href="#"
-                      className={getNavigationClassName("competitors")}
-                    >
-                      Competitors
+                    <Link href="/" className={getNavigationClassName("/")}>
+                      All Shows
                     </Link>
                     <Link
                       href="#"
@@ -91,6 +81,14 @@ export const NavBar: React.FC<Props> = ({}) => {
                     >
                       Calendar
                     </Link>
+                    {user && (
+                      <Link
+                        href="/my-bets"
+                        className={getNavigationClassName("my-bets")}
+                      >
+                        My Bets
+                      </Link>
+                    )}
                   </nav>
                 </SheetContent>
               </Sheet>
@@ -106,11 +104,8 @@ export const NavBar: React.FC<Props> = ({}) => {
               </Link>
             </div>
             <nav className="hidden flex-col gap-6 font-medium [@media(min-width:820px)]:flex [@media(min-width:820px)]:flex-row [@media(min-width:820px)]:items-center [@media(min-width:820px)]:gap-5 [@media(min-width:820px)]:text-sm lg:gap-6">
-              <Link href="#" className={getNavigationClassName("shows")}>
-                Shows
-              </Link>
-              <Link href="#" className={getNavigationClassName("divisions")}>
-                Divisions
+              <Link href="/" className={getNavigationClassName("/")}>
+                All Shows
               </Link>
               <Link href="#" className={getNavigationClassName("calendar")}>
                 Calendar
@@ -158,27 +153,59 @@ export const NavBar: React.FC<Props> = ({}) => {
                 </DropdownMenu>
               </div>
               {user ? (
-                <div className="hidden xs:flex items-center">
-                  <div className="text-[11px] pr-2">
-                    {formatCurrency(user.balance)}
+                <div className="hidden xs:flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      className="h-0 w-0 p-[15px] bg-muted rounded-full"
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <Search className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="h-0 w-0 p-[15px] bg-muted rounded-full"
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <Bell className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </Button>
                   </div>
-                  <Button variant="link" className="text-[11px] w-0 pl-6 pr-10">
-                    Deposit
-                  </Button>
+                  <div className="bg-muted rounded-full flex items-center">
+                    <div className="text-[11px] pl-2.5 pr-2 flex items-center justify-center gap-1">
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                      {formatCurrency(user.balance)}
+                    </div>
+                    <Button className="text-[11px] h-0 w-0 px-10 py-3.5 rounded-full">
+                      <div className="flex items-center gap-1 justify-center">
+                        Deposit
+                        <PlusCircle className="h-4 w-4" />
+                      </div>
+                    </Button>
+                  </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="rounded-full w-full"
-                      >
-                        <CircleUser className="h-5 w-5" />
-                        <span className="sr-only">Toggle user menu</span>
-                      </Button>
+                      <Avatar asChild className="size-9 cursor-pointer">
+                        {user.profile_image ? (
+                          <Image
+                            src={user.profile_image}
+                            width={0}
+                            height={0}
+                            sizes="100vw"
+                            style={{ width: "28px", height: "auto" }}
+                            alt={`${user.first_name} ${user.last_name}`}
+                          />
+                        ) : (
+                          <AvatarFallback>{`${user.first_name.charAt(
+                            0
+                          )}${user.last_name.charAt(0)}`}</AvatarFallback>
+                        )}
+                      </Avatar>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
+                      {/* <DropdownMenuLabel>My Account</DropdownMenuLabel> */}
+                      {/* <DropdownMenuSeparator /> */}
                       <DropdownMenuItem>Settings</DropdownMenuItem>
                       <DropdownMenuItem>Support</DropdownMenuItem>
                       <DropdownMenuSeparator />

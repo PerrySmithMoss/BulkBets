@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Radio } from "lucide-react";
 import { Toggle } from "@/components/ui/toggle";
@@ -8,11 +7,10 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompetitorTable } from "@/components/competitor-table";
 import { fetchShowById } from "@/lib/api/shows/fetch-show-by-id";
+import Image from "next/image";
 
 export default async function Home() {
   const { data: olympiaShow } = await fetchShowById(1);
@@ -71,100 +69,40 @@ export default async function Home() {
             </Card>
             <Card className="mx-2 bg-background">
               <CardContent className="px-4 py-3">
-                <Accordion type="single" collapsible className="w-full">
-                  <AccordionItem value="item-1" className="border-b-0">
-                    <AccordionTrigger className="py-2 text-muted-foreground font-normal">
-                      Bodybuilding
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      Yes. It adheres to the WAI-ARIA design pattern.
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem value="item-2" className="border-b-0">
-                    <AccordionTrigger className="py-2 text-muted-foreground font-normal">
-                      Classic Physique
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      Yes. It comes with default styles that matches the other
-                      components&apos; aesthetic.
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem value="item-3" className="border-b-0">
-                    <AccordionTrigger className="py-2 text-muted-foreground font-normal">
-                      Men&apos;s Physique
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      Yes. It&apos;s animated by default, but you can disable it
-                      if you prefer.
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem value="item-3" className="border-b-0">
-                    <AccordionTrigger className="py-2 text-muted-foreground font-normal">
-                      Figure
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      Yes. It&apos;s animated by default, but you can disable it
-                      if you prefer.
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem value="item-3" className="border-b-0">
-                    <AccordionTrigger className="py-2 text-muted-foreground font-normal">
-                      Fitness
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      Yes. It&apos;s animated by default, but you can disable it
-                      if you prefer.
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem value="item-3" className="border-b-0">
-                    <AccordionTrigger className="py-2 text-muted-foreground font-normal">
-                      Wellness
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      Yes. It&apos;s animated by default, but you can disable it
-                      if you prefer.
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem value="item-3" className="border-b-0">
-                    <AccordionTrigger className="py-2 text-muted-foreground font-normal">
-                      Bikini
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      Yes. It&apos;s animated by default, but you can disable it
-                      if you prefer.
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem value="item-3" className="border-b-0">
-                    <AccordionTrigger className="py-2 text-muted-foreground font-normal">
-                      Female Bodybuilding
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      Yes. It&apos;s animated by default, but you can disable it
-                      if you prefer.
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem value="item-3" className="border-b-0">
-                    <AccordionTrigger className="py-2 text-muted-foreground font-normal">
-                      Masters
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      Yes. It&apos;s animated by default, but you can disable it
-                      if you prefer.
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
+                <ul className="flex flex-col gap-4 py-1">
+                  <li>Bodybuilding</li>
+                  <li>Classic Physique</li>
+                  <li>Men&apos;s Physique</li>
+                  <li>Figure</li>
+                  <li>Fitness</li>
+                  <li>Wellness</li>
+                  <li>Bikini</li>
+                  <li>Female Bodybuilding</li>
+                  <li>Masters</li>
+                </ul>
               </CardContent>
             </Card>
           </div>
         </div>
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
-          <div className="w-full h-[200px] bg-card rounded-3xl flex flex-col justify-center items-center">
+          <div className="w-full">
+            <Image
+              src="/images/arnold-2024.png"
+              width={0}
+              height={0}
+              sizes="100vw"
+              style={{ width: "100%", height: "185px" }}
+              className="rounded"
+              alt="Arnold Classic 2024"
+            />
+          </div>
+          {/* <div className="w-full h-[200px] bg-card rounded-3xl flex flex-col justify-center items-center">
             <p className="font-bold text-3xl">
               Who will win the Arnold Classic 2024?
             </p>
             <Button className="mt-4 bg-[#f9d904]">Bet now!</Button>
-          </div>
-          <form>
+          </div> */}
+          {/* <form>
             <div className="relative">
               <Search className="absolute left-4 top-3 h-6 w-6 text-white" />
               <Input
@@ -173,7 +111,7 @@ export default async function Home() {
                 className="pl-[52px] py-6 placeholder:text-white font-bold"
               />
             </div>
-          </form>
+          </form> */}
           {olympiaShow ? (
             <div className="flex flex-col gap-4">
               <h1 className="text-lg font-semibold md:text-2xl">

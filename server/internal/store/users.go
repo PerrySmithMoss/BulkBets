@@ -47,15 +47,15 @@ type User struct {
 	EmailVerifiedAt     *time.Time `json:"email_verified_at"`
 	Password            Password   `json:"-"`
 	ProfileImage        *string    `json:"profile_image"`
-	RefreshTokenVersion int64      `json:"refresh_token_version"`
+	RefreshTokenVersion int64      `json:"-"`
 	DefaultCurrency     string     `json:"default_currency"`
 	Balance             float64    `json:"balance"`
 	CreatedAt           string     `json:"created_at"`
 	UpdatedAt           string     `json:"updated_at"`
 	// OAuth
-	GoogleId *string `json:"google_id"`
-	XId      *string `json:"x_id"` // twitter
-	GithubId *string `json:"github_id"`
+	GoogleId *string `json:"-"`
+	XId      *string `json:"-"` // twitter
+	GithubId *string `json:"-"`
 }
 
 type Password struct {

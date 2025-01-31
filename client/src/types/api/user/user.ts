@@ -3,19 +3,15 @@ import { Timestamp, UUID } from "..";
 export interface User {
   data: {
     id: UUID;
-    firstName: string;
-    lastName: string;
+    first_name: string;
+    last_name: string;
     email: string;
-    isEmailVerified: boolean;
-    emailVerifiedAt?: Timestamp | null;
-    profileImage?: string | null;
-    refreshTokenVersion: number;
+    is_email_verified: boolean;
+    email_verified_at?: Timestamp | null;
+    profile_image?: string | null;
     balance: number;
-    defaultCurrency: string;
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
-    googleId?: string | null;
-    xId?: string | null;
-    githubId?: string | null;
+    default_currency: string;
+    created_at: Timestamp;
+    updated_at: Timestamp;
   };
 }
