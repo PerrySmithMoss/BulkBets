@@ -6,6 +6,7 @@ import { BetTypeDisplayMap } from "@/types/betting";
 import { decimalToFraction } from "@/lib/utils/math";
 import { cn } from "@/lib/utils/cn";
 import { formatTimestamp } from "@/lib/utils/date";
+import { roundOddsToFractional } from "@/lib/utils/betting";
 
 interface AccumulatorTimelineProps {
   accumulatorBet: Bet;
@@ -86,7 +87,7 @@ export const AccumulatorTimeline: React.FC<AccumulatorTimelineProps> = ({
             </div>
             <div className="text-sm">
               {accumulatorBet.odds_at_time
-                ? decimalToFraction(accumulatorBet.odds_at_time)
+                ? roundOddsToFractional(accumulatorBet.odds_at_time, true)
                 : "N/A"}
             </div>
           </div>

@@ -22,7 +22,7 @@ export const Tabs: React.FC<Props> = ({ initialBets }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const initialTab = searchParams.get("tab") || tabs[0].title;
+  const initialTab = searchParams.get("tab") ?? tabs[0].title;
   const [activeTab, setActiveTab] = useState<string>(initialTab);
 
   const currentTab = tabs.find((tab) => tab.title === activeTab);
@@ -67,6 +67,8 @@ export const Tabs: React.FC<Props> = ({ initialBets }) => {
   //   return <div>Show error screen??</div>;
   // }
 
+  console.log("initialBets: ", initialBets);
+
   return (
     <TabsComp defaultValue={initialTab} onValueChange={handleTabChange}>
       <TabsList>
@@ -80,7 +82,7 @@ export const Tabs: React.FC<Props> = ({ initialBets }) => {
         <div>Loading...</div>
       ) : ( */}
       <div className="mt-6">
-        {initialBets && initialBets.bets && initialBets.bets.length > 0 ? (
+        {initialBets?.bets && initialBets?.bets.length > 0 ? (
           <>
             {tabs.map((tab) => (
               <TabsContent key={tab.id} value={tab.title}>

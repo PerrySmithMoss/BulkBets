@@ -77,6 +77,12 @@ export const NavBar: React.FC<Props> = ({}) => {
                     </Link>
                     <Link
                       href="#"
+                      className={getNavigationClassName("in-play")}
+                    >
+                      In-Play
+                    </Link>
+                    <Link
+                      href="#"
                       className={getNavigationClassName("calendar")}
                     >
                       Calendar
@@ -107,6 +113,9 @@ export const NavBar: React.FC<Props> = ({}) => {
               <Link href="/" className={getNavigationClassName("/")}>
                 All Shows
               </Link>
+              <Link href="#" className={getNavigationClassName("in-play")}>
+                In-Play
+              </Link>
               <Link href="#" className={getNavigationClassName("calendar")}>
                 Calendar
               </Link>
@@ -120,7 +129,7 @@ export const NavBar: React.FC<Props> = ({}) => {
               )}
             </nav>
             <div className="flex items-center gap-4 md:gap-2 lg:gap-4">
-              <form className="hidden [@media(min-width:1160px)]:block ml-auto flex-1 sm:flex-initial">
+              {/* <form className="hidden [@media(min-width:1160px)]:block ml-auto flex-1 sm:flex-initial">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -129,7 +138,7 @@ export const NavBar: React.FC<Props> = ({}) => {
                     className="pl-8 sm:w-[300px] md:w-[200px] lg:w-[315px]"
                   />
                 </div>
-              </form>
+              </form> */}
               <div className="xs:hidden">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -204,8 +213,8 @@ export const NavBar: React.FC<Props> = ({}) => {
                       </Avatar>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {/* <DropdownMenuLabel>My Account</DropdownMenuLabel> */}
-                      {/* <DropdownMenuSeparator /> */}
+                      <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem>Settings</DropdownMenuItem>
                       <DropdownMenuItem>Support</DropdownMenuItem>
                       <DropdownMenuSeparator />

@@ -15,6 +15,7 @@ import { decimalToFraction } from "@/lib/utils/math";
 import { AccumulatorTimeline } from "../timeline/accumulator-timeline/accumulator-timeline";
 import { BetTypeDisplayMap, MY_BETS_TAB } from "@/types/betting";
 import { Button } from "../ui/button";
+import { roundOddsToFractional } from "@/lib/utils/betting";
 
 interface Props {
   bet: Bet | null;
@@ -29,7 +30,7 @@ export const BetCard: React.FC<Props> = ({ bet, getBetsInAccumulator }) => {
   const singularBets = getBetsInAccumulator(bet.id);
 
   return (
-    <Card className="mb-4">
+    <Card className="mb-4 bg-muted">
       <CardHeader className="py-3 pr-3 border-b">
         <div className="flex justify-between items-center">
           <div className="flex flex-col">
@@ -94,7 +95,7 @@ export const BetCard: React.FC<Props> = ({ bet, getBetsInAccumulator }) => {
               <div className="text-right">
                 <div className="font-medium text-sm">
                   {bet.odds_at_time
-                    ? decimalToFraction(bet.odds_at_time)
+                    ? roundOddsToFractional(bet.odds_at_time)
                     : "N/A"}
                 </div>
               </div>

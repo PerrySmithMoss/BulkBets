@@ -476,7 +476,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                       Balance
                     </div>
                     <div className="text-xs font-bold leading-[15px] text-right">
-                      {getCurrencySymbol(user.defaultCurrency)}
+                      {getCurrencySymbol(user.default_currency)}
                       {formatCurrency(user.balance)}
                     </div>
                   </div>
