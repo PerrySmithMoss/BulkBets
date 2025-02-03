@@ -22,112 +22,129 @@ export default async function Home() {
       <div className="grid w-full md:grid-cols-[250px_1fr] lg:grid-cols-[300px_1fr]">
         <div className="hidden border-r md:block">
           <div className="flex flex-col gap-3">
-            <Card className="pt-5 mx-2 mt-3 bg-background">
-              <CardContent className="pb-5 px-4">
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-center gap-2">
-                    <Radio className="h-5 w-5 text-red-400" />
-                    <p className="text-sm font-bold">Live betting</p>
+            <div className="pt-6">
+              <div className="pb-2 px-6">
+                <div className="flex flex-col">
+                  <div className="uppercase font-bold text-primary">
+                    Upcoming
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Radio className="h-5 w-5 text-yellow-400" />
-                    <p className="text-sm font-bold">2024 NEW YORK PRO</p>
+                  <div className="flex flex-col gap-5 pt-5">
+                    <div className="flex items-center gap-2">
+                      <Radio className="h-5 w-5 text-red-400" />
+                      <p className="text-[15px] font-bold">Live betting</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Radio className="h-5 w-5 text-yellow-400" />
+                      <p className="text-[15px] font-bold">2024 NEW YORK PRO</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Radio className="h-5 w-5 text-yellow-400" />
+                      <p className="text-[15px] font-bold">
+                        FIT XPO 2024 Manchester
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Radio className="h-5 w-5 text-yellow-400" />
+                      <p className="text-[15px] font-bold">NABBA Wales 2024</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Radio className="h-5 w-5 text-yellow-400" />
+                      <p className="text-[15px] font-bold">2024 DETROIT PRO</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Radio className="h-5 w-5 text-yellow-400" />
+                      <p className="text-[15px] font-bold">
+                        Pure Elite Manchester 2024
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Radio className="h-5 w-5 text-yellow-400" />
+                      <p className="text-[15px] font-bold">
+                        PCA Universe Pro/Am
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Radio className="h-5 w-5 text-yellow-400" />
-                    <p className="text-sm font-bold">FIT XPO 2024 Manchester</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Radio className="h-5 w-5 text-yellow-400" />
-                    <p className="text-sm font-bold">NABBA Wales 2024</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Radio className="h-5 w-5 text-yellow-400" />
-                    <p className="text-sm font-bold">2024 DETROIT PRO</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Radio className="h-5 w-5 text-yellow-400" />
-                    <p className="text-sm font-bold">
-                      Pure Elite Manchester 2024
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Radio className="h-5 w-5 text-yellow-400" />
-                    <p className="text-sm font-bold">PCA Universe Pro/Am</p>
+                  <div className="flex items-center justify-between pt-5">
+                    <Toggle aria-label="Toggle today" className="px-2">
+                      TODAY
+                    </Toggle>
+                    <Toggle aria-label="Toggle 24 hours" className="px-2">
+                      24H
+                    </Toggle>
+                    <Toggle aria-label="Toggle 3 days" className="px-2">
+                      3D
+                    </Toggle>
+                    <Toggle aria-label="Toggle 1 week" className="px-2">
+                      1WK
+                    </Toggle>
+                    <Toggle aria-label="Toggle all" className="px-2">
+                      ALL
+                    </Toggle>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-            <Card className="mx-2 bg-background">
-              <CardHeader className="px-4 pb-4">
-                <CardTitle className="text-base">Time filters</CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-center px-1 pb-4 justify-evenly">
-                <Toggle aria-label="Toggle italic">TODAY</Toggle>
-                <Toggle aria-label="Toggle italic">24H</Toggle>
-                <Toggle aria-label="Toggle italic">3D</Toggle>
-                <Toggle aria-label="Toggle italic">1WK</Toggle>
-                <Toggle aria-label="Toggle italic">ALL</Toggle>
-              </CardContent>
-            </Card>
-            <Card className="mx-2 bg-background">
-              <CardContent className="px-4 py-3">
-                <ul className="flex flex-col gap-4 py-1">
+              </div>
+            </div>
+            <div className="border-t">
+              <div className="px-6 pt-6">
+                <div className="uppercase text-primary font-bold">
+                  Divisions
+                </div>
+                <ul className="flex flex-col gap-5 pt-5">
                   {/* TODO: create API for returning a list of divisions which 
                   can then be shown here instead of manually typing them */}
                   <Link href="/categories/male/bodybuilding">
-                    <li className="hover:text-primary cursor-pointer">
+                    <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Bodybuilding
                     </li>
                   </Link>
                   <Link href="/categories/male/classic-physique">
-                    <li className="hover:text-primary cursor-pointer">
+                    <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Classic Physique
                     </li>
                   </Link>
                   <Link href="/categories/male/physique">
-                    <li className="hover:text-primary cursor-pointer">
+                    <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Men&apos;s Physique
                     </li>
                   </Link>
                   <Link href="/categories/female/figure">
-                    <li className="hover:text-primary cursor-pointer">
+                    <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Figure
                     </li>
                   </Link>
                   <Link href="/categories/female/fitness">
-                    <li className="hover:text-primary cursor-pointer">
+                    <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Fitness
                     </li>
                   </Link>
                   <Link href="/categories/female/wellness">
-                    <li className="hover:text-primary cursor-pointer">
+                    <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Wellness
                     </li>
                   </Link>
                   <Link href="/categories/female/bikini">
-                    <li className="hover:text-primary cursor-pointer">
+                    <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Bikini
                     </li>
                   </Link>
                   <Link href="/categories/female/bodybuilding">
-                    <li className="hover:text-primary cursor-pointer">
+                    <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Female Bodybuilding
                     </li>
                   </Link>
                   <Link href="/categories/male/physique">
-                    <li className="hover:text-primary cursor-pointer">
+                    <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Female Physique
                     </li>
                   </Link>
                   <Link href="/categories/male/masters">
-                    <li className="hover:text-primary cursor-pointer">
+                    <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Men&apos;s Masters
                     </li>
                   </Link>
                 </ul>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </div>
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
