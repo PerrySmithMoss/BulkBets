@@ -236,6 +236,16 @@ CREATE TABLE transactions (
     CONSTRAINT check_balance_change CHECK (balance_after - balance_before = amount)
 );
 
+-- Accumulator bets are not tied to an individual athlete odds so we 
+-- can safely just add this with a static id and without having it 
+-- tied to any athletes or odds
+INSERT INTO bet_types (id, name, description) 
+VALUES 
+    (9999999999, 'accumulator', 'Bet combining multiple selections into a single wager; all selections must win for a payout'),
+    (DEFAULT, 'win', 'Bet on athlete to win first place'),
+    (DEFAULT, 'place', 'Bet on athlete to finish in top 2'),
+    (DEFAULT, 'show', 'Bet on athlete to finish in top 3');
+
 -- Triggers
 CREATE TRIGGER update_users_updated_at
     BEFORE UPDATE ON users

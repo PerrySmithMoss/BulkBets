@@ -22,9 +22,10 @@ CROSS JOIN LATERAL (
       ('2024 Mr. Olympia', 'Men''s Open Bodybuilding', 'Bodybuilding', '2024-09-27 19:00:00-07:00'::TIMESTAMPTZ, 'scheduled'),
       ('2024 Mr. Olympia', 'Classic Physique', 'Classic', '2024-09-27 17:00:00-07:00'::TIMESTAMPTZ, 'scheduled'),
       ('2024 Mr. Olympia', 'Women''s Figure', 'Figure', '2024-09-26 15:00:00-07:00'::TIMESTAMPTZ, 'scheduled'),
-      ('2024 Arnold Classic', 'Men''s Open Bodybuilding', 'Bodybuilding', '2024-03-02 19:00:00-05:00'::TIMESTAMPTZ, 'completed'),
-      ('2024 Arnold Classic', 'Classic Physique', 'Classic', '2024-03-02 17:00:00-05:00'::TIMESTAMPTZ, 'completed'),
-      ('2024 Texas Pro', 'Men''s Open Bodybuilding', 'Bodybuilding', '2024-08-15 19:00:00-05:00'::TIMESTAMPTZ, 'scheduled')
+      ('2024 Arnold Classic', 'Men''s Open Bodybuilding', 'Bodybuilding', '2024-03-02 19:00:00-05:00'::TIMESTAMPTZ, 'scheduled'),
+      ('2024 Arnold Classic', 'Classic Physique', 'Classic', '2024-03-02 19:00:00-05:00'::TIMESTAMPTZ, 'scheduled'),
+      ('2024 Arnold Classic', 'Women''s Wellness', 'Wellness', '2024-03-02 17:00:00-05:00'::TIMESTAMPTZ, 'scheduled'),
+      ('2024 Texas Pro', 'Men''s Open Bodybuilding', 'Bodybuilding', '2024-08-15 19:00:00-05:00'::TIMESTAMPTZ, 'completed')
     ) d(show_name, name, category, start_time, status)
 WHERE s.name = d.show_name;
 
@@ -39,6 +40,9 @@ INSERT INTO athletes (first_name, last_name, residency, nationality, country_cod
 ('Nick', 'Walker', 'New Jersey', 'American', 'USA', '1994-03-18', 'Male'),
 ('Blessing', 'Awodibu', 'Ireland', 'Irish', 'IRL', '1993-08-22', 'Male'),
 ('Antoine', 'Vaillant', 'Canada', 'Canadian', 'CAN', '1987-11-20', 'Male'),
+('James', 'Hollingshead', 'England', 'British', 'GBR', '1989-03-17', 'Male'),
+('Akim', 'Williams', 'Long Island', 'Grenadian', 'GRD', '1984-08-20', 'Male'),
+('Rubiel', 'Mosquera', 'Marbella', 'Colombian', 'COL', '1995-01-20', 'Male'),
 
 -- Classic Athletes
 ('Chris', 'Bumstead', 'Canada', 'Canadian', 'CAN', '1995-02-02', 'Male'),
@@ -47,6 +51,7 @@ INSERT INTO athletes (first_name, last_name, residency, nationality, country_cod
 ('Mike', 'Sommerfeld', 'Germany', 'German', 'GER', '1994-11-13', 'Male'),
 ('Wesley', 'Vissers', 'Netherlands', 'Dutch', 'NLD', '1993-05-06', 'Male'),
 ('Breon', 'Ansley', 'California', 'American', 'USA', '1981-06-15', 'Male'),
+('Michael', 'Daboul', 'Kuwait', 'Syria', 'SYR', '1987-06-21', 'Male'),
 
 -- Women's Figure Athletes
 ('Erin', 'Banks', 'California', 'American', 'USA', '1989-04-18', 'Female'),
@@ -54,16 +59,27 @@ INSERT INTO athletes (first_name, last_name, residency, nationality, country_cod
 ('Angela', 'Yeo', 'Singapore', 'Singaporean', 'SGP', '1988-07-22', 'Female'),
 ('Whitney', 'Jones', 'Texas', 'American', 'USA', '1988-03-10', 'Female'),
 ('Cydney', 'Gillon', 'Florida', 'American', 'USA', '1991-09-15', 'Female'),
-('Missy', 'Farr', 'California', 'American', 'USA', '1987-11-05', 'Female');
+('Missy', 'Farr', 'California', 'American', 'USA', '1987-11-05', 'Female'),
+
+-- Female Wellness Athletes
+('Juliana', 'Esteso', 'São Paulo', 'Brazilian', 'BRA', '1994-02-06', 'Female'),
+('Yarishna', 'Ayala', 'San Juan', 'Puerto Rican', 'PRI', '1992-05-09', 'Female'),
+('Angela', 'Borges', 'Florianópolis', 'Brazilian', 'BRA', '1988-09-15', 'Female'),
+('Isabelle', 'Nunes', 'Rio de Janeiro', 'Brazilian', 'BRA', '1996-11-22', 'Female'),
+('Francielle', 'Mattos', 'Curitiba', 'Brazilian', 'BRA', '1990-03-29', 'Female'),
+('Cassandre', 'Chaput', 'Montreal', 'Canadian', 'CAN', '1995-07-14', 'Female');
 
 -- Seed Division Participants with proper division references
 WITH inserted_athletes AS (
     SELECT id, first_name, last_name
     FROM athletes
-    WHERE first_name IN (
-        'Hadi', 'Derek', 'Samson', 'Andrew', 'Brandon',  'Nick', 'Blessing', 'Antoine',
-        'Ramon', 'Chris', 'Urs', 'Breon', 'Mike', 'Wesley',
-        'Erin', 'Jessica', 'Angela', 'Whitney', 'Cydney', 'Missy'
+    WHERE (first_name = 'Angela' AND last_name = 'Yeo')  -- Women's Figure
+       OR (first_name = 'Angela' AND last_name = 'Borges') -- Female Wellness
+       OR first_name IN (
+        'Hadi', 'Derek', 'Samson', 'Andrew', 'Brandon',  'Nick', 'Blessing', 'Antoine', 'James', 'Akim', 'Rubiel', 
+        'Ramon', 'Chris', 'Urs', 'Breon', 'Mike', 'Wesley', 'Michael',
+        'Erin', 'Jessica', 'Whitney', 'Cydney', 'Missy',
+        'Juliana', 'Yarishna', 'Isabelle', 'Francielle', 'Cassandre'
     )
 ),
 division_refs AS (
@@ -86,28 +102,28 @@ WHERE
     (a.first_name IN ('Hadi', 'Derek', 'Samson', 'Andrew', 'Brandon', 'Nick', 'Blessing', 'Antoine') 
         AND d.name = 'Men''s Open Bodybuilding' AND d.show_name = '2024 Mr. Olympia') OR
     
-    -- Men's Classic
+    -- Mr. Olympia Men's Classic
     (a.first_name IN ('Chris', 'Urs', 'Ramon', 'Breon', 'Mike', 'Wesley') 
         AND d.name = 'Classic Physique' AND d.show_name = '2024 Mr. Olympia') OR
     
-    -- Arnold Classic Athletes
-    (a.first_name IN ('Chris', 'Urs', 'Ramon', 'Breon', 'Mike', 'Wesley') 
-        AND (
-            (d.name = 'Men''s Open Bodybuilding' AND d.show_name = '2024 Arnold Classic') OR
-            (a.first_name = 'Chris' AND d.name = 'Classic Physique' AND d.show_name = '2024 Arnold Classic')
-        )) OR
-    
     -- Mr. Olympia Women's Figure
-    (a.first_name IN ('Erin', 'Jessica', 'Angela', 'Whitney', 'Cydney', 'Missy') 
-        AND d.name = 'Women''s Figure' AND d.show_name = '2024 Mr. Olympia');
+    ((a.first_name = 'Angela' AND a.last_name = 'Yeo') OR 
+     a.first_name IN ('Erin', 'Jessica', 'Whitney', 'Cydney', 'Missy')) 
+        AND d.name = 'Women''s Figure' AND d.show_name = '2024 Mr. Olympia' OR
 
-WITH inserted_bet_types AS (
-    INSERT INTO bet_types (name, description) VALUES
-    ('win', 'Bet on athlete to win first place'),
-    ('place', 'Bet on athlete to finish in top 2'),
-    ('show', 'Bet on athlete to finish in top 3')
-    RETURNING id, name
-)
+    -- Arnold Classic Bodybuilding
+    (a.first_name IN ('Hadi', 'Samson', 'Andrew', 'James', 'Akim', 'Antoine') 
+        AND d.name = 'Men''s Open Bodybuilding' AND d.show_name = '2024 Arnold Classic') OR
+
+    -- Arnold Classic Classic Physique
+    (a.first_name IN ('Urs', 'Breon', 'Wesley', 'Michael') 
+        AND d.name = 'Classic Physique' AND d.show_name = '2024 Arnold Classic') OR
+
+    -- Arnold Classic Female Wellness
+    ((a.first_name = 'Angela' AND a.last_name = 'Borges') OR 
+     a.first_name IN ('Juliana', 'Yarishna', 'Isabelle', 'Francielle', 'Cassandre')) 
+        AND d.name = 'Women''s Wellness' AND d.show_name = '2024 Arnold Classic';
+
 -- Seed Betting Limits using returned bet type IDs
 INSERT INTO betting_limits (bet_type_id, min_bet, max_bet, max_payout, currency_code)
 SELECT 
@@ -128,9 +144,10 @@ SELECT
         WHEN 'show' THEN 5000.00
     END,
     'GBP'
-FROM inserted_bet_types;
+FROM bet_types bt
+WHERE bt.name IN ('win', 'place', 'show');
 
--- Seed Initial Odds for Mr. Olympia Open Division participants
+-- Seed Initial Odds for 2024 Mr. Olympia Open Division participants
 WITH olympia_participants AS (
     SELECT dp.id as dp_id, a.first_name
     FROM division_participants dp
@@ -181,9 +198,10 @@ SELECT
     END,
     CURRENT_TIMESTAMP
 FROM olympia_participants op
-CROSS JOIN bet_types bt;
+CROSS JOIN bet_types bt
+WHERE bt.name IN ('win', 'place', 'show');
 
--- Seed Initial Odds for Classic Physique division participants
+-- Seed Initial Odds for 2024 Mr. Olympia Classic Physique division participants
 WITH olympia_participants AS (
     SELECT dp.id as dp_id, a.first_name
     FROM division_participants dp
@@ -228,11 +246,12 @@ SELECT
     END,
     CURRENT_TIMESTAMP
 FROM olympia_participants op
-CROSS JOIN bet_types bt;
+CROSS JOIN bet_types bt
+WHERE bt.name IN ('win', 'place', 'show');
 
--- Seed Initial Odds for Women's Figure division participants
+-- Seed Initial Odds for 2024 Mr. Olympia Women's Figure division participants
 WITH olympia_participants AS (
-    SELECT dp.id as dp_id, a.first_name
+    SELECT dp.id as dp_id, a.first_name, a.last_name
     FROM division_participants dp
     JOIN athletes a ON dp.athlete_id = a.id
     JOIN divisions d ON dp.division_id = d.id
@@ -246,42 +265,178 @@ SELECT
     bt.id,
     CASE 
         WHEN bt.name = 'win' THEN 
-            CASE op.first_name
-                WHEN 'Erin' THEN 4.00
-                WHEN 'Jessica' THEN 4.00 
-                WHEN 'Angela' THEN 8.00 
-                WHEN 'Whitney' THEN 25.00
-                WHEN 'Cydney' THEN 1.50
-                WHEN 'Missy' THEN 30.00 
+            CASE 
+                WHEN op.first_name = 'Erin' THEN 4.00
+                WHEN op.first_name = 'Jessica' THEN 4.00 
+                WHEN op.first_name = 'Angela' AND op.last_name = 'Yeo' THEN 8.00
+                WHEN op.first_name = 'Whitney' THEN 25.00
+                WHEN op.first_name = 'Cydney' THEN 1.50
+                WHEN op.first_name = 'Missy' THEN 30.00 
             END
         WHEN bt.name = 'place' THEN 
-            CASE op.first_name
-                WHEN 'Erin' THEN 8.00
-                WHEN 'Jessica' THEN 3.00 
-                WHEN 'Angela' THEN 6.00
-                WHEN 'Whitney' THEN 15.00
-                WHEN 'Cydney' THEN 1.20
-                WHEN 'Missy' THEN 20.00    
+            CASE 
+                WHEN op.first_name = 'Erin' THEN 8.00
+                WHEN op.first_name = 'Jessica' THEN 3.00 
+                WHEN op.first_name = 'Angela' AND op.last_name = 'Yeo' THEN 6.00
+                WHEN op.first_name = 'Whitney' THEN 15.00
+                WHEN op.first_name = 'Cydney' THEN 1.20
+                WHEN op.first_name = 'Missy' THEN 20.00    
             END
         WHEN bt.name = 'show' THEN 
-            CASE op.first_name
-                WHEN 'Erin' THEN 5.00
-                WHEN 'Jessica' THEN 2.50 
-                WHEN 'Angela' THEN 4.00 
-                WHEN 'Whitney' THEN 10.00
-                WHEN 'Cydney' THEN 1.10
-                WHEN 'Missy' THEN 12.00   
+            CASE 
+                WHEN op.first_name = 'Erin' THEN 5.00
+                WHEN op.first_name = 'Jessica' THEN 2.50 
+                WHEN op.first_name = 'Angela' AND op.last_name = 'Yeo' THEN 4.00
+                WHEN op.first_name = 'Whitney' THEN 10.00
+                WHEN op.first_name = 'Cydney' THEN 1.10
+                WHEN op.first_name = 'Missy' THEN 12.00   
+            END
+        END,
+    CURRENT_TIMESTAMP
+FROM olympia_participants op
+CROSS JOIN bet_types bt
+WHERE bt.name IN ('win', 'place', 'show');
+
+-- Seed Initial Odds for 2024 Arnold Classic Open Division participants
+WITH arnold_participants AS (
+    SELECT dp.id as dp_id, a.first_name
+    FROM division_participants dp
+    JOIN athletes a ON dp.athlete_id = a.id
+    JOIN divisions d ON dp.division_id = d.id
+    JOIN shows s ON d.show_id = s.id
+    WHERE s.name = '2024 Arnold Classic' 
+    AND d.name = 'Men''s Open Bodybuilding'
+)
+INSERT INTO odds (division_participant_id, bet_type_id, odds_value, timestamp)
+SELECT 
+    ac.dp_id,
+    bt.id,
+    CASE 
+        WHEN bt.name = 'win' THEN 
+            CASE ac.first_name
+                WHEN 'Hadi' THEN 2.75   
+                WHEN 'Samson' THEN 3.00
+                WHEN 'Andrew' THEN 4.00
+                WHEN 'James' THEN 6.00
+                WHEN 'Akim' THEN 5.00
+                WHEN 'Rubiel' THEN 4.20
+                WHEN 'Antoine' THEN 10.00
+            END
+        WHEN bt.name = 'place' THEN 
+            CASE ac.first_name
+                WHEN 'Hadi' THEN 1.75   
+                WHEN 'Samson' THEN 1.85
+                WHEN 'Andrew' THEN 2.00
+                WHEN 'James' THEN 2.00
+                WHEN 'Akim' THEN 2.00
+                WHEN 'Rubiel' THEN 2.50
+                WHEN 'Antoine' THEN 2.00
+            END
+        WHEN bt.name = 'show' THEN 
+            CASE ac.first_name
+                WHEN 'Hadi' THEN 1.10   
+                WHEN 'Samson' THEN 1.10
+                WHEN 'Andrew' THEN 1.20
+                WHEN 'James' THEN 1.20
+                WHEN 'Akim' THEN 1.20
+                WHEN 'Rubiel' THEN 1.20
+                WHEN 'Antoine' THEN 1.20
             END
     END,
     CURRENT_TIMESTAMP
-FROM olympia_participants op
-CROSS JOIN bet_types bt;
+FROM arnold_participants ac
+CROSS JOIN bet_types bt
+WHERE bt.name IN ('win', 'place', 'show');
 
--- Accumulator bets are not tied to an individual athlete odds so we 
--- can safely just add this with a static id and without having it 
--- tied to any athletes or odds
-INSERT INTO bet_types (id, name, description) 
-VALUES (9999999999, 'accumulator', 'Bet combining multiple selections into a single wager; all selections must win for a payout');
+-- Seed Initial Odds for 2024 Arnold Classic Physique division participants
+WITH arnold_participants AS (
+    SELECT dp.id as dp_id, a.first_name
+    FROM division_participants dp
+    JOIN athletes a ON dp.athlete_id = a.id
+    JOIN divisions d ON dp.division_id = d.id
+    JOIN shows s ON d.show_id = s.id
+    WHERE s.name = '2024 Arnold Classic' 
+    AND d.name = 'Classic Physique'
+)
+INSERT INTO odds (division_participant_id, bet_type_id, odds_value, timestamp)
+SELECT 
+    ac.dp_id,
+    bt.id,
+    CASE 
+        WHEN bt.name = 'win' THEN 
+            CASE ac.first_name
+                WHEN 'Urs' THEN 2.00
+                WHEN 'Breon' THEN 3.50 
+                WHEN 'Wesley' THEN 2.50
+                WHEN 'Michael' THEN 5.00
+            END
+        WHEN bt.name = 'place' THEN 
+            CASE ac.first_name
+                WHEN 'Urs' THEN 1.20 
+                WHEN 'Breon' THEN 2.20 
+                WHEN 'Wesley' THEN 1.40
+                WHEN 'Michael' THEN 2.50 
+            END
+        WHEN bt.name = 'show' THEN 
+            CASE ac.first_name
+                WHEN 'Urs' THEN 1.30 
+                WHEN 'Breon' THEN 1.90 
+                WHEN 'Wesley' THEN 1.50
+                WHEN 'Michael' THEN 2.10  
+            END
+    END,
+    CURRENT_TIMESTAMP
+FROM arnold_participants ac
+CROSS JOIN bet_types bt
+WHERE bt.name IN ('win', 'place', 'show');
+
+-- Seed Initial Odds for 2024 Arnold Classic Women's Figure division participants
+WITH arnold_participants AS (
+    SELECT dp.id as dp_id, a.first_name, a.last_name
+    FROM division_participants dp
+    JOIN athletes a ON dp.athlete_id = a.id
+    JOIN divisions d ON dp.division_id = d.id
+    JOIN shows s ON d.show_id = s.id
+    WHERE s.name = '2024 Arnold Classic' 
+    AND d.name = 'Women''s Wellness'
+)
+INSERT INTO odds (division_participant_id, bet_type_id, odds_value, timestamp)
+SELECT 
+    ac.dp_id,
+    bt.id,
+    CASE 
+        WHEN bt.name = 'win' THEN 
+            CASE 
+                WHEN ac.first_name = 'Juliana' THEN 12.00
+                WHEN ac.first_name = 'Yarishna' THEN 7.00
+                WHEN ac.first_name = 'Angela' AND ac.last_name = 'Borges' THEN 5.00
+                WHEN ac.first_name = 'Isabelle' THEN 3.50
+                WHEN ac.first_name = 'Francielle' THEN 2.50
+                WHEN ac.first_name = 'Cassandre' THEN 15.00
+            END
+        WHEN bt.name = 'place' THEN 
+            CASE 
+                WHEN ac.first_name = 'Juliana' THEN 8.00
+                WHEN ac.first_name = 'Yarishna' THEN 5.00 
+                WHEN ac.first_name = 'Angela' AND ac.last_name = 'Borges' THEN 3.50
+                WHEN ac.first_name = 'Isabelle' THEN 2.80
+                WHEN ac.first_name = 'Francielle' THEN 1.80
+                WHEN ac.first_name = 'Cassandre' THEN 1.20   
+            END
+        WHEN bt.name = 'show' THEN 
+            CASE 
+                WHEN ac.first_name = 'Juliana' THEN 6.00
+                WHEN ac.first_name = 'Yarishna' THEN 4.00
+                WHEN ac.first_name = 'Angela' AND ac.last_name = 'Borges' THEN 2.50
+                WHEN ac.first_name = 'Isabelle' THEN 1.20
+                WHEN ac.first_name = 'Francielle' THEN 1.10
+                WHEN ac.first_name = 'Cassandre' THEN 8.00
+        END
+    END,
+    CURRENT_TIMESTAMP
+FROM arnold_participants ac
+CROSS JOIN bet_types bt
+WHERE bt.name IN ('win', 'place', 'show');
 
 -- +goose StatementEnd
 
@@ -304,10 +459,6 @@ WHERE bet_type_id IN (
     WHERE name IN ('win', 'place', 'show')
 );
 
--- Remove bet types
-DELETE FROM bet_types 
-WHERE name IN ('win', 'place', 'show', 'accumulator');
-
 -- Remove division participants
 DELETE FROM division_participants 
 WHERE division_id IN (
@@ -319,7 +470,45 @@ WHERE division_id IN (
 
 -- Remove athletes
 DELETE FROM athletes 
-WHERE first_name IN ('Hadi', 'Derek', 'Samson', 'Chris', 'Erin');
+WHERE (first_name, last_name) IN (
+    -- Open Bodybuilding Athletes
+    ('Hadi', 'Choopan'), 
+    ('Derek', 'Lunsford'), 
+    ('Samson', 'Dauda'), 
+    ('Andrew', 'Jacked'), 
+    ('Brandon', 'Curry'), 
+    ('Nick', 'Walker'), 
+    ('Blessing', 'Awodibu'), 
+    ('Antoine', 'Vaillant'), 
+    ('James', 'Hollingshead'), 
+    ('Akim', 'Williams'), 
+    ('Rubiel', 'Mosquera'),
+
+    -- Classic Physique Athletes
+    ('Chris', 'Bumstead'), 
+    ('Urs', 'Kalecinski'), 
+    ('Ramon', 'Rocha'), 
+    ('Mike', 'Sommerfeld'), 
+    ('Wesley', 'Vissers'), 
+    ('Breon', 'Ansley'), 
+    ('Michael', 'Daboul'),
+
+    -- Women's Figure Athletes
+    ('Erin', 'Banks'), 
+    ('Jessica', 'Reyes Padilla'), 
+    ('Angela', 'Yeo'), 
+    ('Whitney', 'Jones'), 
+    ('Cydney', 'Gillon'), 
+    ('Missy', 'Farr'),
+
+    -- Female Wellness Athletes
+    ('Juliana', 'Esteso'), 
+    ('Yarishna', 'Ayala'), 
+    ('Angela', 'Borges'), 
+    ('Isabelle', 'Nunes'), 
+    ('Francielle', 'Mattos'), 
+    ('Cassandre', 'Chaput')
+);
 
 -- Remove divisions
 DELETE FROM divisions 
