@@ -15,6 +15,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 export default async function Home() {
+  // TODO: change so that we call a fetchRecentShows or fetchHomePageShows which include pagination?
   const { data: olympiaShow } = await fetchShowById(1);
   const { data: arnoldClassic } = await fetchShowById(2);
   return (
@@ -64,24 +65,24 @@ export default async function Home() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between pt-5">
-                    <Toggle aria-label="Toggle today" className="px-2">
-                      TODAY
-                    </Toggle>
-                    <Toggle aria-label="Toggle 24 hours" className="px-2">
-                      24H
-                    </Toggle>
-                    <Toggle aria-label="Toggle 3 days" className="px-2">
-                      3D
-                    </Toggle>
-                    <Toggle aria-label="Toggle 1 week" className="px-2">
-                      1WK
-                    </Toggle>
-                    <Toggle aria-label="Toggle all" className="px-2">
-                      ALL
-                    </Toggle>
-                  </div>
                 </div>
+              </div>
+              <div className="flex items-center justify-between pb-1 pt-3 px-3">
+                <Toggle aria-label="Toggle today" className="px-2">
+                  TODAY
+                </Toggle>
+                <Toggle aria-label="Toggle 24 hours" className="px-2">
+                  24H
+                </Toggle>
+                <Toggle aria-label="Toggle 3 days" className="px-2">
+                  3D
+                </Toggle>
+                <Toggle aria-label="Toggle 1 week" className="px-2">
+                  1WK
+                </Toggle>
+                <Toggle aria-label="Toggle all" className="px-2">
+                  ALL
+                </Toggle>
               </div>
             </div>
             <div className="border-t">
@@ -147,7 +148,7 @@ export default async function Home() {
             </div>
           </div>
         </div>
-        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
+        <main className="flex flex-1 flex-col gap-4 p-6 lg:gap-6 lg:p-8">
           <Carousel
             opts={{
               align: "start",
@@ -239,92 +240,96 @@ export default async function Home() {
               />
             </div>
           </form> */}
-          {/* Mr. Olympia show */}
-          {olympiaShow ? (
-            <div className="flex flex-col gap-4">
-              <h1 className="text-lg font-bold md:text-2xl uppercase">
-                {olympiaShow.show.name}
-              </h1>
-              <Tabs
-                // Todo: find better/more reliable way of doing this
-                defaultValue={`${olympiaShow.divisions?.at(0)?.id}-${
-                  olympiaShow.divisions?.at(0)?.name
-                }`}
-              >
-                <TabsList>
-                  {olympiaShow.divisions?.map((division) => (
-                    <TabsTrigger
-                      key={`${division.id}-${division.name}`}
-                      value={`${division.id}-${division.name}`}
-                    >
-                      {division.name}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-                <div className="mt-6">
-                  {olympiaShow.divisions?.map((division) => (
-                    <TabsContent
-                      key={`${division.id}-${division.name}`}
-                      value={`${division.id}-${division.name}`}
-                    >
-                      <Card className="bg-background">
-                        <CardContent className="flex px-0 pb-0">
-                          <CompetitorTable
-                            show={olympiaShow.show}
-                            division={division}
-                            competitors={olympiaShow.competitors[division.id]}
-                          />
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
-                  ))}
-                </div>
-              </Tabs>
-            </div>
-          ) : null}
-          {/* Arnold classic show */}
-          {arnoldClassic ? (
-            <div className="flex flex-col gap-4">
-              <h1 className="text-lg font-bold md:text-2xl uppercase">
-                {arnoldClassic.show.name}
-              </h1>
-              <Tabs
-                // Todo: find better/more reliable way of doing this
-                defaultValue={`${arnoldClassic.divisions?.at(0)?.id}-${
-                  arnoldClassic.divisions?.at(0)?.name
-                }`}
-              >
-                <TabsList>
-                  {arnoldClassic.divisions?.map((division) => (
-                    <TabsTrigger
-                      key={`${division.id}-${division.name}`}
-                      value={`${division.id}-${division.name}`}
-                    >
-                      {division.name}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-                <div className="mt-6">
-                  {arnoldClassic.divisions?.map((division) => (
-                    <TabsContent
-                      key={`${division.id}-${division.name}`}
-                      value={`${division.id}-${division.name}`}
-                    >
-                      <Card className="bg-background">
-                        <CardContent className="flex px-0 pb-0">
-                          <CompetitorTable
-                            show={arnoldClassic.show}
-                            division={division}
-                            competitors={arnoldClassic.competitors[division.id]}
-                          />
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
-                  ))}
-                </div>
-              </Tabs>
-            </div>
-          ) : null}
+          <div className="flex flex-col gap-8">
+            {/* Mr. Olympia show */}
+            {olympiaShow ? (
+              <div className="flex flex-col gap-4 mt-3">
+                <h1 className="text-lg font-bold md:text-2xl uppercase">
+                  {olympiaShow.show.name}
+                </h1>
+                <Tabs
+                  // Todo: find better/more reliable way of doing this
+                  defaultValue={`${olympiaShow.divisions?.at(0)?.id}-${
+                    olympiaShow.divisions?.at(0)?.name
+                  }`}
+                >
+                  <TabsList>
+                    {olympiaShow.divisions?.map((division) => (
+                      <TabsTrigger
+                        key={`${division.id}-${division.name}`}
+                        value={`${division.id}-${division.name}`}
+                      >
+                        {division.name}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  <div className="mt-6">
+                    {olympiaShow.divisions?.map((division) => (
+                      <TabsContent
+                        key={`${division.id}-${division.name}`}
+                        value={`${division.id}-${division.name}`}
+                      >
+                        <Card className="bg-background">
+                          <CardContent className="flex px-0 pb-0">
+                            <CompetitorTable
+                              show={olympiaShow.show}
+                              division={division}
+                              competitors={olympiaShow.competitors[division.id]}
+                            />
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+                    ))}
+                  </div>
+                </Tabs>
+              </div>
+            ) : null}
+            {/* Arnold classic show */}
+            {arnoldClassic ? (
+              <div className="flex flex-col gap-4">
+                <h1 className="text-lg font-bold md:text-2xl uppercase">
+                  {arnoldClassic.show.name}
+                </h1>
+                <Tabs
+                  // Todo: find better/more reliable way of doing this
+                  defaultValue={`${arnoldClassic.divisions?.at(0)?.id}-${
+                    arnoldClassic.divisions?.at(0)?.name
+                  }`}
+                >
+                  <TabsList>
+                    {arnoldClassic.divisions?.map((division) => (
+                      <TabsTrigger
+                        key={`${division.id}-${division.name}`}
+                        value={`${division.id}-${division.name}`}
+                      >
+                        {division.name}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  <div className="mt-6">
+                    {arnoldClassic.divisions?.map((division) => (
+                      <TabsContent
+                        key={`${division.id}-${division.name}`}
+                        value={`${division.id}-${division.name}`}
+                      >
+                        <Card className="bg-background">
+                          <CardContent className="flex px-0 pb-0">
+                            <CompetitorTable
+                              show={arnoldClassic.show}
+                              division={division}
+                              competitors={
+                                arnoldClassic.competitors[division.id]
+                              }
+                            />
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+                    ))}
+                  </div>
+                </Tabs>
+              </div>
+            ) : null}
+          </div>
         </main>
       </div>
     </div>

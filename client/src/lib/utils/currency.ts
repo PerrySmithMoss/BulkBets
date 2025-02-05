@@ -76,7 +76,7 @@ export const currencySymbolMap: Map<string, string> = new Map([
 ]);
 
 export const getCurrencySymbol = (currencyCode: string): string => {
-  return currencySymbolMap.get(currencyCode) || "";
+  return currencySymbolMap.get(currencyCode) ?? "";
 };
 
 export const isValidNumber = (input: string): boolean => {

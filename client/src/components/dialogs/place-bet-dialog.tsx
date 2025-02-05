@@ -36,11 +36,12 @@ import { Overlay } from "../overlay";
 import { placeBet } from "@/lib/api/bets/place-bet";
 import { Dialog } from "@/types/dialog";
 import { useDialog } from "@/store/dialog/dialog-context";
+import { LoadingSpinner } from "../loading-spinner";
 
 interface Props {}
 
 export const PlaceBetDialog: React.FC<Props> = ({}) => {
-  const { user } = useUser();
+  const { user, refreshUser } = useUser();
   const {
     alert,
     removeBet,
@@ -260,6 +261,9 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
 
     // bet placed successfully
     clearAllBets();
+    await refreshUser();
+    handleToggleExpand();
+    setIsEditingStake(false);
     setIsPlacingBet(false);
   };
 
@@ -476,7 +480,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
                       Balance
                     </div>
                     <div className="text-xs font-bold leading-[15px] text-right">
-                      {getCurrencySymbol(user.default_currency)}
+                      {/* {getCurrencySymbol(user.default_currency)} */}
                       {formatCurrency(user.balance)}
                     </div>
                   </div>
@@ -624,23 +628,30 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
         {isExpanded ? (
           <Button
             onClick={handlePlaceBet}
-            disabled={!isValidBet}
+            disabled={isPlacingBet || !isValidBet}
             className={cn(
               "w-full h-[50px] flex flex-col gap-0.5 bg-primary hover:bg-[#52c466] justify-center items-center py-4 px-3 rounded-none rounded-br",
               {
                 "bg-muted-foreground text-secondary hover:bg-muted-foreground cursor-not-allowed disabled:opacity-100":
-                  !isValidBet,
+                  isPlacingBet || !isValidBet,
               }
             )}
           >
-            <div className="text-white text-base font-extrabold">
-              Place Bet {formatCurrency(totalStake)}
-            </div>
-            {activeBets.length > 0 && potentialReturn > 0 && (
-              <div className="text-[11px] leading-[13px] font-bold">
-                To Return {formatCurrency(potentialReturn)}
+            <div className="relative">
+              <div className="flex flex-col items-center">
+                <div className="text-base font-extrabold">Place Bet</div>
+                {activeBets.length > 0 && potentialReturn > 0 && (
+                  <div className="text-[11px] leading-[13px] font-bold">
+                    To Return {formatCurrency(potentialReturn)}
+                  </div>
+                )}
               </div>
-            )}
+              {isPlacingBet && (
+                <div className="absolute top-1/2 -right-6 transform -translate-y-1/2">
+                  <LoadingSpinner className="h-5 w-5" />
+                </div>
+              )}
+            </div>
           </Button>
         ) : (
           // !containsBetsWithStake &&
@@ -699,23 +710,30 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
 
               <Button
                 onClick={handlePlaceBet}
-                disabled={!isValidBet}
+                disabled={isPlacingBet || !isValidBet}
                 className={cn(
                   "w-1/2 h-[50px] flex flex-col gap-0.5 bg-primary hover:bg-[#52c466] justify-center items-center py-4 px-3 rounded-none rounded-br",
                   {
                     "bg-muted-foreground text-secondary hover:bg-muted-foreground cursor-not-allowed disabled:opacity-100":
-                      !isValidBet,
+                      isPlacingBet || !isValidBet,
                   }
                 )}
               >
-                <div className="text-base font-extrabold">Place Bet</div>
-                {activeBets.length > 0 &&
-                  // stakeMultiplierRawValue &&
-                  potentialReturn > 0 && (
-                    <div className="text-[11px] leading-[13px] font-bold">
-                      To Return {formatCurrency(potentialReturn)}
+                <div className="relative">
+                  <div className="flex flex-col items-center">
+                    <div className="text-base font-extrabold">Place Bet</div>
+                    {activeBets.length > 0 && potentialReturn > 0 && (
+                      <div className="text-[11px] leading-[13px] font-bold">
+                        To Return {formatCurrency(potentialReturn)}
+                      </div>
+                    )}
+                  </div>
+                  {isPlacingBet && (
+                    <div className="absolute top-1/2 -right-6 transform -translate-y-1/2">
+                      <LoadingSpinner className="h-5 w-5" />
                     </div>
                   )}
+                </div>
               </Button>
             </div>
           )

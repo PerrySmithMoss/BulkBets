@@ -108,12 +108,17 @@ export const Tabs: React.FC<Props> = ({ initialBets }) => {
             ))}
           </>
         ) : (
-          <Card className="bg-background">
-            <CardContent className="flex px-0 pb-0">
-              <div className="text-center py-8 text-muted-foreground">
-                {currentTab?.noContentText && (
-                  <div>{currentTab.noContentText}</div>
-                )}
+          <Card className="bg-muted">
+            <CardContent className="py-8">
+              <div className="flex flex-col gap-3">
+                <div className="text-center text-muted-foreground font-bold">
+                  There are currently no bets to display
+                </div>
+                <div className="text-center text-[13px] text-muted-foreground">
+                  {currentTab?.noContentText && (
+                    <div>{currentTab.noContentText}</div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
