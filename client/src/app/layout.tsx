@@ -7,6 +7,7 @@ import { fetchCurrentUser } from "@/lib/api/users/fetch-current-user";
 import { UserProvider } from "@/store/user/user-context";
 import { BetProvider } from "@/store/betting";
 import { ClientProviders } from "@/providers/client/providers";
+import { Toaster } from "@/components/ui/toaster";
 
 const fontSans = FontSans({
   subsets: ["latin"],
@@ -38,6 +39,7 @@ export default async function RootLayout({
               </DialogProvider>
             </UserProvider>
           </BetProvider>
+          <Toaster />
         </ClientProviders>
       </body>
     </html>

@@ -25,11 +25,7 @@ import {
   roundOddsToFractional,
 } from "@/lib/utils/betting";
 import { BetDialogAlert } from "../alerts/bet-dialog-alert";
-import {
-  formatCurrency,
-  getCurrencySymbol,
-  isValidNumber,
-} from "@/lib/utils/currency";
+import { formatCurrency, isValidNumber } from "@/lib/utils/currency";
 import { useUser } from "@/store/user/user-context";
 import { Badge } from "../ui/badge";
 import { Overlay } from "../overlay";
@@ -37,6 +33,7 @@ import { placeBet } from "@/lib/api/bets/place-bet";
 import { Dialog } from "@/types/dialog";
 import { useDialog } from "@/store/dialog/dialog-context";
 import { LoadingSpinner } from "../loading-spinner";
+import { toast } from "sonner";
 
 interface Props {}
 
@@ -265,6 +262,10 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     handleToggleExpand();
     setIsEditingStake(false);
     setIsPlacingBet(false);
+    toast.success("Your bet has been placed 💰.", {
+      duration: 7500,
+      position: "bottom-center",
+    });
   };
 
   useEffect(() => {
@@ -639,7 +640,13 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
           >
             <div className="relative">
               <div className="flex flex-col items-center">
-                <div className="text-base font-extrabold">Place Bet</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-base font-extrabold">Place Bet</div>
+                  <div className="text-base font-extrabold">
+                    {formatCurrency(totalStake)}
+                  </div>
+                </div>
+
                 {activeBets.length > 0 && potentialReturn > 0 && (
                   <div className="text-[11px] leading-[13px] font-bold">
                     To Return {formatCurrency(potentialReturn)}
@@ -721,7 +728,15 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
               >
                 <div className="relative">
                   <div className="flex flex-col items-center">
-                    <div className="text-base font-extrabold">Place Bet</div>
+                    <div className="flex gap-2 items-center">
+                      <div
+                        className={cn("text-base font-extrabold", {
+                          "text-white": isPlacingBet || !isValidBet,
+                        })}
+                      >
+                        Place Bet
+                      </div>
+                    </div>
                     {activeBets.length > 0 && potentialReturn > 0 && (
                       <div className="text-[11px] leading-[13px] font-bold">
                         To Return {formatCurrency(potentialReturn)}
