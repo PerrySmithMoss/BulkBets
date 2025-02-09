@@ -9,7 +9,7 @@ export const logoutUser = async (
       return true;
     }
 
-    const { data: response, error: fetchError } = await tryFetcher(
+    const { error: fetchError } = await tryFetcher(
       fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/v1/auth/logout`, {
         method: "DELETE",
         cache: "no-store",
@@ -19,13 +19,6 @@ export const logoutUser = async (
 
     if (fetchError) {
       console.error(`Error logging out user ${userId}: `, fetchError);
-      return false;
-    }
-
-    if (!response) {
-      console.error(
-        `No response received while attempting to logout user ${userId}`
-      );
       return false;
     }
 

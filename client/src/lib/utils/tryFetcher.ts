@@ -19,8 +19,11 @@ export const tryFetcher = async <T>(
       const tokenRefreshed = await refreshClientTokens();
 
       if (tokenRefreshed) {
-        const retryData = await promise;
-        const retryJson: T = await retryData.json();
+        const retryResponse = await promise;
+        if (retryResponse.status === 204) {
+          return { data: null, error: null }; // No content, return null data
+        }
+        const retryJson: T = await retryResponse.json();
         return { data: retryJson, error: null };
       } else {
         return { data: null, error: "Token refresh failed" };
@@ -30,6 +33,10 @@ export const tryFetcher = async <T>(
     if (!response.ok) {
       console.error("Request failed with status: ", response.status);
       return { data: null, error: `HTTP error: ${response.statusText}` };
+    }
+
+    if (response.status === 204) {
+      return { data: null, error: null }; // ✅ Properly handle 204 No Content
     }
 
     const json: T = await response.json();

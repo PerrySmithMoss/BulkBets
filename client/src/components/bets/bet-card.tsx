@@ -11,11 +11,11 @@ import { AlertCircle } from "lucide-react";
 import { Bet, BetStatus } from "@/types/api/bets/bets";
 import { formatCurrency } from "@/lib/utils/currency";
 import { capitalizeFirstLetter } from "@/lib/utils/string";
-import { decimalToFraction } from "@/lib/utils/math";
 import { AccumulatorTimeline } from "../timeline/accumulator-timeline/accumulator-timeline";
-import { BetTypeDisplayMap, MY_BETS_TAB } from "@/types/betting";
+import { BetTypeDisplayMap } from "@/types/betting";
 import { Button } from "../ui/button";
 import { roundOddsToFractional } from "@/lib/utils/betting";
+import { cn } from "@/lib/utils/cn";
 
 interface Props {
   bet: Bet | null;
@@ -30,15 +30,15 @@ export const BetCard: React.FC<Props> = ({ bet, getBetsInAccumulator }) => {
   const singularBets = getBetsInAccumulator(bet.id);
 
   return (
-    <Card className="mb-4 bg-muted">
-      <CardHeader className="py-3 pr-3 border-b">
+    <Card className="mb-4">
+      <CardHeader className="py-3 pr-3">
         <div className="flex justify-between items-center">
           <div className="flex flex-col">
             <CardTitle className="text-lg font-medium text-primary">
               {isAccumulator ? (
                 <div className="flex items-center gap-2">
                   <div>{formatCurrency(bet.amount)}</div>
-                  <div>{`${bet.components?.length || 0} Fold Accumulator`}</div>
+                  <div>{`${bet.components?.length ?? 0} Fold Accumulator`}</div>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
@@ -53,11 +53,17 @@ export const BetCard: React.FC<Props> = ({ bet, getBetsInAccumulator }) => {
               variant={
                 bet.status === BetStatus.Won
                   ? "default"
-                  : bet.status === BetStatus.Lost
+                  : bet.status === BetStatus.Lost ||
+                    bet.status === BetStatus.Void ||
+                    bet.status === BetStatus.Cancelled
                   ? "destructive"
                   : "outline"
               }
-              className="ml-2 px-8 py-3 rounded bg-gray-500/40"
+              className={cn("ml-2 px-3 py-1 rounded-full", {
+                "bg-yellow-500/50": bet.status === BetStatus.Pending,
+                "bg-green-500/80": bet.status === BetStatus.Won,
+                "bg-blue-500/70": bet.status === BetStatus.Live,
+              })}
             >
               {capitalizeFirstLetter(bet.status) || "Pending"}
             </Badge>
@@ -65,7 +71,7 @@ export const BetCard: React.FC<Props> = ({ bet, getBetsInAccumulator }) => {
         </div>
       </CardHeader>
 
-      <CardContent className="pt-4 px-6">
+      <CardContent className="pt-4 px-6 pb-5">
         <div className="space-y-4">
           {isAccumulator ? (
             <AccumulatorTimeline

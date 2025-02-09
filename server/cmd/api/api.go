@@ -42,10 +42,10 @@ func (app *application) mount() http.Handler {
 
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/login", app.loginUserHandler)
-			r.Delete("/logout", app.logoutUserHandler)
 
 			r.Group(func(r chi.Router) {
 				r.Use(app.DeserialiseUserMiddleware)
+				r.Delete("/logout", app.logoutUserHandler)
 				r.Get("/token/refresh", app.tokenRenewalHandler)
 			})
 		})

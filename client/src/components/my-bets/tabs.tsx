@@ -67,8 +67,6 @@ export const Tabs: React.FC<Props> = ({ initialBets }) => {
   //   return <div>Show error screen??</div>;
   // }
 
-  console.log("initialBets: ", initialBets);
-
   return (
     <TabsComp defaultValue={initialTab} onValueChange={handleTabChange}>
       <TabsList>
