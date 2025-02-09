@@ -14,8 +14,6 @@ export const tryFetcher = async <T>(
     const response = await promise;
 
     if (response.status === 401) {
-      console.log("Unauthorized error (401), attempting to refresh token...");
-
       const tokenRefreshed = await refreshClientTokens();
 
       if (tokenRefreshed) {

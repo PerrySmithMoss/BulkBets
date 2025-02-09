@@ -212,10 +212,26 @@ export const NavBar: React.FC<Props> = ({}) => {
                       </Avatar>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem>Settings</DropdownMenuItem>
-                      <DropdownMenuItem>Support</DropdownMenuItem>
+                      <Link href="/customer/my-account">
+                        <DropdownMenuItem className="cursor-pointer">
+                          My Account
+                        </DropdownMenuItem>
+                      </Link>
+                      <Link href="/customer/my-bets">
+                        <DropdownMenuItem className="cursor-pointer">
+                          My Bets
+                        </DropdownMenuItem>
+                      </Link>
+                      <Link href="/customer/bank">
+                        <DropdownMenuItem className="cursor-pointer">
+                          Bank
+                        </DropdownMenuItem>
+                      </Link>
+                      <Link href="/customer/help">
+                        <DropdownMenuItem className="cursor-pointer">
+                          Help
+                        </DropdownMenuItem>
+                      </Link>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="cursor-pointer"

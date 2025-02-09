@@ -28,20 +28,28 @@ async function refreshTokens(refreshToken: string) {
 }
 
 export default async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
   const accessToken = req.cookies.get("access_token")?.value;
   const refreshToken = req.cookies.get("refresh_token")?.value;
 
+  // 🔹 Protected routes (only logged-in users should access these)
+  const isProtectedRoute = pathname.startsWith("/customer");
+
+  // ✅ If access token exists, allow access
   if (accessToken) {
     return NextResponse.next();
   }
 
+  // 🔄 If no access token but refresh token exists, try refreshing
   if (!accessToken && refreshToken) {
     const newCookies = await refreshTokens(refreshToken);
 
     if (!newCookies) {
-      // May need this for account specific pages?
-      // return NextResponse.redirect(new URL('/login', req.url))
-
+      // 🔹 If refresh failed, redirect unauthorized users
+      if (isProtectedRoute) {
+        // Redirect to login page if user is not authenticated
+        return NextResponse.redirect(new URL("/", req.url));
+      }
       return NextResponse.next();
     }
 
@@ -70,8 +78,11 @@ export default async function middleware(req: NextRequest) {
     return response;
   }
 
-  // May need this for account specific pages?
-  // return NextResponse.redirect(new URL('/login', req.url))
+  // Define protected routes
+  if (req.nextUrl.pathname.startsWith("/customer")) {
+    // Redirect to login page if user is not authenticated
+    return NextResponse.redirect(new URL("/", req.url));
+  }
 
   return NextResponse.next();
 }

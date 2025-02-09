@@ -24,7 +24,7 @@ export default async function Home() {
         <div className="hidden border-r md:block">
           <div className="flex flex-col gap-3">
             <div className="pt-6">
-              <div className="pb-2 px-6">
+              <div className="pb-5 px-6">
                 <div className="flex flex-col">
                   <div className="uppercase font-bold text-primary">
                     Upcoming
@@ -67,7 +67,7 @@ export default async function Home() {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center justify-between pb-1 pt-3 px-3">
+              {/* <div className="flex items-center justify-between pb-1 pt-3 px-3">
                 <Toggle aria-label="Toggle today" className="px-2">
                   TODAY
                 </Toggle>
@@ -83,7 +83,7 @@ export default async function Home() {
                 <Toggle aria-label="Toggle all" className="px-2">
                   ALL
                 </Toggle>
-              </div>
+              </div> */}
             </div>
             <div className="border-t">
               <div className="px-6 pt-6">
