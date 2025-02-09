@@ -12,7 +12,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { usePathname } from "next/navigation";
 import { useDialog } from "@/store/dialog/dialog-context";
@@ -21,7 +20,7 @@ import { Logo } from "./logo";
 import { useUser } from "@/store/user/user-context";
 import { logoutUser } from "@/lib/api/auth/logout-user";
 import { formatCurrency } from "@/lib/utils/currency";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { Avatar, AvatarFallback } from "./ui/avatar";
 import Image from "next/image";
 
 interface Props {}
@@ -43,7 +42,7 @@ export const NavBar: React.FC<Props> = ({}) => {
   const getNavigationClassName = (href: string) => {
     let className = "transition-colors hover:text-foreground";
 
-    if (pathName.includes(href)) {
+    if (pathName === href) {
       className += " " + "text-foreground";
     } else {
       className += " " + "text-muted-foreground";
@@ -72,22 +71,25 @@ export const NavBar: React.FC<Props> = ({}) => {
                 <SheetContent side="left">
                   <nav className="grid gap-6 text-lg font-medium">
                     <Logo />
+                    <Link href="/" className={getNavigationClassName("/")}>
+                      All Shows
+                    </Link>
                     <Link
                       href="#"
-                      className={getNavigationClassName("in-play")}
+                      className={getNavigationClassName("/in-play")}
                     >
                       In-Play
                     </Link>
                     <Link
                       href="#"
-                      className={getNavigationClassName("calendar")}
+                      className={getNavigationClassName("/calendar")}
                     >
                       Calendar
                     </Link>
                     {user && (
                       <Link
                         href="/customer/my-bets"
-                        className={getNavigationClassName("my-bets")}
+                        className={getNavigationClassName("/customer/my-bets")}
                       >
                         My Bets
                       </Link>
@@ -107,16 +109,19 @@ export const NavBar: React.FC<Props> = ({}) => {
               </Link>
             </div>
             <nav className="hidden flex-col gap-6 font-medium [@media(min-width:820px)]:flex [@media(min-width:820px)]:flex-row [@media(min-width:820px)]:items-center [@media(min-width:820px)]:gap-5 [@media(min-width:820px)]:text-sm lg:gap-6">
-              <Link href="#" className={getNavigationClassName("in-play")}>
+              <Link href="/" className={getNavigationClassName("/")}>
+                All Shows
+              </Link>
+              <Link href="#" className={getNavigationClassName("/in-play")}>
                 In-Play
               </Link>
-              <Link href="#" className={getNavigationClassName("calendar")}>
+              <Link href="#" className={getNavigationClassName("/calendar")}>
                 Calendar
               </Link>
               {user && (
                 <Link
                   href="/customer/my-bets"
-                  className={getNavigationClassName("my-bets")}
+                  className={getNavigationClassName("/customer/my-bets")}
                 >
                   My Bets
                 </Link>
@@ -223,6 +228,9 @@ export const NavBar: React.FC<Props> = ({}) => {
                 </div>
               ) : (
                 <div className="hidden xs:flex items-center gap-3">
+                  <Button onClick={handleLogIn} variant="default">
+                    Join
+                  </Button>
                   <Button onClick={handleLogIn} variant="outline">
                     Log in
                   </Button>
