@@ -105,7 +105,7 @@ export const NavBar: React.FC<Props> = ({}) => {
                   Bulk
                   <span className="text-primary">Bets</span>
                 </p>
-                <span className="sr-only">IronBets</span>
+                <span className="sr-only">Bulk Bets</span>
               </Link>
             </div>
             <nav className="hidden flex-col gap-6 font-medium [@media(min-width:820px)]:flex [@media(min-width:820px)]:flex-row [@media(min-width:820px)]:items-center [@media(min-width:820px)]:gap-5 [@media(min-width:820px)]:text-sm lg:gap-6">
@@ -244,9 +244,14 @@ export const NavBar: React.FC<Props> = ({}) => {
                 </div>
               ) : (
                 <div className="hidden xs:flex items-center gap-3">
-                  <Button onClick={handleLogIn} variant="default">
-                    Join
-                  </Button>
+                  <Link href="/customer/account/create">
+                    <Button
+                      variant="outline"
+                      className="border-primary text-primary"
+                    >
+                      Join
+                    </Button>
+                  </Link>
                   <Button onClick={handleLogIn} variant="outline">
                     Log in
                   </Button>

@@ -1,6 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Radio } from "lucide-react";
-import { Toggle } from "@/components/ui/toggle";
 import {
   Carousel,
   CarouselContent,

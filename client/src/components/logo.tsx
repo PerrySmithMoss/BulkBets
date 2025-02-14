@@ -9,7 +9,7 @@ export const Logo: React.FC<Props> = ({}) => {
         Bulk
         <span className="text-primary">Bets</span>
       </p>
-      <span className="sr-only">IronBets</span>
+      <span className="sr-only">Bulk Bets</span>
     </Link>
   );
 };
