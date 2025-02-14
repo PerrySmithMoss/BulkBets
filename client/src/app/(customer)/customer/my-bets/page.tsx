@@ -5,9 +5,9 @@ import { MY_BETS_TAB } from "@/types/betting";
 
 export default async function Page({
   searchParams,
-}: {
+}: Readonly<{
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}) {
+}>) {
   const initialTab = (await searchParams).tab || MY_BETS_TAB.CashOut;
   const currentTab = tabs.find((tab) => tab.title === initialTab);
   const betStatuses = currentTab?.statuses || tabs[0].statuses;

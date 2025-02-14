@@ -32,7 +32,7 @@ export function RegisterUserForm({ className, ...props }: Props) {
       }
 
       const { oauthUrl } = await res.json();
-      console.log("oauthUrl:", oauthUrl);
+
       if (!oauthUrl) return null;
 
       window.location.href = oauthUrl;
