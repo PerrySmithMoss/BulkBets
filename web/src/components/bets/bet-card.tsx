@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertCircle } from "lucide-react";
 import { Bet, BetStatus } from "@/types/api/bets/bets";
 import { formatCurrency } from "@/lib/utils/currency";
-import { capitalizeFirstLetter } from "@/lib/utils/string";
+import { capitaliseFirstLetter } from "@/lib/utils/string";
 import { AccumulatorTimeline } from "../timeline/accumulator-timeline/accumulator-timeline";
 import { BetTypeDisplayMap } from "@/types/betting";
 import { Button } from "../ui/button";
@@ -65,7 +65,7 @@ export const BetCard: React.FC<Props> = ({ bet, getBetsInAccumulator }) => {
                 "bg-blue-500/70": bet.status === BetStatus.Live,
               })}
             >
-              {capitalizeFirstLetter(bet.status) || "Pending"}
+              {capitaliseFirstLetter(bet.status) || "Pending"}
             </Badge>
           </div>
         </div>

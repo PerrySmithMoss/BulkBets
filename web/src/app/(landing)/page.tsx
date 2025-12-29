@@ -14,7 +14,8 @@ import Image from "next/image";
 import Link from "next/link";
 
 export default async function Home() {
-  // TODO: change so that we call a fetchRecentShows or fetchHomePageShows which include pagination?
+  // TODO: change so that we call a fetchRecentShows or fetchHomePageShows which
+  // allows passing pagination and query params
   const { data: olympiaShow } = await fetchShowById(1);
   const { data: arnoldClassic } = await fetchShowById(2);
   return (
@@ -92,52 +93,57 @@ export default async function Home() {
                 <ul className="flex flex-col gap-5 pt-5">
                   {/* TODO: create API for returning a list of divisions which 
                   can then be shown here instead of manually typing them */}
-                  <Link href="/categories/male/bodybuilding">
+                  <Link href="/divisions/bodybuilding">
                     <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Bodybuilding
                     </li>
                   </Link>
-                  <Link href="/categories/male/classic-physique">
+                  <Link href="/divisions/212">
+                    <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
+                      212
+                    </li>
+                  </Link>
+                  <Link href="/divisions/classic-physique">
                     <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Classic Physique
                     </li>
                   </Link>
-                  <Link href="/categories/male/physique">
+                  <Link href="/divisions/mens-physique">
                     <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Men&apos;s Physique
                     </li>
                   </Link>
-                  <Link href="/categories/female/figure">
+                  <Link href="/divisions/figure">
                     <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Figure
                     </li>
                   </Link>
-                  <Link href="/categories/female/fitness">
+                  <Link href="/divisions/fitness">
                     <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Fitness
                     </li>
                   </Link>
-                  <Link href="/categories/female/wellness">
+                  <Link href="/divisions/wellness">
                     <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Wellness
                     </li>
                   </Link>
-                  <Link href="/categories/female/bikini">
+                  <Link href="/divisions/bikini">
                     <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Bikini
                     </li>
                   </Link>
-                  <Link href="/categories/female/bodybuilding">
+                  <Link href="/divisions/female-bodybuilding">
                     <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Female Bodybuilding
                     </li>
                   </Link>
-                  <Link href="/categories/male/physique">
+                  <Link href="/divisions/female-physique">
                     <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Female Physique
                     </li>
                   </Link>
-                  <Link href="/categories/male/masters">
+                  <Link href="/divisions/masters">
                     <li className="hover:text-primary cursor-pointer text-[15px] font-bold">
                       Men&apos;s Masters
                     </li>
