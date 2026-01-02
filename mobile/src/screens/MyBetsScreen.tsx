@@ -1,10 +1,16 @@
 import { View, Text, StyleSheet } from "react-native";
+import { CompositeScreenProps } from "@react-navigation/native";
+import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../navigation/types";
 
-type Props = NativeStackScreenProps<RootStackParamList, "Bets">;
+import { MainTabParamList, RootStackParamList } from "../navigation/types";
 
-export default function BetsScreen({ navigation }: Props) {
+type Props = CompositeScreenProps<
+  BottomTabScreenProps<MainTabParamList, "MyBets">,
+  NativeStackScreenProps<RootStackParamList>
+>;
+
+export default function MyBetsScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Bets Screen</Text>
