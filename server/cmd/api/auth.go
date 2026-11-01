@@ -353,6 +353,7 @@ func (app *application) loginUserHandler(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		log.Printf("Could not get user with email %v. Err: %v", reqBody.Email, err)
 		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+		return
 	}
 
 	// Verify the password

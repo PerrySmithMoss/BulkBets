@@ -5,27 +5,19 @@ import {
   ScrollView,
   Text,
   TouchableOpacity,
+  type LayoutChangeEvent,
 } from "react-native";
-import { useHeaderHeight } from "@react-navigation/elements";
-import { CompositeScreenProps } from "@react-navigation/native";
-import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import Animated, {
   useSharedValue,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   withTiming,
   createAnimatedComponent,
+  type SharedValue,
 } from "react-native-reanimated";
 
-import { MainTabParamList, RootStackParamList } from "../navigation/types";
 import Carousel from "../components/Carousel";
 import Card from "../components/Card";
-
-type Props = CompositeScreenProps<
-  BottomTabScreenProps<MainTabParamList, "Home">,
-  NativeStackScreenProps<RootStackParamList>
->;
 
 // dummy data
 const carouselEvents = Array.from({ length: 10 }).map((_, i) => ({
@@ -53,9 +45,26 @@ const TAB_HEIGHT = 44;
 
 const AnimatedText = createAnimatedComponent(Text);
 
-export default function HomeScreen({}: Props) {
+function AnimatedTab({ label, index, activeIndex, onPress, onLayout }: {
+  label: string;
+  index: number;
+  activeIndex: SharedValue<number>;
+  onPress: () => void;
+  onLayout: (event: LayoutChangeEvent) => void;
+}) {
+  const animatedStyle = useAnimatedStyle(() => ({
+    color: activeIndex.value === index ? "#F5C542" : "#9CA3AF",
+  }));
+  return (
+    <TouchableOpacity style={styles.tabButton} onPress={onPress} onLayout={onLayout}>
+      <AnimatedText style={[styles.tabText, animatedStyle]}>{label}</AnimatedText>
+    </TouchableOpacity>
+  );
+}
+
+export default function HomeScreen() {
   const scrollRef = useRef<Animated.ScrollView>(null);
-  const sectionPositions = useRef<number[]>(Array(divisions.length).fill(0));
+  const sectionPositions = useSharedValue<number[]>(Array(divisions.length).fill(0));
   const tabLayouts = useRef<{ x: number; width: number }[]>([]);
 
   const scrollY = useSharedValue(0);
@@ -64,14 +73,12 @@ export default function HomeScreen({}: Props) {
   const underlineX = useSharedValue(0);
   const underlineWidth = useSharedValue(0);
 
-  const headerHeight = useHeaderHeight();
-
   const onScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollY.value = event.contentOffset.y;
 
-      for (let i = sectionPositions.current.length - 1; i >= 0; i--) {
-        if (scrollY.value >= sectionPositions.current[i] - 80) {
+      for (let i = sectionPositions.value.length - 1; i >= 0; i--) {
+        if (scrollY.value >= sectionPositions.value[i] - 80) {
           // update active tab
           activeIndex.value = i;
           break;
@@ -81,7 +88,7 @@ export default function HomeScreen({}: Props) {
   });
 
   const scrollToSection = (index: number) => {
-    const y = sectionPositions.current[index];
+    const y = sectionPositions.value[index];
     if (y === undefined) return;
 
     const layout = tabLayouts.current[index];
@@ -109,33 +116,7 @@ export default function HomeScreen({}: Props) {
     transform: [{ translateX: underlineX.value }],
   }));
 
-  const AnimatedTab = ({ label, index }: { label: string; index: number }) => {
-    const animatedStyle = useAnimatedStyle(() => ({
-      color: activeIndex.value === index ? "#F5C542" : "#9CA3AF",
-    }));
-
-    return (
-      <TouchableOpacity
-        style={styles.tabButton}
-        onPress={() => scrollToSection(index)}
-        onLayout={(e) => {
-          const { x, width } = e.nativeEvent.layout;
-          tabLayouts.current[index] = { x, width };
-
-          if (index === 0 && underlineWidth.value === 0) {
-            underlineX.value = x;
-            underlineWidth.value = width;
-          }
-        }}
-      >
-        <AnimatedText style={[styles.tabText, animatedStyle]}>
-          {label}
-        </AnimatedText>
-      </TouchableOpacity>
-    );
-  };
-
-  const Tabs = () => (
+  const renderTabs = () => (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
@@ -143,7 +124,21 @@ export default function HomeScreen({}: Props) {
     >
       <Animated.View style={[styles.underline, underlineStyle]} />
       {divisions.map((div, index) => (
-        <AnimatedTab key={div.id} label={div.name} index={index} />
+        <AnimatedTab
+          key={div.id}
+          label={div.name}
+          index={index}
+          activeIndex={activeIndex}
+          onPress={() => scrollToSection(index)}
+          onLayout={(e) => {
+            const { x, width } = e.nativeEvent.layout;
+            tabLayouts.current[index] = { x, width };
+            if (index === 0 && underlineWidth.value === 0) {
+              underlineX.value = x;
+              underlineWidth.value = width;
+            }
+          }}
+        />
       ))}
     </ScrollView>
   );
@@ -172,14 +167,16 @@ export default function HomeScreen({}: Props) {
           onLayout={(e) => (tabY.value = e.nativeEvent.layout.y)}
           style={[stickyStyle]}
         >
-          <Tabs />
+          {renderTabs()}
         </Animated.View>
 
         {events.map((divisionEvents, index) => (
           <View
             key={divisions[index].id}
             onLayout={(e) => {
-              sectionPositions.current[index] = e.nativeEvent.layout.y;
+              sectionPositions.value = sectionPositions.value.map((y, i) =>
+                i === index ? e.nativeEvent.layout.y : y
+              );
             }}
             style={styles.sectionContainer}
           >

@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
+	"os"
 
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
@@ -16,14 +18,14 @@ import (
 
 func main() {
 	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("Error loading .env file")
+	if err != nil && !os.IsNotExist(err) {
+		log.Fatalf("Error loading .env file: %v", err)
 	}
 
 	cfg := config.GetConfig()
 
 	postgresqlDbAddr := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s",
-		cfg.DB.DBUser, cfg.DB.DBPassword, cfg.DB.DBHost, cfg.DB.DBName, cfg.DB.DBSslMode)
+		cfg.DB.DBUser, cfg.DB.DBPassword, net.JoinHostPort(cfg.DB.DBHost, cfg.DB.DBPort), cfg.DB.DBName, cfg.DB.DBSslMode)
 
 	db, err := db.New(
 		postgresqlDbAddr,

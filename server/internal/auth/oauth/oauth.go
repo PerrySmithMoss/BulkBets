@@ -19,6 +19,9 @@ type OAuthConfigs struct {
 // }
 
 func InitOAuthConfigs(cfg config.Config) OAuthConfigs {
+	if cfg.Auth.OAuth.GoogleClientID == "" || cfg.Auth.OAuth.GoogleClientSecret == "" {
+		return OAuthConfigs{OAuth2: map[string]*oauth2.Config{}}
+	}
 	oauth2Configs := map[string]*oauth2.Config{
 		"google": {
 			ClientID:     cfg.Auth.OAuth.GoogleClientID,

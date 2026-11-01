@@ -18,8 +18,8 @@ func init() {
 
 func upCreateAdminUser(ctx context.Context, tx *sql.Tx) error {
 	err := godotenv.Load("../../.env")
-	if err != nil {
-		log.Fatalf("Error loading .env file in migration")
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("loading .env file: %w", err)
 	}
 
 	adminPassword := os.Getenv("ADMIN_USER_PASSWORD")

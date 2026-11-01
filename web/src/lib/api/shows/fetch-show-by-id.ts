@@ -1,5 +1,7 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
 import { formatCookieHeader, getAuthCookies } from "@/lib/utils/cookies";
 import { tryFetcher } from "@/lib/utils/tryFetcher";
 import { API_ROUTES } from "../constants";
@@ -12,7 +14,7 @@ export const fetchShowById = async (id: number) => {
 
     const { data, error } = await tryFetcher<ShowDetailsResponse>(
       fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL}/${API_ROUTES.SHOWS.BASE}/${id}`,
+        `${process.env.API_URL ?? "http://localhost:8080"}/${API_ROUTES.SHOWS.BASE}/${id}`,
         {
           method: "GET",
           cache: "no-store",
@@ -34,6 +36,7 @@ export const fetchShowById = async (id: number) => {
 
     return { data: data?.data ?? null, error };
   } catch (error) {
+    unstable_rethrow(error);
     const errorMessage = `[fetchShowById] - unexpected error: ${
       error instanceof Error ? error.message : "Unknown error"
     }`;

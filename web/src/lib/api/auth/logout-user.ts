@@ -10,7 +10,7 @@ export const logoutUser = async (
     }
 
     const { error: fetchError } = await tryFetcher(
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/v1/auth/logout`, {
+      fetch(`/api/v1/auth/logout`, {
         method: "DELETE",
         cache: "no-store",
         credentials: "include",

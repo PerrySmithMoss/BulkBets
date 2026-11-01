@@ -5,17 +5,13 @@ interface BetDialogAlertProps {
 }
 
 export const BetDialogAlert: React.FC<BetDialogAlertProps> = ({ alertMsg }) => {
-  const [visibleAlert, setVisibleAlert] = useState<string | null>(
-    alertMsg || null
-  );
+  const [visible, setVisible] = useState(true);
 
   useEffect(() => {
     if (alertMsg) {
-      setVisibleAlert(alertMsg);
-
       // Set a timer to remove the alert after 3 seconds
       const timer = setTimeout(() => {
-        setVisibleAlert(null);
+        setVisible(false);
       }, 3000);
 
       // Cleanup the timer if the component unmounts or alertMsg changes
@@ -23,11 +19,11 @@ export const BetDialogAlert: React.FC<BetDialogAlertProps> = ({ alertMsg }) => {
     }
   }, [alertMsg]);
 
-  if (!visibleAlert) return null;
+  if (!visible || !alertMsg) return null;
 
   return (
     <div className="p-1.5 text-center flex justify-center bg-destructive text-xs rounded-t">
-      {visibleAlert}
+      {alertMsg}
     </div>
   );
 };

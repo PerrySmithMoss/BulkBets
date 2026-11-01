@@ -25,6 +25,7 @@ vendor/
 .env
 *.local
 .env.*
+!.env.example
 config.yaml
 
 # Logs and debugging

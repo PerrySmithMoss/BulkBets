@@ -4,7 +4,7 @@ import { API_ROUTES } from "./lib/api/constants";
 async function refreshTokens(refreshToken: string) {
   try {
     const response = await fetch(
-      `${process.env.API_URL}/${API_ROUTES.AUTH.REFRESH_TOKENS}`,
+      `${process.env.API_URL ?? "http://localhost:8080"}/${API_ROUTES.AUTH.REFRESH_TOKENS}`,
       {
         method: "GET",
         headers: {
@@ -27,8 +27,12 @@ async function refreshTokens(refreshToken: string) {
   }
 }
 
-export default async function middleware(req: NextRequest) {
+export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  // The API refresh endpoint performs its own rotation; do not refresh it twice.
+  if (pathname === `/${API_ROUTES.AUTH.REFRESH_TOKENS}`) {
+    return NextResponse.next();
+  }
   const accessToken = req.cookies.get("access_token")?.value;
   const refreshToken = req.cookies.get("refresh_token")?.value;
 
@@ -55,19 +59,17 @@ export default async function middleware(req: NextRequest) {
 
     // Clone the request to modify headers
     const requestHeaders = new Headers(req.headers);
-    requestHeaders.set("Cookie", newCookies.join("; "));
-
-    // Create a new request with updated cookies
-    const newRequest = new NextRequest(req.url, {
-      headers: requestHeaders,
-      method: req.method,
-      body: req.body,
-      signal: req.signal,
-    });
+    const requestCookies = new Map(req.cookies.getAll().map(({ name, value }) => [name, value]));
+    for (const cookie of newCookies) {
+      const pair = cookie.split(";", 1)[0];
+      const separator = pair.indexOf("=");
+      if (separator > 0) requestCookies.set(pair.slice(0, separator), pair.slice(separator + 1));
+    }
+    requestHeaders.set("Cookie", Array.from(requestCookies, ([name, value]) => `${name}=${value}`).join("; "));
 
     // Create response with the modified request and attach cookies for the client
     const response = NextResponse.next({
-      request: newRequest,
+      request: { headers: requestHeaders },
     });
 
     // Attach the new cookies to the response headers for the subsequent server requests
@@ -89,7 +91,7 @@ export default async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!customer/account/create|v1/auth/token/refresh|_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/((?!customer/account/create|api/v1/auth/token/refresh|_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     "/(api)(.*)",
   ],
 };

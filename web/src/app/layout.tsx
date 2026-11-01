@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Inter as FontSans } from "next/font/google";
 import { DialogManager } from "@/components/dialog-manager";
 import { DialogProvider } from "@/store/dialog/dialog-context";
 import { fetchCurrentUser } from "@/lib/api/users/fetch-current-user";
@@ -8,11 +7,6 @@ import { UserProvider } from "@/store/user/user-context";
 import { BetProvider } from "@/store/betting";
 import { ClientProviders } from "@/providers/client/providers";
 import { Toaster } from "@/components/ui/toaster";
-
-const fontSans = FontSans({
-  subsets: ["latin"],
-  variable: "--font-sans",
-});
 
 export const metadata: Metadata = {
   title: "BulkBets",

@@ -63,12 +63,10 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
   );
   const containsBetsInSameDivision = betExistsInSameDivision(activeBets);
   const isValidBet = isValidBetSlip(state);
-  const [visibleAlert, setVisibleAlert] = useState<string | null>(
-    alertMsg || null
-  );
   const latestBet = findMostRecentBet(activeBets);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isEditingStake, setIsEditingStake] = useState(false);
+  const [stakeInputFocused, setStakeInputFocused] = useState(false);
+  const isEditingStake = stakeInputFocused || isValidNumber(stakeMultiplierRawValue);
   const [isPlacingBet, setIsPlacingBet] = useState(false);
   const [rememberStake, setRememberStake] = useState(false);
   const stakeRef = useRef<HTMLInputElement | null>(null);
@@ -77,7 +75,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     useRef<HTMLDivElement | null>(null);
   const betSlipContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const memoizedAlert = useCallback(alert, [alert]);
+  const memoizedAlert = alert;
 
   const handleToggleExpand = () => {
     setIsExpanded(!isExpanded);
@@ -119,12 +117,12 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     if (numericValue > MAX_BETTING_STAKE) return;
 
     updateStakeMultiplier(cleanValue);
-    setIsEditingStake(true);
+    setStakeInputFocused(true);
   };
 
   const handleStakeBlur = useCallback((): void => {
     if (!stakeMultiplierRawValue) {
-      setIsEditingStake(false);
+      setStakeInputFocused(false);
       return;
     }
 
@@ -161,7 +159,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
   };
 
   const handleSetStakeClick = () => {
-    setIsEditingStake(true);
+    setStakeInputFocused(true);
     setTimeout(() => stakeRef.current?.focus(), 0); // Focus input after state update
   };
 
@@ -260,7 +258,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
     clearAllBets();
     await refreshUser();
     handleToggleExpand();
-    setIsEditingStake(false);
+    setStakeInputFocused(false);
     setIsPlacingBet(false);
     toast.success("Your bet has been placed 💰.", {
       duration: 7500,
@@ -314,11 +312,8 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
 
   useEffect(() => {
     if (alertMsg) {
-      setVisibleAlert(alertMsg);
-
       // Set a timer to remove the alert after 3 seconds
       const timer = setTimeout(() => {
-        setVisibleAlert(null);
         memoizedAlert("");
       }, 3000);
 
@@ -326,15 +321,6 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
       return () => clearTimeout(timer);
     }
   }, [alertMsg, memoizedAlert]);
-
-  useEffect(() => {
-    if (isValidNumber(stakeMultiplierDisplayValue)) {
-      setIsEditingStake(true);
-    }
-    // we only need check this on initial render as the onChange
-    // handlers take care of value changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     // clear stake multiplier if it's not a valid accumulator
@@ -623,7 +609,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
         ref={betSlipContainerRef}
         className="fixed bottom-10 right-1/2 left-1/2 transform -translate-x-1/2 rounded-b max-w-[450px] w-full z-50"
       >
-        {alertMsg && <BetDialogAlert alertMsg={alertMsg} />}
+        {alertMsg && <BetDialogAlert key={alertMsg} alertMsg={alertMsg} />}
         {!isExpanded && renderMinimisedBetSlip()}
         {isExpanded && renderExpandedBetSlip()}
         {isExpanded ? (

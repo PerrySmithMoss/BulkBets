@@ -19,7 +19,7 @@ export const getUserBetsClient = async (opts?: GetUserBetsOptions) => {
       params.append("offset", opts.offset.toString());
     }
 
-    const url = `${process.env.NEXT_PUBLIC_APP_URL}/${API_ROUTES.BETS.BASE}${
+    const url = `/${API_ROUTES.BETS.BASE}${
       params.toString() ? `?${params.toString()}` : ""
     }`;
 

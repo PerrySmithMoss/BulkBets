@@ -1,5 +1,7 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
 import { formatCookieHeader, getAuthCookies } from "@/lib/utils/cookies";
 import { tryFetcher } from "@/lib/utils/tryFetcher";
 import { User } from "@/types/api/user/user";
@@ -7,10 +9,11 @@ import { User } from "@/types/api/user/user";
 export const fetchCurrentUser = async () => {
   try {
     const authCookies = await getAuthCookies();
+    if (!authCookies.access_token) return { data: null, error: null };
     const cookieHeader = formatCookieHeader(authCookies);
 
     const { data, error } = await tryFetcher<User>(
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/v1/users/me`, {
+      fetch(`${process.env.API_URL ?? "http://localhost:8080"}/api/v1/users/me`, {
         method: "GET",
         cache: "no-store",
         credentials: "include",
@@ -26,6 +29,7 @@ export const fetchCurrentUser = async () => {
 
     return { data: data?.data ?? null, error };
   } catch (error) {
+    unstable_rethrow(error);
     const errorMessage = `[fetchCurrentUser] - unexpected error: ${
       error instanceof Error ? error.message : "Unknown error"
     }`;

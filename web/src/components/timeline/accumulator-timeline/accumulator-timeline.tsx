@@ -101,7 +101,7 @@ export const AccumulatorTimeline: React.FC<AccumulatorTimelineProps> = ({
                 {/* Vertical line with icon */}
                 <div className="absolute left-0 top-0.5 bottom-0 flex flex-col items-center">
                   {/* <div className="w-px flex-1 bg-white/10"></div> */}
-                  <div className="flex-shrink-0">
+                  <div className="shrink-0">
                     <StatusIcon status={bet.status} />
                   </div>
                   <div className="w-px flex-1 bg-white/10"></div>

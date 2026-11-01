@@ -128,17 +128,17 @@ func initConfig() Config {
 				RefreshToken: TokenClaimsConfig{
 					Secret: env.GetEnv("REFRESH_TOKEN_SECRET", DefaultTokenSecret),
 					Iss:    issuer,
-					Exp:    env.GetEnv("REFRESH_TOKEN_TTL", "7d"), // 7 days
+					Exp:    env.GetEnv("REFRESH_TOKEN_TTL", "168h"), // 7 days
 				},
 			},
 			OAuth: OAuthConfig{
 				AuthStateToken:     env.GetEnv("OAUTH_STATE_TOKEN", "random_state"),
-				GoogleClientID:     env.GetEnvOrError("GOOGLE_CLIENT_ID"),
-				GoogleClientSecret: env.GetEnvOrError("GOOGLE_CLIENT_SECRET"),
-				GithubClientID:     env.GetEnvOrError("GITHUB_CLIENT_ID"),
-				GithubClientSecret: env.GetEnvOrError("GITHUB_CLIENT_SECRET"),
-				XClientID:          env.GetEnvOrError("X_CLIENT_ID"),
-				XClientSecret:      env.GetEnvOrError("X_CLIENT_SECRET"),
+				GoogleClientID:     env.GetEnv("GOOGLE_CLIENT_ID", ""),
+				GoogleClientSecret: env.GetEnv("GOOGLE_CLIENT_SECRET", ""),
+				GithubClientID:     env.GetEnv("GITHUB_CLIENT_ID", ""),
+				GithubClientSecret: env.GetEnv("GITHUB_CLIENT_SECRET", ""),
+				XClientID:          env.GetEnv("X_CLIENT_ID", ""),
+				XClientSecret:      env.GetEnv("X_CLIENT_SECRET", ""),
 			},
 		},
 	}
