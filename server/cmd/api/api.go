@@ -42,6 +42,9 @@ func (app *application) mount() http.Handler {
 
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/login", app.loginUserHandler)
+			r.With(middleware.Throttle(8)).Post("/register", app.registerUserHandler)
+			r.With(middleware.Throttle(8)).Post("/forgot-password", app.forgotPasswordHandler)
+			r.With(middleware.Throttle(8)).Post("/reset-password", app.resetPasswordHandler)
 
 			r.Group(func(r chi.Router) {
 				r.Use(app.DeserialiseUserMiddleware)

@@ -1,74 +1,45 @@
-import { Metadata } from "next";
+import type { Metadata } from "next";
 import Link from "next/link";
-
-import { X } from "lucide-react";
-
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RegisterUserForm } from "./components/register-user-form";
 import { Logo } from "@/components/logo";
-import { PersonalInfoForm } from "./components/personal-info-form";
+import { RegisterUserForm } from "./components/register-user-form";
 
 export const metadata: Metadata = {
-  title: "BulkBets - Join us",
-  description: "Join us now at BulkBets.",
+  title: "Create account | BulkBets",
+  description: "Create your BulkBets account.",
 };
 
 export default function Page() {
   return (
-    <div className="container h-screen lg:max-w-none lg:px-0">
-      <div className="items-center justify-between flex w-full pt-4">
-        <div className="pl-8">
-          <Logo />
-        </div>
-        <div className="pr-6">
-          <Link href="/">
-            <X />
-          </Link>
-        </div>
+    <main
+      id="main-content"
+      className="mx-auto min-h-screen max-w-lg px-5 py-8 sm:py-12"
+    >
+      <div className="flex items-center justify-between">
+        <Logo />
+        <Link
+          href="/"
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
+          Back to shows
+        </Link>
       </div>
       <div className="mt-10">
-        <div className="mx-auto flex w-full flex-col justify-center space-y-6">
-          <h1 className="text-3xl font-bold tracking-tight text-center">
-            Join us
-          </h1>
-          <div className="mx-auto">
-            <Tabs defaultValue={tabs[0].id}>
-              <TabsList>
-                {tabs.map((tab) => (
-                  <TabsTrigger className="px-10" key={tab.id} value={tab.id}>
-                    {tab.title}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              <div className="mt-4 max-w-[550px]">
-                {tabs.map((tab) => (
-                  <TabsContent key={tab.id} value={tab.id}>
-                    {tab.content}
-                  </TabsContent>
-                ))}
-              </div>
-            </Tabs>
-          </div>
-        </div>
+        <h1 className="text-3xl font-bold tracking-tight">
+          Create your account
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+          One account for your selections and bet history. You must be 18 or
+          over.
+        </p>
       </div>
-    </div>
+      <RegisterUserForm className="mt-8" />
+      <p className="mt-6 text-sm leading-6 text-muted-foreground">
+        Accounts start with a £0 balance. Deposits and withdrawals are not
+        available in this preview.{" "}
+        <Link href="/help" className="text-primary hover:underline">
+          About the preview
+        </Link>
+      </p>
+    </main>
   );
 }
-
-const tabs = [
-  {
-    id: "1",
-    title: "1. Personal Info",
-    content: <PersonalInfoForm />,
-  },
-  {
-    id: "2",
-    title: "2. Address",
-    content: <RegisterUserForm />,
-  },
-  {
-    id: "3",
-    title: "3. Login Details",
-    content: <RegisterUserForm />,
-  },
-];

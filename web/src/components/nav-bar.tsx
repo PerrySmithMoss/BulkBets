@@ -1,266 +1,188 @@
 "use client";
 
-import React from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { Bell, CircleUser, Eye, Menu, PlusCircle, Search } from "lucide-react";
+import { Menu, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { usePathname } from "next/navigation";
 import { useDialog } from "@/store/dialog/dialog-context";
 import { Dialog } from "@/types/dialog";
-import { Logo } from "./logo";
 import { useUser } from "@/store/user/user-context";
+import { useBetActions } from "@/store/betting";
 import { logoutUser } from "@/lib/api/auth/logout-user";
 import { formatCurrency } from "@/lib/utils/currency";
-import { Avatar, AvatarFallback } from "./ui/avatar";
-import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Logo } from "./logo";
 
-interface Props {}
-
-export const NavBar: React.FC<Props> = ({}) => {
-  const pathName = usePathname();
+export function NavBar() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const { openDialog } = useDialog();
   const { user, setUser } = useUser();
-
-  const handleLogIn = () => {
+  const { clearAllBets } = useBetActions();
+  const router = useRouter();
+  const logIn = () => {
+    setMenuOpen(false);
     openDialog(Dialog.LogIn);
   };
-
-  const handleLogout = async () => {
-    await logoutUser(user?.id);
-    setUser(null);
-  };
-
-  const getNavigationClassName = (href: string) => {
-    let className = "transition-colors hover:text-foreground";
-
-    if (pathName === href) {
-      className += " " + "text-foreground";
-    } else {
-      className += " " + "text-muted-foreground";
+  async function logOut() {
+    setLoggingOut(true);
+    try {
+      if (!(await logoutUser(user?.id))) {
+        toast.error("Unable to log out. Please try again.");
+        return;
+      }
+      clearAllBets();
+      setUser(null);
+      router.push("/");
+      router.refresh();
+    } finally {
+      setLoggingOut(false);
     }
-
-    return className;
-  };
-
+  }
+  const links = [
+    { href: "/#markets", label: "All shows" },
+    { href: "/how-it-works", label: "How it works" },
+    ...(user ? [{ href: "/customer/my-bets", label: "My bets" }] : []),
+  ];
   return (
-    <div className="border-b">
-      <div className="max-w-[1450px] my-0 mx-auto flex items-stretch">
-        <div className="flex flex-col w-full">
-          <header className="sticky top-0 flex h-16 items-center justify-between gap-4 bg-background px-4 md:px-6">
-            <div className="flex items-center gap-4">
-              <Sheet>
-                <SheetTrigger asChild>
+    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-16 focus:z-50 focus:rounded focus:bg-primary focus:p-3 focus:text-primary-foreground"
+      >
+        Skip to content
+      </a>
+      <div className="mx-auto flex h-16 max-w-[1450px] items-center justify-between gap-1 px-3 sm:gap-2 sm:px-4 md:px-6">
+        <div className="flex min-w-0 items-center gap-1 sm:gap-2 md:gap-4">
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="shrink-0 md:hidden"
+                aria-label="Toggle navigation menu"
+              >
+                <Menu className="size-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left">
+              <SheetTitle>Explore BulkBets</SheetTitle>
+              <SheetDescription>
+                Shows, market guides and your account.
+              </SheetDescription>
+              <nav
+                aria-label="Mobile navigation"
+                className="mt-8 flex flex-col gap-2"
+              >
+                {links.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMenuOpen(false)}
+                    className="rounded-md px-3 py-3 hover:bg-muted focus-visible:outline-2 focus-visible:outline-primary"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+                <Link
+                  href="/help"
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-md px-3 py-3 hover:bg-muted"
+                >
+                  Help & safer gambling
+                </Link>
+                {!user && (
+                  <>
+                    <Button asChild className="mt-6">
+                      <Link
+                        href="/customer/account/create"
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        Create account
+                      </Link>
+                    </Button>
+                    <Button variant="outline" onClick={logIn}>
+                      Log in
+                    </Button>
+                  </>
+                )}
+                {user && (
                   <Button
                     variant="outline"
-                    size="icon"
-                    className="shrink-0 [@media(min-width:820px)]:hidden"
+                    disabled={loggingOut}
+                    onClick={logOut}
                   >
-                    <Menu className="h-5 w-5" />
-                    <span className="sr-only">Toggle navigation menu</span>
+                    Log out
                   </Button>
-                </SheetTrigger>
-                <SheetContent side="left">
-                  <nav className="grid gap-6 text-lg font-medium">
-                    <Logo />
-                    <Link href="/" className={getNavigationClassName("/")}>
-                      All Shows
-                    </Link>
-                    <Link
-                      href="#"
-                      className={getNavigationClassName("/in-play")}
-                    >
-                      In-Play
-                    </Link>
-                    <Link
-                      href="#"
-                      className={getNavigationClassName("/calendar")}
-                    >
-                      Calendar
-                    </Link>
-                    {user && (
-                      <Link
-                        href="/customer/my-bets"
-                        className={getNavigationClassName("/customer/my-bets")}
-                      >
-                        My Bets
-                      </Link>
-                    )}
-                  </nav>
-                </SheetContent>
-              </Sheet>
-              <Link
-                href="/"
-                className="flex items-center gap-2 font-bold text-2xl"
-              >
-                <p>
-                  Bulk
-                  <span className="text-primary">Bets</span>
-                </p>
-                <span className="sr-only">Bulk Bets</span>
-              </Link>
-            </div>
-            <nav className="hidden flex-col gap-6 font-medium [@media(min-width:820px)]:flex [@media(min-width:820px)]:flex-row [@media(min-width:820px)]:items-center [@media(min-width:820px)]:gap-5 [@media(min-width:820px)]:text-sm lg:gap-6">
-              <Link href="/" className={getNavigationClassName("/")}>
-                All Shows
-              </Link>
-              <Link href="#" className={getNavigationClassName("/in-play")}>
-                In-Play
-              </Link>
-              <Link href="#" className={getNavigationClassName("/calendar")}>
-                Calendar
-              </Link>
-              {user && (
-                <Link
-                  href="/customer/my-bets"
-                  className={getNavigationClassName("/customer/my-bets")}
-                >
-                  My Bets
-                </Link>
-              )}
-            </nav>
-            <div className="flex items-center gap-4 md:gap-2 lg:gap-4">
-              {/* <form className="hidden [@media(min-width:1160px)]:block ml-auto flex-1 sm:flex-initial">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    placeholder="Search shows, divisions, competitors..."
-                    className="pl-8 sm:w-[300px] md:w-[200px] lg:w-[315px]"
-                  />
-                </div>
-              </form> */}
-              <div className="xs:hidden">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      className="rounded-full"
-                    >
-                      <CircleUser className="h-5 w-5" />
-                      <span className="sr-only">Toggle user menu</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem>Settings</DropdownMenuItem>
-                    <DropdownMenuItem>Support</DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem>Logout</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              {user ? (
-                <div className="hidden xs:flex items-center gap-3">
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      className="h-0 w-0 p-[15px] bg-muted rounded-full"
-                    >
-                      <div className="flex items-center justify-center gap-1">
-                        <Search className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="h-0 w-0 p-[15px] bg-muted rounded-full"
-                    >
-                      <div className="flex items-center justify-center gap-1">
-                        <Bell className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                    </Button>
-                  </div>
-                  <div className="bg-muted rounded-full flex items-center">
-                    <div className="text-[11px] pl-2.5 pr-2 flex items-center justify-center gap-1">
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                      {formatCurrency(user.balance)}
-                    </div>
-                    <Button className="text-[11px] h-0 w-0 px-10 py-3.5 rounded-full">
-                      <div className="flex items-center gap-1 justify-center">
-                        Deposit
-                        <PlusCircle className="h-4 w-4" />
-                      </div>
-                    </Button>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Avatar asChild className="size-9 cursor-pointer">
-                        {user.profile_image ? (
-                          <Image
-                            src={user.profile_image}
-                            width={0}
-                            height={0}
-                            sizes="100vw"
-                            style={{ width: "28px", height: "auto" }}
-                            alt={`${user.first_name} ${user.last_name}`}
-                          />
-                        ) : (
-                          <AvatarFallback>{`${user.first_name.charAt(
-                            0
-                          )}${user.last_name.charAt(0)}`}</AvatarFallback>
-                        )}
-                      </Avatar>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <Link href="/customer/my-account">
-                        <DropdownMenuItem className="cursor-pointer">
-                          My Account
-                        </DropdownMenuItem>
-                      </Link>
-                      <Link href="/customer/my-bets">
-                        <DropdownMenuItem className="cursor-pointer">
-                          My Bets
-                        </DropdownMenuItem>
-                      </Link>
-                      <Link href="/customer/bank">
-                        <DropdownMenuItem className="cursor-pointer">
-                          Bank
-                        </DropdownMenuItem>
-                      </Link>
-                      <Link href="/customer/help">
-                        <DropdownMenuItem className="cursor-pointer">
-                          Help
-                        </DropdownMenuItem>
-                      </Link>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="cursor-pointer"
-                        onClick={handleLogout}
-                      >
-                        Logout
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              ) : (
-                <div className="hidden xs:flex items-center gap-3">
-                  <Link href="/customer/account/create">
-                    <Button
-                      variant="outline"
-                      className="border-primary text-primary"
-                    >
-                      Join
-                    </Button>
-                  </Link>
-                  <Button onClick={handleLogIn} variant="outline">
-                    Log in
-                  </Button>
-                </div>
-              )}
-            </div>
-          </header>
+                )}
+              </nav>
+            </SheetContent>
+          </Sheet>
+          <Logo />
         </div>
+        <nav
+          aria-label="Main navigation"
+          className="hidden items-center gap-7 text-sm font-medium md:flex"
+        >
+          {links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+        {user ? (
+          <div className="flex items-center gap-3">
+            <span className="text-sm tabular-nums" aria-label="Account balance">
+              {formatCurrency(user.balance)}
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="Account menu">
+                  <UserRound className="size-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/customer/my-bets">My bets</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/help">Help & safer gambling</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={loggingOut} onClick={logOut}>
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : (
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <Button variant="ghost" onClick={logIn} className="px-2 sm:px-4">
+              Log in
+            </Button>
+            <Button asChild className="px-2 text-xs sm:px-4 sm:text-sm">
+              <Link href="/customer/account/create">Create account</Link>
+            </Button>
+          </div>
+        )}
       </div>
-    </div>
+    </header>
   );
-};
+}

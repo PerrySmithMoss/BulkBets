@@ -21,6 +21,8 @@ var (
 	ErrInvalidActiveBets      = errors.New("all activeBets must contain a valid number greater than 0")
 	ErrNoBetComponents        = errors.New("at least one bet component is required")
 	ErrConcurrentModification = errors.New("concurrent modification detected or balance update failed")
+	ErrMarketClosed           = errors.New("one or more markets are closed or unavailable")
+	ErrOddsChanged            = errors.New("odds have changed; remove the selection and choose the latest price")
 )
 
 type BetsStore struct {
@@ -241,6 +243,34 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 	totalStake := bets.CalculateTotalStake(*betSlip)
 
 	return withTx(s.db, ctx, func(tx *sql.Tx) error {
+		// Validate against authoritative rows in the same transaction as the debit.
+		// Shared locks prevent settlement/status/price changes until this bet commits.
+		for _, selection := range betSlip.ActiveBets {
+			var open bool
+			var currentOdds float64
+			err := tx.QueryRowContext(ctx, `
+				SELECT s.status IN ('upcoming', 'ongoing') AND s.end_time > clock_timestamp()
+					AND d.status = 'scheduled' AND d.start_time > clock_timestamp()
+					AND p.status IN ('registered', 'active') AND o.odds_value > 1,
+					o.odds_value
+				FROM division_participants p
+				JOIN divisions d ON d.id = p.division_id
+				JOIN shows s ON s.id = d.show_id
+				JOIN odds o ON o.division_participant_id = p.id AND o.bet_type_id = $4
+				JOIN bet_types bt ON bt.id = o.bet_type_id AND bt.name = 'win'
+				WHERE p.id = $1 AND d.id = $2 AND s.id = $3
+				FOR SHARE OF p, d, s, o`, selection.CompetitorId, selection.DivisionId,
+				selection.ShowId, selection.BetTypeId).Scan(&open, &currentOdds)
+			if errors.Is(err, sql.ErrNoRows) || (err == nil && !open) {
+				return ErrMarketClosed
+			}
+			if err != nil {
+				return err
+			}
+			if currentOdds != selection.Odds {
+				return ErrOddsChanged
+			}
+		}
 		// Lock and get user's current balance
 		var currentBalance float64
 		var userVersion int

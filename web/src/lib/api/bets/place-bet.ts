@@ -1,4 +1,3 @@
-import { tryFetcher } from "@/lib/utils/tryFetcher";
 import { BetSlipState } from "@/types/betting";
 
 export const placeBet = async (betSlip: BetSlipState) => {
@@ -19,21 +18,19 @@ export const placeBet = async (betSlip: BetSlipState) => {
       })),
     };
 
-    const { data, error } = await tryFetcher<{ data: null }>(
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/v1/bets`, {
-        method: "POST",
-        cache: "no-store",
-        credentials: "include",
-        body: JSON.stringify(reqBody),
-      })
-    );
-
-    if (error) {
-      console.error(`[placeBet] - error placing bet: `, String(error));
-      return { data: null, error: String(error) };
-    }
-
-    return { data: data?.data ?? null, error };
+    const response = await fetch("/api/v1/bets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(reqBody),
+    });
+    const result = await response.json();
+    if (!response.ok)
+      return {
+        data: null,
+        error: result.error || "Unable to place your bet. Please try again.",
+      };
+    return { data: result.data ?? null, error: null };
   } catch (error) {
     const errorMessage = `[placeBet] - unexpected error: ${
       error instanceof Error ? error.message : "Unknown error"

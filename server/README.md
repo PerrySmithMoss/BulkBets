@@ -141,3 +141,11 @@ Update the `ADMIN_USER_PASSWORD` environment variable and run the `up` action.
 ### How to run migrations
 
 Using MAKE commands inside MakeFile but prefixing the command with the path to run.sh scripts e.g `./scripts/run.sh migrate-up` / `./scripts/run.sh migrate-down` or `./scripts/run.sh goose-up` / `./scripts/run.sh goose-down`. This run.sh script allows us to expose environment variables inside a .env file to the Make command.
+
+## Account creation and recovery
+
+Apply the `20261101190000_account_recovery.sql` migration before using the registration and recovery endpoints. Registration creates a zero-balance account and requires a date of birth of at least 18 years ago and a password of at least 12 characters.
+
+Password recovery requires `SMTP_ADDR` (host:port), `SMTP_FROM` (an email address), and `APP_CLIENT_URL` (the public web origin). Set `SMTP_USERNAME` and `SMTP_PASSWORD` when the mail server requires authentication. Production SMTP must support STARTTLS. Without mail configuration, the form reports recovery as unavailable.
+
+Reset links expire after 30 minutes and can be used once. Only a token digest is stored. A completed reset revokes existing refresh tokens; existing access tokens remain valid until their configured expiry. The isolated E2E stack uses Mailpit on port 18025 and does not send real email.

@@ -20,6 +20,8 @@ type UserRepository interface {
 	GetUserByID(ctx context.Context, userId string) (*User, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	Create(ctx context.Context, user *User) error
+	SavePasswordReset(ctx context.Context, userID string, hash string) (bool, error)
+	ResetPassword(ctx context.Context, hash string, passwordHash string) error
 	Upsert(ctx context.Context, user *User) error
 	SetRefreshTokenVersion(ctx context.Context, refreshTokenVersion int64, userId string) (int64, error)
 	HasPermission(userID string, resource Resource, action Action) (bool, error)

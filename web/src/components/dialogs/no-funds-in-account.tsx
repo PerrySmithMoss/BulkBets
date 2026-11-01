@@ -21,13 +21,8 @@ export const NoFundsInAccountDialog: React.FC<Props> = ({
   const handleClose = () => {
     closeDialog();
     alert(
-      "Sorry, you do not have enough funds in your account to place this bet"
+      "Sorry, you do not have enough funds in your account to place this bet",
     );
-  };
-
-  const handleDepositFunds = () => {
-    console.log("Send user to page for adding funds into their account");
-    // TODO: send user to a page for adding funds to their account
   };
 
   if (!open) return null;
@@ -48,9 +43,10 @@ export const NoFundsInAccountDialog: React.FC<Props> = ({
                 </div>
               </div>
               <div className="mt-5 flex flex-col justify-center">
-                <Button onClick={handleDepositFunds} className="h-[45px]">
-                  Deposit Now
-                </Button>
+                <p className="mb-3 text-center text-sm text-secondary">
+                  Deposits are not available in this preview. Reduce your stake
+                  or remove the selection.
+                </p>
                 <Button
                   onClick={handleClose}
                   className="h-[45px]"

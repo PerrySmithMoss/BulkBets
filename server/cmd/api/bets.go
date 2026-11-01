@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"math"
 	"net/http"
@@ -129,6 +130,10 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 			BetTypeId:    bet.BetTypeId,
 		}
 		if odds, found := oddsMap[key]; found {
+			if odds != bet.Odds {
+				writeJSONError(w, http.StatusConflict, store.ErrOddsChanged.Error())
+				return
+			}
 			newBet.Odds = odds
 
 			if potentialPayout == 0 {
@@ -137,9 +142,8 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 				newBet.PotentialPayout = &potentialPayout
 			}
 		} else {
-			newBet.Odds = 0.0
-			payout := 0.0
-			newBet.PotentialPayout = &payout
+			writeJSONError(w, http.StatusConflict, store.ErrMarketClosed.Error())
+			return
 		}
 
 		newActiveBets[i] = newBet
@@ -174,6 +178,10 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 
 	err = app.store.BetsRepository.CreateBet(ctx, &betSlip, user)
 	if err != nil {
+		if errors.Is(err, store.ErrMarketClosed) || errors.Is(err, store.ErrOddsChanged) {
+			writeJSONError(w, http.StatusConflict, err.Error())
+			return
+		}
 		log.Printf("err: %v", err)
 		writeJSONError(w, http.StatusInternalServerError, "Error while creating bet")
 		return

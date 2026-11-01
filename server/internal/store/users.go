@@ -10,6 +10,7 @@ import (
 
 	"github.com/alexedwards/argon2id"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // Resource represents different resources in the system
@@ -50,6 +51,7 @@ type User struct {
 	RefreshTokenVersion int64      `json:"-"`
 	DefaultCurrency     string     `json:"default_currency"`
 	Balance             float64    `json:"balance"`
+	DateOfBirth         *time.Time `json:"-"`
 	CreatedAt           string     `json:"created_at"`
 	UpdatedAt           string     `json:"updated_at"`
 	// OAuth
@@ -178,8 +180,8 @@ func NewUsersStore(db *sql.DB) *UsersStore {
 func (s *UsersStore) Create(ctx context.Context, user *User) error {
 	return withTx(s.db, ctx, func(tx *sql.Tx) error {
 		query := `
-			INSERT INTO users (first_name, last_name, email, PASSWORD)
-			    VALUES ($1, $2, $3, $4)
+			INSERT INTO users (first_name, last_name, email, password_hash, date_of_birth)
+			    VALUES ($1, $2, $3, $4, $5)
 			RETURNING
 			    id, created_at`
 
@@ -192,21 +194,24 @@ func (s *UsersStore) Create(ctx context.Context, user *User) error {
 			user.FirstName,
 			user.LastName,
 			user.Email,
-			user.Password,
+			user.Password.GetPasswordHash(),
+			user.DateOfBirth,
 		).Scan(
 			&user.Id,
 			&user.CreatedAt,
 		)
 		if err != nil {
+			var pgErr *pq.Error
 			switch {
-			case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
+			case errors.As(err, &pgErr) && pgErr.Code == "23505":
 				return ErrDuplicateEmail
 			default:
 				return err
 			}
 		}
 
-		return nil
+		_, err = tx.ExecContext(ctx, `INSERT INTO user_balances (user_id, balance) VALUES ($1, 0)`, user.Id)
+		return err
 	})
 }
 
@@ -235,7 +240,7 @@ func (s *UsersStore) Upsert(ctx context.Context, user *User) error {
 		if user.ProfileImage != nil {
 			profileImage = user.ProfileImage
 		}
-		if !user.EmailVerifiedAt.IsZero() {
+		if user.EmailVerifiedAt != nil && !user.EmailVerifiedAt.IsZero() {
 			emailVerifiedAt = user.EmailVerifiedAt
 		}
 		if user.GoogleId != nil {
@@ -419,7 +424,8 @@ func (s *UsersStore) GetUserByEmail(ctx context.Context, email string) (*User, e
 		    is_email_verified,
 		    email_verified_at,
 		    profile_image,
-		    password_hash,
+		    COALESCE(password_hash, ''),
+		    refresh_token_version,
 		    created_at,
 		    updated_at
 		FROM
@@ -448,6 +454,7 @@ func (s *UsersStore) GetUserByEmail(ctx context.Context, email string) (*User, e
 		&emailVerifiedAt,
 		&profileImage,
 		&user.Password.hash,
+		&user.RefreshTokenVersion,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
