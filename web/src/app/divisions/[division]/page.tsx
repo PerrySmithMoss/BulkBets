@@ -1,7 +1,7 @@
 import { RetryButton } from "@/components/retry-button";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { fetchShowById } from "@/lib/api/shows/fetch-show-by-id";
+import { fetchShowDirectory } from "@/lib/api/shows/fetch-show-directory";
 import { CompetitorTable } from "@/components/competitor-table";
 
 const names: Record<string, string> = {
@@ -33,19 +33,17 @@ export default async function Page({
   const { division } = await params;
   const name = names[division];
   if (!name) notFound();
-  const results = await Promise.all([fetchShowById(1), fetchShowById(2)]);
+  const { shows, error } = await fetchShowDirectory();
   // eslint-disable-next-line react-hooks/purity -- Snapshot request time on the server for consistent hydration.
   const asOf = Date.now();
-  const markets = results.flatMap((result) =>
-    result.data
-      ? result.data.divisions
-          .filter((d) => d.name === name)
-          .map((d) => ({
-            show: result.data!.show,
-            division: d,
-            competitors: result.data!.competitors[d.id],
-          }))
-      : [],
+  const markets = shows.flatMap((details) =>
+    (details.divisions || [])
+      .filter((d) => d.name === name)
+      .map((d) => ({
+        show: details.show,
+        division: d,
+        competitors: details.competitors[d.id] || [],
+      })),
   );
   return (
     <main id="main-content" className="mx-auto max-w-5xl px-5 py-10">
@@ -53,7 +51,7 @@ export default async function Page({
         ← All shows
       </Link>
       <h1 className="my-6 text-3xl font-bold">{name}</h1>
-      {results.some((r) => r.error) && (
+      {error && (
         <p role="alert" className="mb-5">
           Some shows couldn’t be loaded. <RetryButton />
         </p>

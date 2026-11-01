@@ -237,3 +237,162 @@ test("password recovery delivers a single-use link through local SMTP", async ({
     ).status(),
   ).toBe(400);
 });
+
+function fixtureSQL(sql: string) {
+  execFileSync("docker", [
+    "compose",
+    "-p",
+    "bulkbets-e2e",
+    "-f",
+    "../docker-compose.e2e.yml",
+    "exec",
+    "-T",
+    "db",
+    "psql",
+    "-U",
+    "admin",
+    "-d",
+    "bulk_bets",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-c",
+    sql,
+  ]);
+}
+
+test("show search, status and division filters work together and recover from no results", async ({
+  page,
+}) => {
+  await page.goto("/");
+  expect(
+    (await (await page.request.get("/api/v1/shows")).json()).data,
+  ).toHaveLength(3);
+  await page
+    .getByRole("searchbox", { name: "Search shows or locations" })
+    .fill("Columbus");
+  await expect(page.getByRole("article")).toHaveCount(1);
+  await expect(page.getByRole("article")).toContainText("2024 Arnold Classic");
+  await page.getByRole("button", { name: "Clear search", exact: true }).click();
+  await page.getByRole("button", { name: /^Open markets/ }).click();
+  await expect(page.getByRole("article")).toHaveCount(1);
+  await expect(page.getByRole("article")).toContainText("2024 Mr. Olympia");
+  await page
+    .getByRole("combobox", { name: "Filter by division", exact: true })
+    .selectOption("Women's Wellness");
+  await expect(
+    page.getByRole("heading", { name: "No shows match your filters" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Clear filters", exact: true })
+    .click();
+  await expect(page.getByRole("article")).toHaveCount(3);
+  await page
+    .getByRole("combobox", { name: "Filter by division", exact: true })
+    .selectOption("Classic Physique");
+  await expect(
+    page.getByRole("cell", { name: "Chris Bumstead", exact: true }).first(),
+  ).toBeVisible();
+  await page.getByRole("searchbox").fill("not-a-real-show");
+  await expect(page.getByRole("article")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Clear filters", exact: true })
+    .click();
+  await expect(page.getByRole("article")).toHaveCount(3);
+});
+
+test("newly published shows appear without hardcoded IDs and missing divisions have an empty state", async ({
+  page,
+}) => {
+  const name = "E2E Newly Published Show";
+  fixtureSQL(
+    `INSERT INTO shows (name,location,is_two_day_show,start_time,end_time,status) VALUES ('${name}','London',false,NOW()+INTERVAL '20 days',NOW()+INTERVAL '21 days','upcoming')`,
+  );
+  try {
+    await page.goto("/");
+    await page.getByRole("searchbox").fill(name);
+    await expect(
+      page.getByRole("heading", { name, exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "Divisions will appear here when the line-up is published.",
+      ),
+    ).toBeVisible();
+  } finally {
+    fixtureSQL(`DELETE FROM shows WHERE name='${name}'`);
+  }
+});
+
+test("past seed data is never presented as an open market", async ({
+  page,
+}) => {
+  fixtureSQL(
+    "UPDATE shows SET start_time='2024-10-10',end_time='2024-10-14' WHERE id=1",
+  );
+  try {
+    await page.goto("/");
+    await page.getByRole("button", { name: /^Open markets/ }).click();
+    await expect(
+      page.getByRole("heading", { name: "No open markets right now" }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Browse all shows", exact: true })
+      .click();
+    await expect(page.getByRole("article")).toHaveCount(3);
+    await expect(
+      page.getByRole("button", { name: /Select Hadi Choopan/ }).first(),
+    ).toBeDisabled();
+  } finally {
+    fixtureSQL(
+      "UPDATE shows SET start_time=NOW()+INTERVAL '2 days',end_time=NOW()+INTERVAL '4 days' WHERE id=1",
+    );
+  }
+});
+
+test("show service failure displays a useful retry and recovers", async ({
+  page,
+  request,
+}) => {
+  const compose = (args: string[]) =>
+    execFileSync("docker", [
+      "compose",
+      "-p",
+      "bulkbets-e2e",
+      "-f",
+      "../docker-compose.e2e.yml",
+      ...args,
+    ]);
+  compose(["stop", "-t", "1", "api"]);
+  try {
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", { name: "Shows are temporarily unavailable" }),
+    ).toBeVisible();
+  } finally {
+    execFileSync("docker", ["start", "bulkbets-e2e-api-1"]);
+  }
+  await expect
+    .poll(async () => {
+      try {
+        return (await request.get("/api/v1/health")).ok();
+      } catch {
+        return false;
+      }
+    })
+    .toBe(true);
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(page.getByRole("article")).toHaveCount(3);
+});
+
+test("a guest selection survives a page reload", async ({ page }) => {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: /Select Hadi Choopan/ })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: /Remove Hadi Choopan/ }).first(),
+  ).toHaveAttribute("aria-pressed", "true");
+});

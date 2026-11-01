@@ -7,10 +7,8 @@ import {
   SetStateAction,
   useCallback,
   useContext,
-  useEffect,
   useState,
 } from "react";
-import { useBetActions } from "../betting";
 import { fetchCurrentUser } from "@/lib/api/users/fetch-current-user";
 
 const UserContext = createContext<
@@ -30,19 +28,14 @@ export function UserProvider({
   children: React.ReactNode;
 }>) {
   const [user, setUser] = useState<User["data"] | null>(initialUser);
-  const { clearAllBets } = useBetActions();
 
   const refreshUser = useCallback(async () => {
     const { data: updatedUser } = await fetchCurrentUser();
     setUser(updatedUser);
   }, []);
 
-  useEffect(() => {
-    if (!user) {
-      // Reset bet slip if user logs  out
-      clearAllBets();
-    }
-  }, [user, clearAllBets]);
+  // Preserve a guest's selection across reloads and temporary account-service failures.
+  // Explicit logout clears the slip in NavBar.
 
   return (
     <UserContext.Provider value={{ user, setUser, refreshUser }}>

@@ -153,3 +153,23 @@ func (s *ShowsStore) GetShowByID(ctx context.Context, showId int) (*ShowDetails,
 		Competitors: competitors,
 	}, nil
 }
+
+// ListShows returns the next scheduled shows followed by the most recent archive.
+func (s *ShowsStore) ListShows(ctx context.Context) ([]Show, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, description, location, is_two_day_show, start_time, end_time, status FROM shows
+ ORDER BY CASE WHEN end_time > NOW() AND status IN ('upcoming', 'ongoing') THEN 0 ELSE 1 END,
+ CASE WHEN end_time > NOW() AND status IN ('upcoming', 'ongoing') THEN start_time END ASC, start_time DESC LIMIT 20`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	shows := make([]Show, 0)
+	for rows.Next() {
+		var show Show
+		if err := rows.Scan(&show.ID, &show.Name, &show.Description, &show.Location, &show.IsTwoDay, &show.StartTime, &show.EndTime, &show.Status); err != nil {
+			return nil, err
+		}
+		shows = append(shows, show)
+	}
+	return shows, rows.Err()
+}

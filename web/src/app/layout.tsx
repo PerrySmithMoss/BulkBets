@@ -11,7 +11,7 @@ import { Toaster } from "@/components/ui/toaster";
 export const metadata: Metadata = {
   title: "BulkBets",
   description:
-    "BulkBets - The only place online to bet on bodybuilding shows. Available on desktop, mobile and tablet.",
+    "Explore bodybuilding shows, compare division line-ups and understand winner markets. BulkBets product preview.",
 };
 
 export default async function RootLayout({

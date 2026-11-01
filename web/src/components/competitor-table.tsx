@@ -62,12 +62,12 @@ export function CompetitorTable({
       ) : (
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted hover:bg-muted">
-              <TableHead>Competitor</TableHead>
-              <TableHead className="hidden sm:table-cell">
+            <TableRow className="bg-background/30 hover:bg-background/30">
+              <TableHead className="pl-5 text-xs sm:pl-6">Athlete</TableHead>
+              <TableHead className="hidden text-xs sm:table-cell">
                 Nationality
               </TableHead>
-              <TableHead className="text-right">
+              <TableHead className="pr-5 text-right text-xs sm:pr-6">
                 {open ? "Winner" : "Last odds"}
               </TableHead>
             </TableRow>
@@ -85,7 +85,7 @@ export function CompetitorTable({
               const name = `${competitor.first_name} ${competitor.last_name}`;
               return (
                 <TableRow key={competitor.id}>
-                  <TableCell className="font-medium">
+                  <TableCell className="py-3 pl-5 font-medium sm:pl-6">
                     {name}
                     <span className="mt-1 block text-xs font-normal text-muted-foreground sm:hidden">
                       {competitor.nationality}
@@ -94,7 +94,7 @@ export function CompetitorTable({
                   <TableCell className="hidden text-muted-foreground sm:table-cell">
                     {competitor.nationality}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="pr-5 text-right sm:pr-6">
                     <button
                       type="button"
                       disabled={!open || !valid}
@@ -105,7 +105,7 @@ export function CompetitorTable({
                         "min-h-11 min-w-20 rounded-md border px-3 py-2 font-semibold tabular-nums transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:border-transparent disabled:text-muted-foreground",
                         selected
                           ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border bg-muted/60 text-yellow-300 hover:border-primary hover:bg-muted",
+                          : "border-border bg-muted/60 text-primary hover:border-primary hover:bg-muted",
                       )}
                     >
                       {valid ? decimalToFraction(odds) : "—"}

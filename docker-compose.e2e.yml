@@ -33,9 +33,16 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  mailpit:
+    image: axllent/mailpit:v1.33
+    ports:
+      - "127.0.0.1:18025:8025"
+
   api:
     build: ./server
     environment:
+      SMTP_ADDR: mailpit:1025
+      SMTP_FROM: noreply@bulkbets.test
       DB_HOST: db
       DB_PASSWORD: e2e-password
       APP_CLIENT_URL: http://127.0.0.1:3100

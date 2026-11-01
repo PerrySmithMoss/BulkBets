@@ -45,6 +45,7 @@ export function NavBar() {
         toast.error("Unable to log out. Please try again.");
         return;
       }
+      setMenuOpen(false);
       clearAllBets();
       setUser(null);
       router.push("/");
@@ -66,7 +67,7 @@ export function NavBar() {
       >
         Skip to content
       </a>
-      <div className="mx-auto flex h-16 max-w-[1450px] items-center justify-between gap-1 px-3 sm:gap-2 sm:px-4 md:px-6">
+      <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between gap-1 px-3 sm:gap-2 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-1 sm:gap-2 md:gap-4">
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>

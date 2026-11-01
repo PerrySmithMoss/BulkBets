@@ -154,3 +154,14 @@ func (app *application) showDivisionResultHandler(w http.ResponseWriter, r *http
 		app.internalServerError(w, r, err)
 	}
 }
+
+func (app *application) showsHandler(w http.ResponseWriter, r *http.Request) {
+	shows, err := app.store.ShowRepository.ListShows(r.Context())
+	if err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
+	if err := app.jsonResponse(w, http.StatusOK, shows); err != nil {
+		app.internalServerError(w, r, err)
+	}
+}

@@ -29,6 +29,7 @@ type UserRepository interface {
 }
 
 type ShowRepository interface {
+	ListShows(ctx context.Context) ([]Show, error)
 	GetShowByID(ctx context.Context, showId int) (*ShowDetails, error)
 }
 
