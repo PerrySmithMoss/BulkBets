@@ -17,53 +17,31 @@ async function login(page: Page) {
   ).toBeVisible();
 }
 
-test("real API data, division tabs, hero, and guest bet login", async ({
+test("sportsbook shows markets, a matching poster, persistent slip and keyboard selection", async ({
   page,
 }, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "2024 Mr. Olympia" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "2024 Arnold Classic" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("cell", { name: "Hadi Choopan", exact: true }).first(),
-  ).toBeVisible();
-  await page
-    .getByRole("tab", { name: "Classic Physique", exact: true })
-    .first()
-    .click();
-  await expect(
-    page.getByRole("cell", { name: "Chris Bumstead", exact: true }).first(),
-  ).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "Built forthe big stage.",
+    "Bodybuilding betting",
   );
-  await page.screenshot({
-    animations: "disabled",
-    scale: "css",
-    path: testInfo.outputPath("home-desktop.png"),
-  });
+  await expect(page.getByRole("img", { name: /Official 2024/ })).toBeVisible();
+  await expect(
+    page.getByRole("complementary", { name: "Bet slip" }),
+  ).toBeInViewport();
   await page
-    .getByRole("row")
-    .filter({ hasText: "Chris Bumstead" })
-    .first()
-    .getByRole("button")
+    .getByRole("group", { name: "Select division" })
+    .getByRole("button", { name: "Classic Physique", exact: true })
     .click();
-  await expect(page.getByRole("dialog")).toContainText("Log in to continue");
-  await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute(
-    "type",
-    "password",
-  );
-  await expect(page.getByRole("dialog")).toBeInViewport();
-  await page.screenshot({
-    animations: "disabled",
-    scale: "css",
-    path: testInfo.outputPath("guest-login.png"),
-  });
+  const odds = page.getByRole("button", { name: /Select Chris Bumstead/ });
+  await odds.focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("textbox", { name: "Stake for Chris Bumstead" }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("home-desktop.png") });
   expect(errors).toEqual([]);
 });
 
@@ -137,12 +115,15 @@ test("bet slip validation, placement, stored bet history, and balance debit", as
     .first()
     .getByRole("button")
     .click();
-  await expect(page.getByRole("button", { name: /^Place Bet/ })).toBeDisabled();
-  await page.getByText("Set Stake", { exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Place bet", exact: true }),
+  ).toBeDisabled();
   await page
-    .getByRole("textbox", { name: "Stake amount", exact: true })
+    .getByRole("textbox", { name: "Stake for Hadi Choopan", exact: true })
     .fill("10");
-  await expect(page.getByRole("button", { name: /^Place Bet/ })).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "Place bet", exact: true }),
+  ).toBeEnabled();
   await page.screenshot({
     animations: "disabled",
     scale: "css",
@@ -153,9 +134,11 @@ test("bet slip validation, placement, stored bet history, and balance debit", as
       response.url().endsWith("/api/v1/bets") &&
       response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: /^Place Bet/ }).click();
+  await page.getByRole("button", { name: "Place bet", exact: true }).click();
   expect((await placed).ok()).toBe(true);
-  await expect(page.getByRole("button", { name: /^Place Bet/ })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Place bet", exact: true }),
+  ).toHaveCount(0);
   const after = await (await page.request.get("/api/v1/users/me")).json();
   expect(after.data.balance).toBe(before.data.balance - 10);
   await page.getByRole("link", { name: "My bets", exact: true }).click();
@@ -199,35 +182,27 @@ test("saved slip survives reload and insufficient funds do not debit the account
     .first()
     .getByRole("button")
     .click();
-  await page.getByText("Set Stake", { exact: true }).click();
   await page
-    .getByRole("textbox", { name: "Stake amount", exact: true })
+    .getByRole("textbox", { name: "Stake for Hadi Choopan", exact: true })
     .fill("1000");
   await page.getByRole("heading", { name: "2024 Mr. Olympia" }).click();
   await expect(
-    page.getByRole("textbox", { name: "Stake amount", exact: true }),
-  ).toHaveValue("1,000.00");
+    page.getByRole("textbox", { name: "Stake for Hadi Choopan", exact: true }),
+  ).toHaveValue("1000");
   await page.reload();
   await expect(
-    page.getByRole("textbox", { name: "Stake amount", exact: true }),
-  ).toHaveValue("1,000.00");
-  await page.getByRole("button", { name: /^Place Bet/ }).click();
+    page.getByRole("textbox", { name: "Stake for Hadi Choopan", exact: true }),
+  ).toHaveValue("1000");
   await expect(
-    page.getByText("Not enough balance", { exact: true }),
-  ).toBeVisible();
-  await page.screenshot({
-    animations: "disabled",
-    scale: "css",
-    path: testInfo.outputPath("insufficient-funds.png"),
-  });
-  await page
-    .getByRole("button", { name: "Back to bet slip", exact: true })
-    .click();
+    page.getByRole("button", { name: "Place bet", exact: true }),
+  ).toBeDisabled();
   await expect(
-    page.getByText(
-      "Sorry, you do not have enough funds in your account to place this bet",
-    ),
-  ).toBeVisible();
+    page.getByRole("complementary", { name: "Bet slip" }).getByRole("alert"),
+  ).toContainText("Not enough balance");
+  await page.reload();
+  await expect(
+    page.getByRole("textbox", { name: "Stake for Hadi Choopan" }),
+  ).toHaveValue("1000");
   const after = await (await page.request.get("/api/v1/users/me")).json();
   expect(after.data.balance).toBe(before.data.balance);
 });

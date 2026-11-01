@@ -15,6 +15,7 @@ import (
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/auth"
 	"github.com/PerrySmithMoss/BulkBets/server/internal/auth/oauth"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/store"
 )
 
 // OAuth handler creates an unique OAuth URL using the client ID and client secret.
@@ -363,12 +364,18 @@ func (app *application) loginUserHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if app.issueSession(w, r, user) {
+		writeJSON(w, http.StatusOK, nil)
+	}
+}
+
+func (app *application) issueSession(w http.ResponseWriter, r *http.Request, user *store.User) bool {
 	// Create access and refresh tokens
 	accessTokenDurationExp, err := time.ParseDuration(app.cfg.Auth.Token.AccessToken.Exp)
 	if err != nil {
 		log.Printf("Error parsing accessToken exp of: %s\n%v", app.cfg.Auth.Token.AccessToken.Exp, err)
 		http.Error(w, "Invalid or expired refresh token.", http.StatusInternalServerError)
-		return
+		return false
 	}
 
 	accessTokenClaims := jwt.MapClaims{
@@ -382,20 +389,20 @@ func (app *application) loginUserHandler(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		log.Printf("Error signing access token: %v", err)
 		http.Error(w, "Error signing access token", http.StatusInternalServerError)
-		return
+		return false
 	}
 
 	refreshTokenDurationExp, err := time.ParseDuration(app.cfg.Auth.Token.RefreshToken.Exp)
 	if err != nil {
 		log.Printf("Error parsing refreshToken exp: %s.\n%v", app.cfg.Auth.Token.RefreshToken.Exp, err)
 		http.Error(w, "Unauthorised.", http.StatusUnauthorized)
-		return
+		return false
 	}
 
 	updatedRefreshTokenVersion, err := app.store.UserRepository.SetRefreshTokenVersion(r.Context(), user.RefreshTokenVersion+1, user.Id.String())
 	if err != nil {
 		http.Error(w, "Failed to increment refresh token version", http.StatusInternalServerError)
-		return
+		return false
 	}
 
 	refreshTokenClaims := jwt.MapClaims{
@@ -410,7 +417,7 @@ func (app *application) loginUserHandler(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		log.Printf("Error signing refresh token: %v", err)
 		http.Error(w, "Error signing refresh token", http.StatusInternalServerError)
-		return
+		return false
 	}
 
 	// Set cookies
@@ -436,7 +443,7 @@ func (app *application) loginUserHandler(w http.ResponseWriter, r *http.Request)
 		Expires: time.Now().Add(refreshTokenDurationExp),
 	})
 
-	writeJSON(w, http.StatusOK, nil)
+	return true
 }
 
 func (app *application) logoutUserHandler(w http.ResponseWriter, r *http.Request) {

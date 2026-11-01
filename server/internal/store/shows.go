@@ -37,7 +37,7 @@ func NewShowsStore(db *sql.DB) *ShowsStore {
 
 func (s *ShowsStore) GetShowByID(ctx context.Context, showId int) (*ShowDetails, error) {
 	var show Show
-	var divisions []Division
+	divisions := make([]Division, 0)
 	competitors := make(map[int64][]Competitor)
 
 	// Query: Fetch Show details
@@ -91,6 +91,7 @@ func (s *ShowsStore) GetShowByID(ctx context.Context, showId int) (*ShowDetails,
 		dp.pre_judge_position, 
 		dp.final_score, 
 		dp.final_position,
+        dp.status,
 			(
 				SELECT jsonb_agg(
 					jsonb_build_object(
@@ -115,7 +116,7 @@ func (s *ShowsStore) GetShowByID(ctx context.Context, showId int) (*ShowDetails,
 		}
 		defer rows.Close()
 
-		var divisionCompetitors []Competitor
+		divisionCompetitors := make([]Competitor, 0)
 		for rows.Next() {
 			var competitor Competitor
 			var oddsJSON []byte
@@ -125,6 +126,7 @@ func (s *ShowsStore) GetShowByID(ctx context.Context, showId int) (*ShowDetails,
 				&competitor.DateOfBirth, &competitor.Gender,
 				&competitor.PreJudgeScore, &competitor.PreJudgePosition,
 				&competitor.FinalScore, &competitor.FinalPosition,
+				&competitor.Status,
 				&oddsJSON,
 			); err != nil {
 				log.Printf("Error scanning competitor: %v", err)

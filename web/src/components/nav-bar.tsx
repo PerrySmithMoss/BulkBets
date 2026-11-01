@@ -25,6 +25,7 @@ import { logoutUser } from "@/lib/api/auth/logout-user";
 import { formatCurrency } from "@/lib/utils/currency";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { DemoButton } from "./demo-button";
 import { Logo } from "./logo";
 
 export function NavBar() {
@@ -55,9 +56,9 @@ export function NavBar() {
     }
   }
   const links = [
-    { href: "/#markets", label: "All shows" },
+    { href: "/#markets", label: "Markets" },
     { href: "/how-it-works", label: "How it works" },
-    ...(user ? [{ href: "/customer/my-bets", label: "My bets" }] : []),
+    ...(user ? [{ href: "/customer/my-bets?tab=All", label: "My bets" }] : []),
   ];
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
@@ -67,7 +68,7 @@ export function NavBar() {
       >
         Skip to content
       </a>
-      <div className="mx-auto flex h-16 max-w-[1320px] items-center justify-between gap-1 px-3 sm:gap-2 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between gap-1 px-3 sm:gap-2 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-1 sm:gap-2 md:gap-4">
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
@@ -152,6 +153,9 @@ export function NavBar() {
         {user ? (
           <div className="flex items-center gap-3">
             <span className="text-sm tabular-nums" aria-label="Account balance">
+              {user.is_demo && (
+                <span className="mr-2 text-[10px] text-primary">DEMO</span>
+              )}
               {formatCurrency(user.balance)}
             </span>
             <DropdownMenu>
@@ -164,6 +168,18 @@ export function NavBar() {
                 <DropdownMenuItem asChild>
                   <Link href="/customer/my-bets">My bets</Link>
                 </DropdownMenuItem>
+                {user.is_demo && (
+                  <>
+                    <DropdownMenuItem onClick={logIn}>
+                      Log in to an account
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/customer/account/create">
+                        Create account
+                      </Link>
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuItem asChild>
                   <Link href="/help">Help & safer gambling</Link>
                 </DropdownMenuItem>
@@ -178,9 +194,7 @@ export function NavBar() {
             <Button variant="ghost" onClick={logIn} className="px-2 sm:px-4">
               Log in
             </Button>
-            <Button asChild className="px-2 text-xs sm:px-4 sm:text-sm">
-              <Link href="/customer/account/create">Create account</Link>
-            </Button>
+            <DemoButton className="px-3 text-xs sm:px-4 sm:text-sm" />
           </div>
         )}
       </div>

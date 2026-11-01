@@ -27,8 +27,36 @@ version table, so running it again does not duplicate data.
 
 Compose defaults are for local development. Supply your own secrets and credentials
 for a deployment. OAuth is optional; password login works without provider credentials.
-Account registration, deposits, password recovery, and several navigation destinations
-are still unfinished features in this repository.
+Account registration, password login and recovery are available. Recovery needs the
+SMTP configuration in `server/.env.example`. Deposits and withdrawals are unavailable.
+
+## Portfolio demo
+
+The web homepage is a sportsbook workspace: show and division navigation, selectable
+odds, a persistent desktop slip and a mobile slip tray. **Try demo** starts a unique
+visitor session with £1,000 in virtual funds, without registration. Sessions use the
+existing access/refresh cookies and persist bets and balances in Postgres.
+
+Historical shows remain playable for demo users. **Simulate results** settles only
+that visitor’s pending bets; the lowest-priced eligible athlete in each division
+wins (UUID order breaks ties). Returns include the original stake. Simulation is
+idempotent, and both singles and accumulators are supported. **Reset my demo** clears
+only the current demo’s bets/transactions and restores £1,000. Event dates and shared
+results are never advanced or overwritten by playing the demo. Ordinary accounts
+retain the existing market closing checks.
+
+Existing installations must apply the new migrations before starting the updated API:
+
+```sh
+docker compose build
+docker compose run --rm migrate /app/migrate -action up
+docker compose up -d api
+```
+
+The homepage uses the matching 2024 Olympia poster already in the repository. The
+2024 Arnold Europe and 2025 Arnold posters are deliberately not paired with the
+Columbus 2024 market. Olympia fixture dates now match the official 10–13 October
+weekend; division times, line-ups and odds remain illustrative sample data.
 
 Start the mobile app in a separate terminal:
 
@@ -60,7 +88,7 @@ cd mobile && npx expo-doctor && npm run export:native && cd ..
 ```
 
 With a local Go 1.27.3 installation, run `go test ./...` and `go vet ./...` in `server`.
-The Go checks compile every package; there were no existing Go unit tests.
+The Go checks run the API tests and compile every package.
 
 Run the complete browser suite from a fresh clone after installing both apps:
 
@@ -77,9 +105,9 @@ It removes the test containers afterward, including when tests fail. It does not
 read or delete the development database. Ports 3100, 3101, and 18080 must be free.
 No external accounts, env files, or OAuth secrets are needed for these tests.
 
-The suite covers real API/database integration: show data, tabs and carousel,
-guest prompts, invalid login, password login/logout, protected routes, refresh-token
-rotation, bet placement, balance debit, stored history, saved-slip reload,
+The suite covers real API/database integration: market navigation, search, registration,
+password recovery, login/logout, refresh-token rotation, isolated demo sessions,
+historical betting, singles/accumulators, payout settlement, reset, saved-slip reload,
 insufficient funds, API validation, phone layouts,
 and Expo's implemented navigation and placeholder interactions. Screenshots and failure
 traces are saved in `web/test-results`; open the report with `npx playwright show-report`.

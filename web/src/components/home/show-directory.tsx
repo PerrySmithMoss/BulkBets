@@ -1,370 +1,325 @@
 "use client";
-import { useEffect, useState } from "react";
+
+import { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import {
-  CalendarDays,
-  MapPin,
+  ChevronRight,
   Search,
-  SlidersHorizontal,
   Trophy,
-  X,
+  SlidersHorizontal,
+  ArrowUpRight,
 } from "lucide-react";
 import { ShowDetailsResponse } from "@/types/api/show/show-details-response";
-import { isMarketOpen, showDate, showStatus } from "@/lib/utils/markets";
-import { CompetitorTable } from "../competitor-table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { CompetitorTable } from "@/components/competitor-table";
+import { SportsbookSlip } from "@/components/home/sportsbook-slip";
 import { cn } from "@/lib/utils/cn";
-import Link from "next/link";
+import { showDate } from "@/lib/utils/markets";
 
 type Details = ShowDetailsResponse["data"];
-type Filter = "all" | "open" | "past";
-
-function EventCard({
-  details,
-  division,
-  now,
-}: {
-  details: Details;
-  division: string;
-  now: number;
-}) {
-  const divisions = (details.divisions || []).filter(
-    (item) => division === "all" || item.name === division,
-  );
-  const [selected, setSelected] = useState(String(divisions[0]?.id ?? ""));
-  const value = divisions.some((item) => String(item.id) === selected)
-    ? selected
-    : String(divisions[0]?.id ?? "");
-  const status = showStatus(details.show, now);
-  const open = divisions.some((item) => isMarketOpen(details.show, item, now));
-  return (
-    <article
-      id={`show-${details.show.id}`}
-      aria-labelledby={`show-title-${details.show.id}`}
-      className="scroll-mt-24 overflow-hidden rounded-xl border bg-card"
-    >
-      <div className="p-5 sm:p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <span
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider",
-              open
-                ? "border-primary/25 bg-primary/10 text-primary"
-                : "border-border bg-muted/50 text-muted-foreground",
-            )}
-          >
-            <span
-              className={cn(
-                "size-1.5 rounded-full",
-                open ? "bg-primary" : "bg-muted-foreground",
-              )}
-            />
-            {open ? "Markets open" : status}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {divisions.length}{" "}
-            {divisions.length === 1 ? "division" : "divisions"}
-          </span>
-        </div>
-        <h3
-          id={`show-title-${details.show.id}`}
-          className="text-xl font-bold tracking-tight sm:text-2xl"
-        >
-          {details.show.name}
-        </h3>
-        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground sm:text-sm">
-          <p className="flex items-center gap-2">
-            <CalendarDays className="size-3.5" />
-            <time dateTime={details.show.start_time}>
-              {showDate(details.show.start_time)}
-            </time>
-          </p>
-          {details.show.location && (
-            <p className="flex items-center gap-2">
-              <MapPin className="size-3.5" />
-              {details.show.location}
-            </p>
-          )}
-        </div>
-      </div>
-      {divisions.length ? (
-        <Tabs value={value} onValueChange={setSelected}>
-          <div className="border-y bg-background/30 px-4 py-3 sm:px-6">
-            <label className="block text-xs text-muted-foreground md:hidden">
-              Division
-              <select
-                aria-label={`${details.show.name} division`}
-                value={value}
-                onChange={(event) => setSelected(event.target.value)}
-                className="mt-2 min-h-11 w-full rounded-lg border bg-background px-3 text-sm text-foreground focus-visible:outline-primary"
-              >
-                {divisions.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <TabsList
-              aria-label={`${details.show.name} divisions`}
-              className="hidden h-auto flex-wrap justify-start gap-1 bg-transparent p-0 md:flex"
-            >
-              {divisions.map((item) => (
-                <TabsTrigger
-                  key={item.id}
-                  value={String(item.id)}
-                  className="min-h-10 rounded-md px-3 py-2 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"
-                >
-                  {item.name}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
-          {divisions.map((item) => (
-            <TabsContent key={item.id} value={String(item.id)} className="m-0">
-              <CompetitorTable
-                asOf={now}
-                show={details.show}
-                division={item}
-                competitors={details.competitors[item.id] || []}
-              />
-            </TabsContent>
-          ))}
-        </Tabs>
-      ) : (
-        <p className="border-t p-6 text-sm text-muted-foreground">
-          Divisions will appear here when the line-up is published.
-        </p>
-      )}
-    </article>
-  );
-}
 
 export function ShowDirectory({
-  shows,
+  shows: rawShows,
   asOf,
 }: {
   shows: Details[];
   asOf: number;
 }) {
-  const [query, setQuery] = useState("");
-  const [division, setDivision] = useState("all");
-  const [filter, setFilter] = useState<Filter>("all");
-  const [now, setNow] = useState(asOf);
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  const divisions = [
-    ...new Set(
-      shows.flatMap((details) =>
-        (details.divisions || []).map((item) => item.name),
-      ),
+  const shows = rawShows.map((s) => ({
+    ...s,
+    divisions: s.divisions ?? [],
+    competitors: Object.fromEntries(
+      Object.entries(s.competitors ?? {}).map(([id, athletes]) => [
+        id,
+        athletes ?? [],
+      ]),
     ),
-  ].sort();
-  const isOpen = (details: Details) =>
-    (details.divisions || []).some((item) =>
-      isMarketOpen(details.show, item, now),
-    );
-  const isPast = (details: Details) =>
-    ["Completed", "Canceled"].includes(showStatus(details.show, now));
-  const visible = shows.filter(
-    (details) =>
-      (filter === "all" ||
-        (filter === "open" ? isOpen(details) : isPast(details))) &&
-      (division === "all" ||
-        details.divisions?.some((item) => item.name === division)) &&
-      `${details.show.name} ${details.show.location || ""}`
-        .toLowerCase()
-        .includes(query.trim().toLowerCase()),
+  }));
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [showID, setShowID] = useState(
+    shows.find((s) => Object.values(s.competitors).some((c) => c.length))?.show
+      .id,
   );
-  const openCount = shows.filter(isOpen).length;
-  const reset = () => {
-    setQuery("");
-    setDivision("all");
-    setFilter("all");
-  };
+  const [divisionID, setDivisionID] = useState<number>();
+  const term = query.trim().toLowerCase();
+  const filtered = shows.filter(
+    ({ show, competitors }) =>
+      `${show.name} ${show.location}`.toLowerCase().includes(term) ||
+      Object.values(competitors)
+        .flat()
+        .some((c) =>
+          `${c.first_name} ${c.last_name}`.toLowerCase().includes(term),
+        ),
+  );
+  const selected = filtered.find((s) => s.show.id === showID) ?? filtered[0];
+  const divisions = selected?.divisions ?? [];
+  const matchingDivision = divisions.find((d) =>
+    selected?.competitors[d.id]?.some((c) =>
+      `${c.first_name} ${c.last_name}`.toLowerCase().includes(term),
+    ),
+  );
+  const division =
+    divisions.find(
+      (d) =>
+        d.id === divisionID &&
+        (!term || !matchingDivision || d.id === matchingDivision.id),
+    ) ??
+    (term ? matchingDivision : undefined) ??
+    divisions[0];
+  const competitors = division
+    ? (selected?.competitors[division.id] ?? [])
+    : [];
+  // Only this asset matches the seeded event and year. Do not substitute a different show.
+  const poster =
+    selected?.show.name.toLowerCase().includes("olympia") &&
+    selected.show.name.includes("2024")
+      ? "/images/joe-weider-olympia.webp"
+      : null;
+  function chooseShow(id: number) {
+    setShowID(id);
+    setDivisionID(undefined);
+  }
+  const showButtons = filtered.map(({ show, divisions: showDivisions }) => (
+    <button
+      key={show.id}
+      onClick={() => chooseShow(show.id)}
+      aria-pressed={selected?.show.id === show.id}
+      className={cn(
+        "flex min-h-12 shrink-0 items-center justify-between gap-3 rounded-md border px-3 py-3 text-left text-sm transition-colors lg:w-full lg:border-transparent",
+        selected?.show.id === show.id
+          ? "border-primary/30 bg-primary/10 font-semibold text-primary"
+          : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <span>{show.name}</span>
+      <span className="rounded bg-background/70 px-1.5 py-0.5 text-[11px] tabular-nums">
+        {showDivisions.length}
+      </span>
+    </button>
+  ));
   return (
-    <>
-      <div className="mb-5 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div
-          role="group"
-          aria-label="Filter shows by status"
-          className="flex gap-1 rounded-lg bg-muted/60 p-1 self-start"
+    <div
+      id="markets"
+      className="grid min-w-0 gap-4 lg:grid-cols-[190px_minmax(0,1fr)_320px] xl:grid-cols-[210px_minmax(0,1fr)_340px]"
+    >
+      <aside
+        className="min-w-0 lg:sticky lg:top-20 lg:self-start"
+        aria-label="Show navigation"
+      >
+        <div className="mb-4 hidden items-center gap-2 px-3 text-sm font-semibold lg:flex">
+          <Trophy className="size-4 text-primary" />
+          Bodybuilding
+        </div>
+        <label
+          className={cn(
+            "mb-3 min-h-11 items-center gap-2 rounded-md border bg-card px-3 lg:flex",
+            searchOpen ? "flex" : "hidden",
+          )}
         >
-          {(
-            [
-              { id: "all", label: "All shows", count: shows.length },
-              { id: "open", label: "Open markets", count: openCount },
-              {
-                id: "past",
-                label: "Past shows",
-                count: shows.filter(isPast).length,
-              },
-            ] as const
-          ).map((item) => (
+          <Search className="size-4 shrink-0 text-muted-foreground" />
+          <input
+            type="search"
+            aria-label="Search shows or athletes"
+            placeholder="Find a show or athlete"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setDivisionID(undefined);
+            }}
+            className="min-w-0 w-full bg-transparent py-3 text-xs outline-none"
+          />
+        </label>
+        <p className="mb-2 hidden px-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground lg:block">
+          Shows
+        </p>
+        <div className="flex min-w-0 gap-2 lg:block">
+          <button
+            aria-label="Search shows or athletes"
+            aria-expanded={searchOpen}
+            onClick={() => setSearchOpen(!searchOpen)}
+            className="flex size-12 shrink-0 items-center justify-center rounded-md border bg-card text-muted-foreground lg:hidden"
+          >
+            <Search className="size-4" />
+          </button>
+          <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1">
+            {showButtons}
+          </div>
+        </div>
+        <div className="mt-6 hidden border-t pt-5 lg:block">
+          <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Divisions
+          </p>
+          {divisions.map((d) => (
             <button
-              key={item.id}
-              type="button"
-              aria-pressed={filter === item.id}
-              onClick={() => setFilter(item.id)}
+              key={d.id}
+              onClick={() => setDivisionID(d.id)}
+              aria-pressed={division?.id === d.id}
               className={cn(
-                "min-h-10 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm",
-                filter === item.id
-                  ? "bg-foreground text-background shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
+                "flex min-h-11 w-full items-center justify-between rounded-md px-3 py-2 text-left text-xs hover:bg-muted",
+                division?.id === d.id
+                  ? "font-semibold text-primary"
+                  : "text-muted-foreground",
               )}
             >
-              {item.label}
-              <span className="ml-1.5 hidden text-[10px] opacity-70 sm:inline">
-                {item.count}
-              </span>
+              {d.name}
+              <ChevronRight className="size-3 shrink-0" />
             </button>
           ))}
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row lg:max-w-[510px] lg:flex-1">
-          <div className="relative flex-1">
-            <Search
-              aria-hidden
-              className="absolute left-3 top-3.5 size-4 text-muted-foreground"
-            />
-            <input
-              type="search"
-              aria-label="Search shows or locations"
-              placeholder="Search shows or locations"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="min-h-11 w-full rounded-lg border bg-card pl-10 pr-9 text-sm outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary"
-            />
+        <Link
+          href="/how-it-works"
+          className="mt-6 hidden items-center justify-between border-t px-3 pt-5 text-xs text-muted-foreground hover:text-primary lg:flex"
+        >
+          How to play
+          <ArrowUpRight className="size-3" />
+        </Link>
+      </aside>
+      <section className="min-w-0" aria-label="Betting markets">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-base font-bold tracking-tight sm:text-xl">
+            Bodybuilding betting
+          </h1>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2 py-1 text-[9px] font-semibold text-primary sm:text-[10px]">
+            <span className="size-1.5 rounded-full bg-primary" />
+            Demo · Virtual funds
+          </span>
+        </div>
+        {selected ? (
+          <article className="overflow-hidden rounded-lg border bg-card">
+            {poster && (
+              <Image
+                src={poster}
+                alt="Official 2024 Joe Weider’s Olympia event poster, Las Vegas, 10–13 October"
+                width={1024}
+                height={435}
+                priority
+                sizes="(max-width: 1023px) 100vw, 700px"
+                className="max-h-[120px] sm:max-h-[180px] w-full bg-black object-contain"
+              />
+            )}
+            <div className="border-b p-4">
+              <div className="flex items-start justify-between gap-2">
+                <h2 className="text-xl font-bold tracking-tight">
+                  {selected.show.name}
+                </h2>
+                <span className="shrink-0 rounded border px-2 py-1 text-[10px] font-medium text-muted-foreground">
+                  EVENT REPLAY
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {selected.show.location} <span aria-hidden>·</span>{" "}
+                {showDate(selected.show.start_time)}
+              </p>
+            </div>
+            {divisions.length > 0 && (
+              <>
+                <div className="border-b bg-background/30 p-3 sm:hidden">
+                  <label htmlFor="market-division" className="sr-only">
+                    <SlidersHorizontal className="size-3" />
+                    Division
+                  </label>
+                  <select
+                    id="market-division"
+                    value={division?.id}
+                    onChange={(e) => setDivisionID(Number(e.target.value))}
+                    className="min-h-11 w-full rounded-md border bg-background px-3 text-sm"
+                  >
+                    {divisions.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div
+                  className="hidden overflow-x-auto border-b bg-background/30 sm:flex"
+                  role="group"
+                  aria-label="Select division"
+                >
+                  {divisions.map((d) => (
+                    <button
+                      key={d.id}
+                      onClick={() => setDivisionID(d.id)}
+                      aria-pressed={division?.id === d.id}
+                      className={cn(
+                        "min-h-12 shrink-0 border-b-2 px-4 text-xs font-semibold transition-colors",
+                        division?.id === d.id
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-transparent text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {d.name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            {division ? (
+              <>
+                <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">
+                      <span className="sm:hidden">Division winner</span>
+                      <span className="hidden sm:inline">
+                        {division.name} — Winner
+                      </span>
+                    </h3>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {competitors.length} athletes · Win only
+                    </p>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">
+                    Fractional odds
+                  </span>
+                </div>
+                <CompetitorTable
+                  show={selected.show}
+                  division={division}
+                  competitors={[...competitors].sort(
+                    (a, b) =>
+                      (a.odds?.[0]?.odds_value ?? Infinity) -
+                      (b.odds?.[0]?.odds_value ?? Infinity),
+                  )}
+                  asOf={asOf}
+                  demo
+                />
+              </>
+            ) : (
+              <p className="p-6 text-sm text-muted-foreground">
+                There are no divisions for this show yet. Choose another show to
+                explore its markets.
+              </p>
+            )}
+            <div className="border-t bg-background/30 px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+              Sample line-ups and prices. Simulated results are separate from
+              the official event.
+            </div>
+          </article>
+        ) : (
+          <div className="rounded-lg border bg-card p-8 text-center">
+            <h2 className="font-semibold">
+              {shows.length
+                ? "No matching shows or athletes"
+                : "No shows available"}
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {shows.length
+                ? "Try a different name or clear your search."
+                : "Please try again shortly."}
+            </p>
             {query && (
               <button
-                type="button"
-                aria-label="Clear search"
-                className="absolute right-0 top-0 flex size-11 items-center justify-center text-muted-foreground hover:text-foreground"
+                className="mt-4 min-h-11 text-sm text-primary"
                 onClick={() => setQuery("")}
               >
-                <X className="size-4" />
+                Clear search
               </button>
             )}
           </div>
-          <label className="relative sm:max-w-48">
-            <SlidersHorizontal
-              aria-hidden
-              className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground"
-            />
-            <select
-              aria-label="Filter by division"
-              value={division}
-              onChange={(event) => setDivision(event.target.value)}
-              className="min-h-11 w-full rounded-lg border bg-card pl-9 pr-6 text-sm focus-visible:outline-primary"
-            >
-              <option value="all">All divisions</option>
-              {divisions.map((name) => (
-                <option key={name}>{name}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </div>
-      <div className="mb-5 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
-        <p role="status" aria-live="polite">
-          {visible.length} {visible.length === 1 ? "show" : "shows"}
-          {shows.length === 20 ? " · Latest 20 events" : ""}
-          {!openCount && filter === "all" ? " · No open markets right now" : ""}
-        </p>
-        <span>Dates & market times in UTC</span>
-      </div>
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_268px]">
-        <div className="min-w-0 space-y-6">
-          {visible.map((details) => (
-            <EventCard
-              key={`${details.show.id}-${division}`}
-              details={details}
-              division={division}
-              now={now}
-            />
-          ))}
-          {visible.length === 0 && (
-            <div className="rounded-xl border border-dashed bg-card px-6 py-14 text-center">
-              <Search className="mx-auto mb-5 size-6 text-primary" />
-              <h3 className="text-lg font-semibold">
-                {filter === "open" && !openCount
-                  ? "No open markets right now"
-                  : shows.length === 0
-                    ? "The next line-up is on its way"
-                    : "No shows match your filters"}
-              </h3>
-              <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                {shows.length === 0
-                  ? "Shows and divisions will appear here when they’re published."
-                  : filter === "open" && !openCount
-                    ? "You can still explore past shows, line-ups and historical prices."
-                    : "Try another show or location, or clear your filters to see the full line-up."}
-              </p>
-              {shows.length > 0 && (
-                <button
-                  type="button"
-                  onClick={reset}
-                  className="mt-5 min-h-11 rounded-lg border px-5 text-sm font-semibold hover:bg-muted"
-                >
-                  {filter === "open" && !openCount
-                    ? "Browse all shows"
-                    : "Clear filters"}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-        <aside
-          aria-label="Market guidance"
-          className="hidden space-y-4 xl:block"
-        >
-          <div className="rounded-xl border bg-card p-5">
-            <Trophy className="mb-5 size-5 text-primary" />
-            <h3 className="text-lg font-semibold tracking-tight">
-              Know the market.
-            </h3>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Winner prices are shown as fractional odds. Select an open price
-              to add an athlete to your bet slip.
-            </p>
-            <div className="my-5 rounded-lg border bg-background p-4">
-              <p className="text-xs text-muted-foreground">
-                An example at{" "}
-                <span className="font-semibold text-foreground">2/1</span>
-              </p>
-              <p className="mt-2 text-sm">
-                £10 stake <span className="mx-1 text-muted-foreground">→</span>{" "}
-                £30 total return
-              </p>
-              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                If it wins. Includes your £10 stake; a losing selection returns
-                £0.
-              </p>
-            </div>
-            <Link
-              href="/how-it-works"
-              className="text-sm font-semibold text-primary hover:underline"
-            >
-              How odds work →
-            </Link>
-          </div>
-          <div className="rounded-xl border p-5">
-            <p className="mb-3 inline-flex size-9 items-center justify-center rounded-full border text-xs font-bold">
-              18+
-            </p>
-            <h3 className="text-sm font-semibold">Keep it in perspective.</h3>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Set your own limits. Take a break whenever you need one.
-            </p>
-            <Link
-              href="/help"
-              className="mt-4 inline-block text-xs font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
-            >
-              Help & safer gambling
-            </Link>
-          </div>
-        </aside>
-      </div>
-    </>
+        )}
+      </section>
+      <SportsbookSlip />
+    </div>
   );
 }

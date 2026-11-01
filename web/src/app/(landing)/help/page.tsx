@@ -7,12 +7,13 @@ export default function Page() {
       <div className="mt-8 grid gap-8 text-muted-foreground">
         <section>
           <h2 className="text-lg font-semibold text-foreground">
-            This is a product preview
+            This is a portfolio demo
           </h2>
           <p className="mt-3 leading-7">
-            The events and prices are sample data. Deposits, withdrawals and
-            real-money betting are not available. A displayed account balance is
-            a development balance, not withdrawable funds.
+            Choose Try demo to start with £1,000 in virtual funds. No
+            registration is required. Deposits, withdrawals and real-money
+            betting are not available. Your demo is saved in this browser
+            session.
           </p>
         </section>
         <section>
@@ -34,8 +35,10 @@ export default function Page() {
             Understanding markets
           </h2>
           <p className="mt-3 leading-7">
-            Markets are specific to a show and division. Closed markets cannot
-            be selected.{" "}
+            Demo markets replay historical shows and stay playable regardless of
+            the original event date. Simulate results settles only your pending
+            bets. Reset my demo clears your bets and restores your virtual
+            balance to £1,000.{" "}
             <Link href="/how-it-works" className="text-primary underline">
               Read how odds and selections work
             </Link>

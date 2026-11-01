@@ -12,7 +12,12 @@ export function getBetStatusesForTab(tab: MY_BETS_TAB): BetStatus[] {
     case MY_BETS_TAB.Unsettled:
       return [BetStatus.Pending];
     case MY_BETS_TAB.Settled:
-      return [BetStatus.Won, BetStatus.Lost, BetStatus.Void];
+      return [
+        BetStatus.Won,
+        BetStatus.Lost,
+        BetStatus.Void,
+        BetStatus.Cancelled,
+      ];
     case MY_BETS_TAB.All:
       return [];
     default:

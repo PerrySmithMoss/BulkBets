@@ -36,6 +36,9 @@ export const placeBet = async (betSlip: BetSlipState) => {
       error instanceof Error ? error.message : "Unknown error"
     }`;
     console.error(errorMessage);
-    return { data: null, error: errorMessage };
+    return {
+      data: null,
+      error: "Unable to connect. Your selections are saved. Please try again.",
+    };
   }
 };

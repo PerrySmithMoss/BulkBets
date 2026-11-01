@@ -40,6 +40,7 @@ var (
 )
 
 type User struct {
+	IsDemo              bool       `json:"is_demo"`
 	Id                  uuid.UUID  `json:"id"`
 	FirstName           string     `json:"first_name"`
 	LastName            string     `json:"last_name"`
@@ -300,6 +301,7 @@ func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, err
 	query := `
 		SELECT
 		    u.id,
+		    u.is_demo,
 		    u.first_name,
 		    u.last_name,
 		    u.email,
@@ -335,6 +337,7 @@ func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, err
 		userId,
 	).Scan(
 		&user.Id,
+		&user.IsDemo,
 		&user.FirstName,
 		&user.LastName,
 		&user.Email,

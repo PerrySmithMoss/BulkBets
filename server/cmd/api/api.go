@@ -53,6 +53,13 @@ func (app *application) mount() http.Handler {
 			})
 		})
 
+		r.Route("/demo", func(r chi.Router) {
+			r.Use(app.DeserialiseUserMiddleware)
+			r.With(middleware.Throttle(8)).Post("/start", app.startDemoHandler)
+			r.With(app.RequireUserMiddleware).Post("/reset", app.resetDemoHandler)
+			r.With(app.RequireUserMiddleware).Post("/settle", app.settleDemoHandler)
+		})
+
 		r.Route("/oauth2", func(r chi.Router) {
 			r.Get("/{provider}", app.oauth2Handler)
 			r.Get("/{provider}/callback", app.oauth2CallbackHandler)

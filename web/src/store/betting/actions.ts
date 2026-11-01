@@ -26,7 +26,7 @@ export const useBetActions = () => {
       }
 
       const newBet: ActiveBet = {
-        _id: `${Date.now()}}`,
+        _id: crypto.randomUUID(),
         show: show,
         division: division,
         competitor: competitor,

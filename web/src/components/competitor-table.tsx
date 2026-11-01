@@ -26,11 +26,13 @@ export function CompetitorTable({
   division,
   competitors = [],
   asOf,
+  demo = false,
 }: {
   show: Show;
   division: Division;
   competitors: Competitor[];
   asOf: number;
+  demo?: boolean;
 }) {
   const { openDialog } = useDialog();
   const { user } = useUser();
@@ -41,12 +43,13 @@ export function CompetitorTable({
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  const open = isMarketOpen(show, division, now);
+  const replay = demo && (!user || user.is_demo);
+  const open = replay || isMarketOpen(show, division, now);
   function handleSelection(competitor: Competitor) {
     // eslint-disable-next-line react-hooks/purity -- Recheck the clock when the user clicks, not during rendering.
-    if (!isMarketOpen(show, division, Date.now())) return;
+    if (!replay && !isMarketOpen(show, division, Date.now())) return;
     startBet(show, division, competitor);
-    if (!user) openDialog(Dialog.LogInToBet);
+    if (!user && !demo) openDialog(Dialog.LogInToBet);
   }
   return (
     <div className="w-full">
@@ -78,23 +81,31 @@ export function CompetitorTable({
                 (odd) => odd.bet_type === BetType.Win,
               )?.odds_value;
               const valid =
-                typeof odds === "number" && Number.isFinite(odds) && odds > 1;
+                typeof odds === "number" &&
+                Number.isFinite(odds) &&
+                odds > 1 &&
+                (!competitor.status ||
+                  [
+                    "registered",
+                    "active",
+                    ...(replay ? ["fulfilled"] : []),
+                  ].includes(competitor.status));
               const selected = state.activeBets.some(
                 (bet) => bet.competitor.id === competitor.id,
               );
               const name = `${competitor.first_name} ${competitor.last_name}`;
               return (
                 <TableRow key={competitor.id}>
-                  <TableCell className="py-3 pl-5 font-medium sm:pl-6">
+                  <TableCell className="py-2 pl-4 font-medium sm:pl-6">
                     {name}
                     <span className="mt-1 block text-xs font-normal text-muted-foreground sm:hidden">
                       {competitor.nationality}
                     </span>
                   </TableCell>
-                  <TableCell className="hidden text-muted-foreground sm:table-cell">
+                  <TableCell className="hidden py-2 text-muted-foreground sm:table-cell">
                     {competitor.nationality}
                   </TableCell>
-                  <TableCell className="pr-5 text-right sm:pr-6">
+                  <TableCell className="py-2 pr-4 text-right sm:pr-6">
                     <button
                       type="button"
                       disabled={!open || !valid}

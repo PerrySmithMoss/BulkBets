@@ -52,7 +52,14 @@ type TransactionsRepository interface {
 	CreateBetTransaction(ctx context.Context, params CreateBetTransactionParams) (*uuid.UUID, error)
 }
 
+type DemoRepository interface {
+	Create(ctx context.Context) (*User, error)
+	Reset(ctx context.Context, userID string) error
+	Settle(ctx context.Context, userID string) (*DemoSettlement, error)
+}
+
 type Storage struct {
+	DemoRepository         DemoRepository
 	UserRepository         UserRepository
 	ShowRepository         ShowRepository
 	DivisionRepository     DivisionRepository
@@ -63,6 +70,7 @@ type Storage struct {
 
 func NewStorage(db *sql.DB) Storage {
 	return Storage{
+		DemoRepository:         &DemoStore{db: db},
 		UserRepository:         NewUsersStore(db),
 		ShowRepository:         NewShowsStore(db),
 		DivisionRepository:     NewDivisionsStore(db),

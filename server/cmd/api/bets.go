@@ -34,6 +34,11 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if err := bets.ValidateAmounts(betSlip); err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	// Check if the bet is an accumulator
 	isAccumulator := bets.IsAccumulatorBet(betSlip)
 
@@ -46,7 +51,7 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Validate multiple bets
-	if len(betSlip.ActiveBets) > 1 {
+	if len(betSlip.ActiveBets) > 1 && !isAccumulator {
 		if err := bets.IsBetsValid(betSlip.ActiveBets); err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
@@ -166,7 +171,11 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 		multiplier = *betSlip.StakeMultiplier
 	}
 
-	potentialAccumulatorPayout := (multiplier * totals.TotalDecimalOdds) - multiplier
+	potentialAccumulatorPayout := multiplier * totals.TotalDecimalOdds
+	if math.IsInf(totals.PotentialReturn, 0) || totals.PotentialReturn > 99999999.99 || totals.TotalDecimalOdds > 99999999.99 {
+		writeJSONError(w, http.StatusBadRequest, "Potential return is too high. Reduce your stake or split your selections.")
+		return
+	}
 	roundedPayout := math.Round(potentialAccumulatorPayout*100) / 100
 
 	betSlip = bets.BetSlip{

@@ -5,7 +5,7 @@ import { NavBar } from "@/components/nav-bar";
 export const metadata: Metadata = {
   title: "BulkBets | Bodybuilding shows & winner markets",
   description:
-    "Explore bodybuilding shows, compare division line-ups and understand winner markets. BulkBets product preview.",
+    "Explore bodybuilding markets with £1,000 in virtual funds. Place demo bets, simulate results and replay classic shows. No sign-up needed.",
 };
 
 export default async function RootLayout({

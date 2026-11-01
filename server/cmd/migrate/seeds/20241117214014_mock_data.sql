@@ -3,7 +3,7 @@
 -- Seed Shows
 WITH inserted_shows AS (
   INSERT INTO shows (name, description, location, is_two_day_show, start_time, end_time, status) VALUES
-    ('2024 Mr. Olympia', 'The most prestigious professional bodybuilding competition', 'Las Vegas, Nevada', true, '2024-09-26 10:00:00-07:00'::TIMESTAMPTZ, '2024-09-28 22:00:00-07:00'::TIMESTAMPTZ, 'upcoming'),
+    ('2024 Mr. Olympia', 'The most prestigious professional bodybuilding competition', 'Las Vegas, Nevada', true, '2024-10-10 10:00:00-07:00'::TIMESTAMPTZ, '2024-10-13 22:00:00-07:00'::TIMESTAMPTZ, 'upcoming'),
     ('2024 Arnold Classic', 'Second most prestigious bodybuilding show', 'Columbus, Ohio', true, '2024-03-01 09:00:00-05:00'::TIMESTAMPTZ, '2024-03-02 22:00:00-05:00'::TIMESTAMPTZ, 'completed'),
     ('2024 Texas Pro', 'IFBB Professional League Qualifier', 'Houston, Texas', false, '2024-08-15 10:00:00-05:00'::TIMESTAMPTZ, '2024-08-15 22:00:00-05:00'::TIMESTAMPTZ, 'upcoming')
   RETURNING id, name
@@ -19,9 +19,9 @@ SELECT
 FROM inserted_shows s
 CROSS JOIN LATERAL (
     VALUES 
-      ('2024 Mr. Olympia', 'Men''s Open Bodybuilding', 'Bodybuilding', '2024-09-27 19:00:00-07:00'::TIMESTAMPTZ, 'scheduled'),
-      ('2024 Mr. Olympia', 'Classic Physique', 'Classic', '2024-09-27 17:00:00-07:00'::TIMESTAMPTZ, 'scheduled'),
-      ('2024 Mr. Olympia', 'Women''s Figure', 'Figure', '2024-09-26 15:00:00-07:00'::TIMESTAMPTZ, 'scheduled'),
+      ('2024 Mr. Olympia', 'Men''s Open Bodybuilding', 'Bodybuilding', '2024-10-12 19:00:00-07:00'::TIMESTAMPTZ, 'scheduled'),
+      ('2024 Mr. Olympia', 'Classic Physique', 'Classic', '2024-10-12 17:00:00-07:00'::TIMESTAMPTZ, 'scheduled'),
+      ('2024 Mr. Olympia', 'Women''s Figure', 'Figure', '2024-10-11 15:00:00-07:00'::TIMESTAMPTZ, 'scheduled'),
       ('2024 Arnold Classic', 'Men''s Open Bodybuilding', 'Bodybuilding', '2024-03-02 19:00:00-05:00'::TIMESTAMPTZ, 'scheduled'),
       ('2024 Arnold Classic', 'Classic Physique', 'Classic', '2024-03-02 19:00:00-05:00'::TIMESTAMPTZ, 'scheduled'),
       ('2024 Arnold Classic', 'Women''s Wellness', 'Wellness', '2024-03-02 17:00:00-05:00'::TIMESTAMPTZ, 'scheduled'),

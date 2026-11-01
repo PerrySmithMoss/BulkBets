@@ -7,13 +7,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle } from "lucide-react";
+
 import { Bet, BetStatus } from "@/types/api/bets/bets";
 import { formatCurrency } from "@/lib/utils/currency";
 import { capitaliseFirstLetter } from "@/lib/utils/string";
 import { AccumulatorTimeline } from "../timeline/accumulator-timeline/accumulator-timeline";
 import { BetTypeDisplayMap } from "@/types/betting";
-import { Button } from "../ui/button";
+
 import { roundOddsToFractional } from "@/lib/utils/betting";
 import { cn } from "@/lib/utils/cn";
 
@@ -54,10 +54,10 @@ export const BetCard: React.FC<Props> = ({ bet, getBetsInAccumulator }) => {
                 bet.status === BetStatus.Won
                   ? "default"
                   : bet.status === BetStatus.Lost ||
-                    bet.status === BetStatus.Void ||
-                    bet.status === BetStatus.Cancelled
-                  ? "destructive"
-                  : "outline"
+                      bet.status === BetStatus.Void ||
+                      bet.status === BetStatus.Cancelled
+                    ? "destructive"
+                    : "outline"
               }
               className={cn("ml-2 px-3 py-1 rounded-full", {
                 "bg-yellow-500/50": bet.status === BetStatus.Pending,
@@ -91,12 +91,6 @@ export const BetCard: React.FC<Props> = ({ bet, getBetsInAccumulator }) => {
                   {bet.show?.name}{" "}
                   {bet.division?.category && `(${bet.division.category})`}
                 </div>
-                {/* {selection?.status === 'LIVE' && ( */}
-                <div className="mt-2 flex items-center gap-1 text-sm text-orange-500">
-                  <AlertCircle className="w-3 h-3" />
-                  Live Now
-                </div>
-                {/* )} */}
               </div>
               <div className="text-right">
                 <div className="font-medium text-sm">
@@ -116,16 +110,15 @@ export const BetCard: React.FC<Props> = ({ bet, getBetsInAccumulator }) => {
           <div className="font-medium">{formatCurrency(bet.amount || 0)}</div>
         </div>
         <div className="space-y-1 text-right">
-          <div className="text-sm text-muted-foreground">To Return</div>
+          <div className="text-sm text-muted-foreground">
+            {bet.status === BetStatus.Pending ? "Potential return" : "Returned"}
+          </div>
           <div className="font-medium">
-            {formatCurrency(bet.potential_payout || 0)}
+            {formatCurrency(
+              bet.status === BetStatus.Lost ? 0 : bet.potential_payout || 0,
+            )}
           </div>
         </div>
-        {bet.status === BetStatus.Won && (
-          <div>
-            <Button>Cash Out {formatCurrency(bet.potential_payout)}</Button>
-          </div>
-        )}
       </CardFooter>
     </Card>
   );

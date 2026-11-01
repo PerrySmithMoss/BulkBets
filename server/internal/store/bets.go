@@ -195,6 +195,9 @@ func (s *BetsStore) createBetTransaction(ctx context.Context, tx *sql.Tx,
 }
 
 func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *User) error {
+	if err := bets.ValidateAmounts(*betSlip); err != nil {
+		return err
+	}
 	// Validate bet request
 	if len(betSlip.ActiveBets) == 0 {
 		return ErrNoBetComponents
@@ -211,7 +214,7 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 	}
 
 	// Validate singular bets
-	if len(betSlip.ActiveBets) > 1 {
+	if len(betSlip.ActiveBets) > 1 && !isAccumulator {
 		if err := bets.IsBetsValid(betSlip.ActiveBets); err != nil {
 			return ErrInvalidActiveBets
 		}
@@ -243,15 +246,20 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 	totalStake := bets.CalculateTotalStake(*betSlip)
 
 	return withTx(s.db, ctx, func(tx *sql.Tx) error {
+		// Serialize placement, demo settlement and reset for this visitor.
+		var isDemo bool
+		if err := tx.QueryRowContext(ctx, `SELECT is_demo FROM users WHERE id = $1 FOR UPDATE`, user.Id).Scan(&isDemo); err != nil {
+			return err
+		}
 		// Validate against authoritative rows in the same transaction as the debit.
 		// Shared locks prevent settlement/status/price changes until this bet commits.
 		for _, selection := range betSlip.ActiveBets {
 			var open bool
 			var currentOdds float64
 			err := tx.QueryRowContext(ctx, `
-				SELECT s.status IN ('upcoming', 'ongoing') AND s.end_time > clock_timestamp()
-					AND d.status = 'scheduled' AND d.start_time > clock_timestamp()
-					AND p.status IN ('registered', 'active') AND o.odds_value > 1,
+				SELECT ($5 OR (s.status IN ('upcoming', 'ongoing') AND s.end_time > clock_timestamp()
+					AND d.status = 'scheduled' AND d.start_time > clock_timestamp()))
+					AND (p.status IN ('registered', 'active') OR ($5 AND p.status = 'fulfilled')) AND o.odds_value > 1,
 					o.odds_value
 				FROM division_participants p
 				JOIN divisions d ON d.id = p.division_id
@@ -260,7 +268,7 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 				JOIN bet_types bt ON bt.id = o.bet_type_id AND bt.name = 'win'
 				WHERE p.id = $1 AND d.id = $2 AND s.id = $3
 				FOR SHARE OF p, d, s, o`, selection.CompetitorId, selection.DivisionId,
-				selection.ShowId, selection.BetTypeId).Scan(&open, &currentOdds)
+				selection.ShowId, selection.BetTypeId, isDemo).Scan(&open, &currentOdds)
 			if errors.Is(err, sql.ErrNoRows) || (err == nil && !open) {
 				return ErrMarketClosed
 			}
@@ -370,7 +378,29 @@ func (s *BetsStore) CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *
 
 func (s *BetsStore) FetchUserBets(ctx context.Context, userId string, status []string, limit int, offset int) ([]BetResponse, error) {
 	query := `
-		WITH bet_components AS (
+		WITH selected_bets AS (
+            SELECT b.id FROM bets b
+            LEFT JOIN division_participants dp ON dp.id = b.division_participant_id
+            LEFT JOIN divisions d ON d.id = dp.division_id
+            LEFT JOIN shows s ON s.id = d.show_id
+		WHERE
+		    b.user_id = $1
+		    AND (
+		        CASE WHEN $2 = '{}'::TEXT[] THEN
+		            TRUE
+		        WHEN 'live' = ANY ($2) THEN
+		            NOW() BETWEEN s.start_time AND s.end_time
+		        WHEN 'unsettled' = ANY ($2) THEN
+		            b.status::TEXT = 'pending'
+		        WHEN 'settled' = ANY ($2) THEN
+		            b.status::TEXT IN ('won', 'lost', 'void', 'cancelled')
+		        ELSE
+		            b.status::TEXT = ANY ($2) -- Cast status to text for comparison
+		        END)
+		    AND b.amount > 0
+            ORDER BY b.created_at DESC, b.id
+            LIMIT $3 OFFSET $4
+        ), bet_components AS (
 		    SELECT
 		        abc.accumulator_bet_id,
 		        ARRAY_AGG(abc.singular_bet_id ORDER BY abc.singular_bet_id) AS component_ids
@@ -379,14 +409,14 @@ func (s *BetsStore) FetchUserBets(ctx context.Context, userId string, status []s
 		    GROUP BY
 		        abc.accumulator_bet_id
 		)
-		SELECT DISTINCT ON (b.id)
+		SELECT
 		    b.id,
 		    b.division_participant_id,
 		    b.bet_type_id,
-		    b.amount,
+		    COALESCE(b.amount, 0),
 		    b.currency_code,
 		    b.odds_at_time,
-		    b.potential_payout,
+		    COALESCE(b.potential_payout, 0),
 		    b.status,
 		    b.cancelled_at,
 		    b.created_at,
@@ -422,25 +452,12 @@ func (s *BetsStore) FetchUserBets(ctx context.Context, userId string, status []s
 		    LEFT JOIN divisions d ON dp.division_id = d.id
 		    LEFT JOIN athletes a ON dp.athlete_id = a.id
 		    LEFT JOIN shows s ON d.show_id = s.id
-		WHERE
-		    b.user_id = $1
-		    AND (
-		        CASE WHEN $2 = '{}'::TEXT[] THEN
-		            TRUE
-		        WHEN 'live' = ANY ($2) THEN
-		            NOW() BETWEEN s.start_time AND s.end_time
-		        WHEN 'unsettled' = ANY ($2) THEN
-		            b.status::TEXT = 'pending'
-		        WHEN 'settled' = ANY ($2) THEN
-		            b.status::TEXT IN ('won', 'lost', 'void, cancelled')
-		        ELSE
-		            b.status::TEXT = ANY ($2) -- Cast status to text for comparison
-		        END)
-		ORDER BY
-		    b.id,
-		    b.created_at DESC
-		LIMIT $3 OFFSET $4;
-		
+        WHERE b.user_id = $1 AND (
+            b.id IN (SELECT id FROM selected_bets) OR b.id IN (
+                SELECT singular_bet_id FROM accumulator_bet_components WHERE accumulator_bet_id IN (SELECT id FROM selected_bets)
+            )
+        )
+        ORDER BY b.created_at DESC, b.id;
 		`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
@@ -946,7 +963,7 @@ func (s *BetsStore) processWinningBet(ctx context.Context, tx *sql.Tx, bet *Sing
 		return fmt.Errorf("bet amount is nil for bet %s", bet.Id)
 	}
 
-	payout := (*bet.Amount * bet.OddsAtTime) - *bet.Amount
+	payout := *bet.Amount * bet.OddsAtTime
 	roundedPayout := currency.RoundCurrency(payout)
 	if roundedPayout != bet.PotentialPayout {
 		log.Printf("bet %v payout mismatch: calculated=%v, recorded=%v",

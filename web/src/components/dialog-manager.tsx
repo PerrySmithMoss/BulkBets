@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { Dialog } from "@/types/dialog";
 import { LogInDialog } from "./dialogs/log-in-dialog";
 import { useDialog } from "@/store/dialog/dialog-context";
@@ -8,6 +9,7 @@ import { PlaceBetDialog } from "./dialogs/place-bet-dialog";
 import { NoFundsInAccountDialog } from "./dialogs/no-funds-in-account";
 
 export const DialogManager: React.FC = () => {
+  const pathname = usePathname();
   const { activeDialog, closeDialog } = useDialog();
   return (
     <>
@@ -23,7 +25,7 @@ export const DialogManager: React.FC = () => {
         onOpenChange={closeDialog}
         open={activeDialog === Dialog.RegisterUser}
       />
-      <PlaceBetDialog />
+      {pathname !== "/" && <PlaceBetDialog />}
       <NoFundsInAccountDialog
         activeDialog={activeDialog}
         onOpenChange={closeDialog}

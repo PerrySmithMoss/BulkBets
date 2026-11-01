@@ -1,5 +1,6 @@
 import {
   betExistsForCompetitor,
+  betExistsInSameDivision,
   calculateBetSlipTotals,
 } from "@/lib/utils/betting";
 import {
@@ -25,7 +26,7 @@ export const initialState: BetSlipState = {
 
 // wrap reducer to handle persistence
 export const createPersistedReducer = (
-  reducer: (state: BetSlipState, action: BettingAction) => BetSlipState
+  reducer: (state: BetSlipState, action: BettingAction) => BetSlipState,
 ) => {
   return (state: BetSlipState, action: BettingAction) => {
     const newState = reducer(state, action);
@@ -36,25 +37,33 @@ export const createPersistedReducer = (
 
 export const bettingReducer = (
   state: BetSlipState,
-  action: BettingAction
+  action: BettingAction,
 ): BetSlipState => {
   switch (action.type) {
     case BettingActionType.StartBet: {
       const isExistingCompetitorBet = betExistsForCompetitor(
         state.activeBets,
-        action.payload.competitor.id
+        action.payload.competitor.id,
       );
 
       const newBets = isExistingCompetitorBet
         ? // remove activeBets which contain existing competitors
           state.activeBets.filter(
-            (bet) => bet.competitor.id !== action.payload.competitor.id
+            (bet) => bet.competitor.id !== action.payload.competitor.id,
           )
         : [...state.activeBets, action.payload];
 
       const newBetSlip: BetSlipState = {
         ...state,
         activeBets: newBets,
+        stakeMultiplierRawValue:
+          newBets.length < 2 || betExistsInSameDivision(newBets)
+            ? ""
+            : state.stakeMultiplierRawValue,
+        stakeMultiplierDisplayValue:
+          newBets.length < 2 || betExistsInSameDivision(newBets)
+            ? ""
+            : state.stakeMultiplierDisplayValue,
       };
 
       const totals = calculateBetSlipTotals(newBetSlip);
@@ -88,12 +97,20 @@ export const bettingReducer = (
 
     case BettingActionType.RemoveBet: {
       const newBets = state.activeBets.filter(
-        (bet) => bet._id !== action.payload
+        (bet) => bet._id !== action.payload,
       );
 
       const newBetSlip: BetSlipState = {
         ...state,
         activeBets: newBets,
+        stakeMultiplierRawValue:
+          newBets.length < 2 || betExistsInSameDivision(newBets)
+            ? ""
+            : state.stakeMultiplierRawValue,
+        stakeMultiplierDisplayValue:
+          newBets.length < 2 || betExistsInSameDivision(newBets)
+            ? ""
+            : state.stakeMultiplierDisplayValue,
       };
 
       const totals = calculateBetSlipTotals(newBetSlip);
@@ -118,12 +135,20 @@ export const bettingReducer = (
                 ? roundCurrency(parsedAmount * bet.odds)
                 : null,
             }
-          : bet
+          : bet,
       );
 
       const updatedBetSlip: BetSlipState = {
         ...state,
         activeBets: newBets,
+        stakeMultiplierRawValue:
+          newBets.length < 2 || betExistsInSameDivision(newBets)
+            ? ""
+            : state.stakeMultiplierRawValue,
+        stakeMultiplierDisplayValue:
+          newBets.length < 2 || betExistsInSameDivision(newBets)
+            ? ""
+            : state.stakeMultiplierDisplayValue,
       };
 
       const totals = calculateBetSlipTotals(updatedBetSlip);
@@ -155,12 +180,30 @@ export const bettingReducer = (
     case BettingActionType.ClearAllBets:
       return initialState;
 
-    case BettingActionType.SyncState:
-      // Compare the payload with the current state to avoid unnecessary updates
-      if (JSON.stringify(state) === JSON.stringify(action.payload)) {
-        return state; // No change, so return the current state
+    case BettingActionType.SyncState: {
+      const restored = {
+        ...action.payload,
+        activeBets: [...action.payload.activeBets],
+      };
+      // Older slips stored a single stake in the accumulator field.
+      if (
+        restored.activeBets.length === 1 &&
+        Number(restored.stakeMultiplierRawValue) > 0
+      ) {
+        restored.activeBets[0] = {
+          ...restored.activeBets[0],
+          amount: restored.stakeMultiplierRawValue,
+        };
       }
-      return action.payload; // Otherwise, return the new state
+      if (
+        restored.activeBets.length < 2 ||
+        betExistsInSameDivision(restored.activeBets)
+      ) {
+        restored.stakeMultiplierRawValue = "";
+        restored.stakeMultiplierDisplayValue = "";
+      }
+      return { ...restored, ...calculateBetSlipTotals(restored) };
+    }
 
     case BettingActionType.Alert:
       return {

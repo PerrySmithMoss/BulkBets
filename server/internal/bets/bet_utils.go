@@ -3,8 +3,6 @@ package bets
 import (
 	"fmt"
 	"math"
-
-	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
 )
 
 // validateBet ensures the bet has a non-negative amount and positive odds
@@ -28,24 +26,15 @@ func validateBet(bet ActiveBet) bool {
 // 	return false
 // }
 
-func IsBetsValid(bets []ActiveBet) error {
-	if len(bets) == 0 {
-		return fmt.Errorf("no bets")
+func IsBetsValid(selections []ActiveBet) error {
+	if len(selections) == 0 {
+		return fmt.Errorf("choose at least one selection")
 	}
-
-	hasValidBetAmount := false
-
-	for _, bet := range bets {
-		// Ensure at least one valid bet amount
-		if bet.Amount != nil && currency.IsNumber(*bet.Amount) && *bet.Amount > 0 {
-			hasValidBetAmount = true
+	for _, bet := range selections {
+		if bet.Amount == nil || *bet.Amount <= 0 {
+			return fmt.Errorf("enter a stake for every single, or add an accumulator stake")
 		}
 	}
-
-	if !hasValidBetAmount {
-		return fmt.Errorf("activeBets must contain a valid number greater than 0")
-	}
-
 	return nil
 }
 
@@ -61,30 +50,43 @@ func IsAccumulatorBet(betSlip BetSlip) bool {
 }
 
 func IsValidAccumulatorBet(betSlip BetSlip) error {
-	if betSlip.StakeMultiplier == nil || *betSlip.StakeMultiplier <= 0 {
-		return fmt.Errorf("stakeMultiplier must be a valid number greater than 0")
+	if !IsAccumulatorBet(betSlip) {
+		return fmt.Errorf("an accumulator needs a positive stake and at least two selections")
 	}
-
-	divisionSet := make(map[int64]struct{})
-	hasValidBetAmount := false
-
+	divisions := make(map[int64]bool)
 	for _, bet := range betSlip.ActiveBets {
-		// Check for duplicate division IDs
-		if _, exists := divisionSet[bet.DivisionId]; exists {
-			return fmt.Errorf("cannot bet on competitors in the same division")
+		if divisions[bet.DivisionId] {
+			return fmt.Errorf("an accumulator needs selections from different divisions")
 		}
-		divisionSet[bet.DivisionId] = struct{}{}
+		divisions[bet.DivisionId] = true
+	}
+	return nil
+}
 
-		// Ensure at least one valid bet amount
-		if bet.Amount != nil && currency.IsNumber(*bet.Amount) && *bet.Amount > 0 {
-			hasValidBetAmount = true
+// Reject invalid monetary inputs before any balance calculation or database write.
+func ValidateAmounts(slip BetSlip) error {
+	valid := func(value *float64) bool {
+		return value == nil || (!math.IsNaN(*value) && !math.IsInf(*value, 0) && *value >= 0 && *value <= 999999.99 && math.Abs(*value*100-math.Round(*value*100)) < 0.000001)
+	}
+	if !valid(slip.StakeMultiplier) {
+		return fmt.Errorf("enter a valid stake with at most two decimal places")
+	}
+	if len(slip.ActiveBets) > 30 {
+		return fmt.Errorf("a slip supports up to 30 selections")
+	}
+	seen := make(map[string]bool)
+	for _, bet := range slip.ActiveBets {
+		if !valid(bet.Amount) {
+			return fmt.Errorf("enter a valid stake with at most two decimal places")
 		}
+		if seen[bet.CompetitorId] {
+			return fmt.Errorf("remove duplicate selections")
+		}
+		seen[bet.CompetitorId] = true
 	}
-
-	if !hasValidBetAmount {
-		return fmt.Errorf("all activeBets must contain a valid number greater than 0")
+	if len(slip.ActiveBets) == 1 && slip.StakeMultiplier != nil && *slip.StakeMultiplier > 0 && slip.ActiveBets[0].Amount != nil && *slip.ActiveBets[0].Amount > 0 {
+		return fmt.Errorf("use one stake for a single selection")
 	}
-
 	return nil
 }
 
@@ -148,8 +150,8 @@ func CalculateBetPotentialPayout(bet ActiveBet) float64 {
 	if bet.Amount == nil { // Check if Amount is nil to avoid dereferencing nil
 		return 0 // Return 0 if Amount is nil
 	}
-	potentialReturn := (*bet.Amount * bet.Odds) - *bet.Amount // Dereference bet.Amount to get the float64 value
-	return math.Round(potentialReturn*100) / 100              // Round to two decimal places
+	potentialReturn := *bet.Amount * bet.Odds    // Dereference bet.Amount to get the float64 value
+	return math.Round(potentialReturn*100) / 100 // Round to two decimal places
 }
 
 func CalculateSingularBetsTotalReturn(bets []ActiveBet) float64 {

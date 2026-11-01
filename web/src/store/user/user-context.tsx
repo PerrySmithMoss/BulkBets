@@ -11,11 +11,15 @@ import {
 } from "react";
 import { fetchCurrentUser } from "@/lib/api/users/fetch-current-user";
 
+import { demoRequest } from "@/lib/api/demo";
+
 const UserContext = createContext<
   | {
       user: User["data"] | null;
       setUser: Dispatch<SetStateAction<User["data"] | null>>;
       refreshUser: () => Promise<void>;
+      startDemo: () => Promise<void>;
+      startingDemo: boolean;
     }
   | undefined
 >(undefined);
@@ -29,6 +33,16 @@ export function UserProvider({
 }>) {
   const [user, setUser] = useState<User["data"] | null>(initialUser);
 
+  const [startingDemo, setStartingDemo] = useState(false);
+  const startDemo = useCallback(async () => {
+    setStartingDemo(true);
+    try {
+      setUser(await demoRequest<User["data"]>("start"));
+    } finally {
+      setStartingDemo(false);
+    }
+  }, []);
+
   const refreshUser = useCallback(async () => {
     const { data: updatedUser } = await fetchCurrentUser();
     setUser(updatedUser);
@@ -38,7 +52,9 @@ export function UserProvider({
   // Explicit logout clears the slip in NavBar.
 
   return (
-    <UserContext.Provider value={{ user, setUser, refreshUser }}>
+    <UserContext.Provider
+      value={{ user, setUser, refreshUser, startDemo, startingDemo }}
+    >
       {children}
     </UserContext.Provider>
   );

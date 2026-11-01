@@ -11,7 +11,7 @@ import { Toaster } from "@/components/ui/toaster";
 export const metadata: Metadata = {
   title: "BulkBets",
   description:
-    "Explore bodybuilding shows, compare division line-ups and understand winner markets. BulkBets product preview.",
+    "Explore bodybuilding shows, compare division line-ups and understand winner markets. Try a demo with virtual funds, simulated results and no sign-up.",
 };
 
 export default async function RootLayout({
@@ -33,7 +33,13 @@ export default async function RootLayout({
               </DialogProvider>
             </UserProvider>
           </BetProvider>
-          <Toaster />
+          <Toaster
+            position="top-center"
+            offset={80}
+            mobileOffset={{ top: 80, left: 16, right: 16 }}
+            closeButton
+            duration={3000}
+          />
         </ClientProviders>
       </body>
     </html>

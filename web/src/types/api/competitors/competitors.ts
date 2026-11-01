@@ -2,6 +2,7 @@ import { CompetitorOdds } from "../odds/odds";
 
 export interface Competitor {
   id: string;
+  status?: string;
   first_name: string;
   last_name: string;
   residency: string;

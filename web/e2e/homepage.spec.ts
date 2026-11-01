@@ -12,10 +12,7 @@ test("registration creates a persisted account and preserves a guest selection",
     .getByRole("button", { name: /Select Hadi Choopan/ })
     .first()
     .click();
-  await page
-    .getByRole("dialog")
-    .getByRole("link", { name: "Create account" })
-    .click();
+  await page.getByRole("link", { name: "Or create an account" }).click();
   await page.getByLabel("First name", { exact: true }).fill("Demo");
   await page.getByLabel("Last name", { exact: true }).fill("Visitor");
   await page.getByLabel("Email address", { exact: true }).fill(email);
@@ -28,7 +25,9 @@ test("registration creates a persisted account and preserves a guest selection",
   await expect(
     page.getByRole("button", { name: "Account menu" }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: /Place Bet/ })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Place bet", exact: true }),
+  ).toBeVisible();
   const me = await (await page.request.get("/api/v1/users/me")).json();
   expect(me.data.email).toBe(email);
   expect(me.data.balance).toBe(0);
@@ -58,14 +57,14 @@ test("closed markets cannot be selected or submitted and stale prices are reject
   page,
 }) => {
   await page.goto("/");
-  await expect(
-    page
-      .locator("#show-2")
-      .getByRole("button", { name: /Select Hadi Choopan/ }),
-  ).toBeDisabled();
   await page.request.post("/api/v1/auth/login", {
     data: { email: "admin@bulkbets.com", password: "e2e-password" },
   });
+  await page.reload();
+  await page.getByRole("button", { name: /2024 Arnold Classic/ }).click();
+  await expect(
+    page.getByRole("button", { name: /Select Hadi Choopan/ }),
+  ).toBeDisabled();
   const before = await (await page.request.get("/api/v1/users/me")).json();
   const closed = await (await page.request.get("/api/v1/shows/2")).json();
   const division = closed.data.divisions[0];
@@ -126,6 +125,7 @@ test("keyboard selection works and reopening login clears previous errors", asyn
     .first();
   await odds.focus();
   await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Log in", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByLabel("Email address").fill("missing@example.test");
   await page.getByLabel("Password", { exact: true }).fill("wrong");
@@ -260,44 +260,30 @@ function fixtureSQL(sql: string) {
   ]);
 }
 
-test("show search, status and division filters work together and recover from no results", async ({
+test("show and athlete search, division switching and empty-state recovery", async ({
   page,
 }) => {
   await page.goto("/");
-  expect(
-    (await (await page.request.get("/api/v1/shows")).json()).data,
-  ).toHaveLength(3);
-  await page
-    .getByRole("searchbox", { name: "Search shows or locations" })
-    .fill("Columbus");
-  await expect(page.getByRole("article")).toHaveCount(1);
-  await expect(page.getByRole("article")).toContainText("2024 Arnold Classic");
-  await page.getByRole("button", { name: "Clear search", exact: true }).click();
-  await page.getByRole("button", { name: /^Open markets/ }).click();
-  await expect(page.getByRole("article")).toHaveCount(1);
-  await expect(page.getByRole("article")).toContainText("2024 Mr. Olympia");
-  await page
-    .getByRole("combobox", { name: "Filter by division", exact: true })
-    .selectOption("Women's Wellness");
+  await page.getByRole("searchbox").fill("Columbus");
   await expect(
-    page.getByRole("heading", { name: "No shows match your filters" }),
+    page.getByRole("heading", { name: "2024 Arnold Classic", exact: true }),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Clear filters", exact: true })
-    .click();
-  await expect(page.getByRole("article")).toHaveCount(3);
-  await page
-    .getByRole("combobox", { name: "Filter by division", exact: true })
-    .selectOption("Classic Physique");
+  await page.getByRole("searchbox").fill("Chris Bumstead");
   await expect(
-    page.getByRole("cell", { name: "Chris Bumstead", exact: true }).first(),
+    page.getByRole("cell", { name: "Chris Bumstead", exact: true }),
   ).toBeVisible();
   await page.getByRole("searchbox").fill("not-a-real-show");
-  await expect(page.getByRole("article")).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "No matching shows or athletes" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Clear search" }).click();
   await page
-    .getByRole("button", { name: "Clear filters", exact: true })
+    .getByRole("group", { name: "Select division" })
+    .getByRole("button", { name: "Classic Physique", exact: true })
     .click();
-  await expect(page.getByRole("article")).toHaveCount(3);
+  await expect(
+    page.getByRole("cell", { name: "Chris Bumstead", exact: true }),
+  ).toBeVisible();
 });
 
 test("newly published shows appear without hardcoded IDs and missing divisions have an empty state", async ({
@@ -315,7 +301,7 @@ test("newly published shows appear without hardcoded IDs and missing divisions h
     ).toBeVisible();
     await expect(
       page.getByText(
-        "Divisions will appear here when the line-up is published.",
+        "There are no divisions for this show yet. Choose another show to explore its markets.",
       ),
     ).toBeVisible();
   } finally {
@@ -323,30 +309,18 @@ test("newly published shows appear without hardcoded IDs and missing divisions h
   }
 });
 
-test("past seed data is never presented as an open market", async ({
+test("historical markets stay playable for a demo visitor", async ({
   page,
 }) => {
-  fixtureSQL(
-    "UPDATE shows SET start_time='2024-10-10',end_time='2024-10-14' WHERE id=1",
-  );
-  try {
-    await page.goto("/");
-    await page.getByRole("button", { name: /^Open markets/ }).click();
-    await expect(
-      page.getByRole("heading", { name: "No open markets right now" }),
-    ).toBeVisible();
-    await page
-      .getByRole("button", { name: "Browse all shows", exact: true })
-      .click();
-    await expect(page.getByRole("article")).toHaveCount(3);
-    await expect(
-      page.getByRole("button", { name: /Select Hadi Choopan/ }).first(),
-    ).toBeDisabled();
-  } finally {
-    fixtureSQL(
-      "UPDATE shows SET start_time=NOW()+INTERVAL '2 days',end_time=NOW()+INTERVAL '4 days' WHERE id=1",
-    );
-  }
+  await page.goto("/");
+  await page.getByRole("button", { name: /2024 Arnold Classic/ }).click();
+  await expect(page.getByText("EVENT REPLAY")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Select Hadi Choopan/ }),
+  ).toBeEnabled();
+  await expect(
+    page.getByText("Betting closed. Prices below are historical."),
+  ).toHaveCount(0);
 });
 
 test("show service failure displays a useful retry and recovers", async ({
@@ -381,7 +355,7 @@ test("show service failure displays a useful retry and recovers", async ({
     })
     .toBe(true);
   await page.getByRole("button", { name: "Try again", exact: true }).click();
-  await expect(page.getByRole("article")).toHaveCount(3);
+  await expect(page.getByRole("article")).toHaveCount(1);
 });
 
 test("a guest selection survives a page reload", async ({ page }) => {
@@ -390,9 +364,26 @@ test("a guest selection survives a page reload", async ({ page }) => {
     .getByRole("button", { name: /Select Hadi Choopan/ })
     .first()
     .click();
-  await page.getByRole("button", { name: "Close", exact: true }).click();
   await page.reload();
   await expect(
     page.getByRole("button", { name: /Remove Hadi Choopan/ }).first(),
   ).toHaveAttribute("aria-pressed", "true");
+});
+
+test("legacy single stakes are restored into the visible stake field", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Select Hadi Choopan/ }).click();
+  await page.evaluate(() => {
+    const slip = JSON.parse(localStorage.getItem("bets")!);
+    slip.stakeMultiplierRawValue = "12";
+    slip.activeBets[0].amount = "";
+    localStorage.setItem("bets", JSON.stringify(slip));
+  });
+  await page.reload();
+  await expect(page.getByLabel("Stake for Hadi Choopan")).toHaveValue("12");
+  await expect(
+    page.getByRole("complementary", { name: "Bet slip" }),
+  ).toContainText("£33.00");
 });
