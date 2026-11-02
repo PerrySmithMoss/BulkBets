@@ -2,7 +2,8 @@ import { fetchShowDirectory } from "@/lib/api/shows/fetch-show-directory";
 import { ShowDirectory } from "@/components/home/show-directory";
 import { RetryButton } from "@/components/retry-button";
 
-export default async function Home() {
+export default async function Home({searchParams}:{searchParams:Promise<{show?:string}>}) {
+ const params=await searchParams;
   const { shows, error } = await fetchShowDirectory();
   // eslint-disable-next-line react-hooks/purity -- One request-time snapshot for hydration.
   const asOf = Date.now();
@@ -27,7 +28,7 @@ export default async function Home() {
           <RetryButton />
         </div>
       )}
-      <ShowDirectory shows={shows} asOf={asOf} />
+      <ShowDirectory shows={shows} asOf={asOf} initialShowID={Number(params.show)||undefined} />
     </main>
   );
 }

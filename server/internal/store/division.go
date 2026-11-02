@@ -4,11 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
-	"strings"
 	"time"
 
-	"github.com/PerrySmithMoss/BulkBets/server/internal/integer"
 	"github.com/google/uuid"
 )
 
@@ -109,75 +106,6 @@ type DivisionOutcomeParams struct {
 	Comments              *string       `json:"comments"`
 }
 
-func (s *DivisionsStore) CreateDivisionResult(ctx context.Context, params DivisionResultParams, userId uuid.UUID) (int64, error) {
-	var divisionResultID int64
-
-	err := withTx(s.db, ctx, func(tx *sql.Tx) error {
-		// TODO: update division table status column to 'completed' here or separate??
-
-		query := `
-			INSERT INTO division_results (division_id, finalised_by, comments)
-			    VALUES ($1, $2, $3)
-			RETURNING
-			    id`
-
-		err := tx.QueryRowContext(ctx, query, params.DivisionId, userId, params.Comments).Scan(&divisionResultID)
-		if err != nil {
-			return fmt.Errorf("failed to create division result: %w", err)
-		}
-
-		// Map outcomes
-		var outcomes []DivisionOutcomeParams
-		for _, o := range params.Results {
-			outcomes = append(outcomes, DivisionOutcomeParams{
-				DivisionResultId:      divisionResultID,
-				DivisionParticipantId: o.DivisionParticipantId,
-				Position:              o.Position,
-				Score:                 o.Score,
-				ResultStatus:          o.ResultStatus,
-				Comments:              o.Comments,
-			})
-		}
-
-		// Batch-insert outcomes
-		var valueStrings []string
-		var valueArgs []interface{}
-
-		for i, outcome := range outcomes {
-			if outcome.ResultStatus == nil {
-				status := ResultStatusFinished
-				outcomes[i].ResultStatus = &status
-			}
-
-			valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d)",
-				i*6+1, i*6+2, i*6+3, i*6+4, i*6+5, i*6+6))
-
-			valueArgs = append(valueArgs,
-				outcome.DivisionResultId,
-				outcome.DivisionParticipantId,
-				integer.DerefInt8(outcome.Position),
-				integer.DerefInt8(outcome.Score),
-				outcome.ResultStatus,
-				outcome.Comments,
-			)
-		}
-
-		outcomesQuery := `
-			INSERT INTO division_result_outcomes (division_result_id, division_participant_id, position, score, result_status, comments)
-			    VALUES
-			        %s`
-		outcomesQuery = fmt.Sprintf(outcomesQuery, strings.Join(valueStrings, ","))
-
-		if _, err := tx.ExecContext(ctx, outcomesQuery, valueArgs...); err != nil {
-			return fmt.Errorf("failed to batch-insert outcomes: %w", err)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return 0, err
-	}
-
-	return divisionResultID, nil
+func (s *DivisionsStore) CreateDivisionResult(ctx context.Context, params DivisionResultParams, userID uuid.UUID) (int64, error) {
+	return NewBetsStore(s.db).PublishDivisionResult(ctx, params, userID)
 }

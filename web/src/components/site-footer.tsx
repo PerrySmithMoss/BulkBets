@@ -7,9 +7,9 @@ export function SiteFooter() {
           <span className="font-semibold text-foreground">
             BulkBets · Portfolio demo.
           </span>{" "}
-          Virtual funds only. No deposits or withdrawals. Sample markets replay
-          historical shows; simulated results are not official results. Event
-          artwork belongs to its respective organisers.
+          Virtual funds only. Deposits and withdrawals are simulated. Sample
+          markets replay historical shows; simulated results are not official
+          results. Event artwork belongs to its respective organisers.
         </p>
         <nav
           aria-label="Footer navigation"
@@ -17,6 +17,9 @@ export function SiteFooter() {
         >
           <Link href="/how-it-works" className="hover:text-primary">
             How it works
+          </Link>
+          <Link href="/privacy" className="hover:text-primary">
+            Privacy
           </Link>
           <Link href="/help" className="hover:text-primary">
             Help · 18+

@@ -1,14 +1,16 @@
 import { Timestamp } from "..";
 
 export enum ShowStatus {
-  Upcoming = "Up coming",
-  Ongoing = "On going",
-  Completed = "Completed",
-  Canceled = "Canceled",
+  Upcoming = "upcoming",
+  Ongoing = "ongoing",
+  Completed = "completed",
+  Canceled = "canceled",
 }
 
 export interface Show {
   id: number;
+ sandbox?: boolean;
+ settle_at?: string;
   name: string;
   description: string | null;
   location: string | null;

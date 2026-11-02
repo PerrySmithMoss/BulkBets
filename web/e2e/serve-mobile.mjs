@@ -1,3 +1,4 @@
+import { request as proxyRequest } from "node:http";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { resolve, extname, sep } from "node:path";
@@ -6,6 +7,10 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../../mobile/dist/", import.meta.url));
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".png": "image/png", ".ttf": "font/ttf", ".woff2": "font/woff2", ".ico": "image/x-icon" };
 createServer(async (req, res) => {
+  if(req.url.startsWith("/api/")) {
+    const upstream=proxyRequest(`http://127.0.0.1:18080${req.url}`,{method:req.method,headers:{...req.headers,origin:"http://127.0.0.1:3101"}},result=>{res.writeHead(result.statusCode,result.headers);result.pipe(res);});
+    upstream.on("error",()=>res.writeHead(502).end());req.pipe(upstream);return;
+  }
   const pathname = decodeURIComponent(new URL(req.url, "http://127.0.0.1").pathname);
   const target = resolve(root, `.${pathname === "/" ? "/index.html" : pathname}`);
   if (!target.startsWith(root.endsWith(sep) ? root : root + sep)) { res.writeHead(403).end(); return; }

@@ -20,8 +20,9 @@ function compose(args) {
 
 let status = 1;
 try {
-  compose(["down", "--remove-orphans"]);
+  compose(["down", "--volumes", "--remove-orphans"]);
   compose(["up", "--build", "--wait", "--wait-timeout", "180"]);
+  compose(["logs", "--no-color", "store-tests"]);
   compose([
     "exec",
     "-T",
@@ -65,7 +66,7 @@ try {
 } finally {
   try {
     if (status !== 0) compose(["logs", "--tail", "100"]);
-    compose(["down", "--remove-orphans"]);
+    compose(["down", "--volumes", "--remove-orphans"]);
   } catch (error) {
     console.error(error);
     status = 1;

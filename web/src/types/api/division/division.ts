@@ -1,10 +1,10 @@
 import { Timestamp } from "..";
 
 export enum DivisionStatus {
-  Scheduled = "Scheduled",
-  Ongoing = "On going",
-  Completed = "Completed",
-  Canceled = "Canceled",
+  Scheduled = "scheduled",
+  Ongoing = "ongoing",
+  Completed = "completed",
+  Canceled = "canceled",
 }
 
 export interface Division {

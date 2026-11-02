@@ -127,3 +127,39 @@ test("phone demo supports placement, results, reset and a dismissible slip", asy
   await slip.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
+
+test("phone wallet and private event studio fit narrow screens", async ({
+  page,
+}, testInfo) => {
+  await page.request.post("/api/v1/demo/start");
+  await page.goto("/customer/wallet");
+  await page.getByLabel("Transfer amount").fill("100");
+  await page
+    .getByRole("button", { name: "Deposit demo funds", exact: true })
+    .click();
+  await expect(page.getByLabel("Wallet balance")).toContainText("1,100.00");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath("wallet-phone.png"),
+    scale: "css",
+    animations: "disabled",
+  });
+  await page.goto("/customer/sandbox");
+  await page.getByRole("button", { name: "Create event", exact: true }).click();
+  await expect(page.getByLabel("Event status")).toHaveText("Betting open");
+  await page.setViewportSize({ width: 320, height: 750 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath("studio-phone.png"),
+    scale: "css",
+    animations: "disabled",
+  });
+});

@@ -4,6 +4,7 @@ export interface User {
   data: {
     id: UUID;
     is_demo?: boolean;
+ is_guest?: boolean;
     first_name: string;
     last_name: string;
     email: string;

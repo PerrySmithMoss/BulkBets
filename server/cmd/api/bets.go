@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/bets"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
 	"github.com/PerrySmithMoss/BulkBets/server/internal/store"
 	"github.com/go-playground/validator/v10"
 )
@@ -16,6 +17,7 @@ import (
 var validate = validator.New()
 
 func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 32768)
 	var betSlip bets.BetSlip
 
 	if err := json.NewDecoder(r.Body).Decode(&betSlip); err != nil {
@@ -25,7 +27,7 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := validate.Struct(betSlip); err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
+		writeJSONError(w, http.StatusBadRequest, "Choose valid athletes, markets and prices before placing a bet.")
 		return
 	}
 
@@ -171,7 +173,7 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 		multiplier = *betSlip.StakeMultiplier
 	}
 
-	potentialAccumulatorPayout := multiplier * totals.TotalDecimalOdds
+	potentialAccumulatorPayout := currency.MultiplyAndRound(multiplier, totals.TotalDecimalOdds)
 	if math.IsInf(totals.PotentialReturn, 0) || totals.PotentialReturn > 99999999.99 || totals.TotalDecimalOdds > 99999999.99 {
 		writeJSONError(w, http.StatusBadRequest, "Potential return is too high. Reduce your stake or split your selections.")
 		return
@@ -187,6 +189,10 @@ func (app *application) createBetHandler(w http.ResponseWriter, r *http.Request)
 
 	err = app.store.BetsRepository.CreateBet(ctx, &betSlip, user)
 	if err != nil {
+		if errors.Is(err, store.ErrInsufficientFunds) {
+			writeJSONError(w, 403, "Insufficient balance")
+			return
+		}
 		if errors.Is(err, store.ErrMarketClosed) || errors.Is(err, store.ErrOddsChanged) {
 			writeJSONError(w, http.StatusConflict, err.Error())
 			return

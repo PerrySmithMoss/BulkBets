@@ -1,3 +1,4 @@
+import { getApiOrigin } from "@/lib/api/origin";
 import { formatCookieHeader, getAuthCookies } from "@/lib/utils/cookies";
 import { tryFetcher } from "@/lib/utils/tryFetcher";
 import { API_ROUTES } from "../constants";
@@ -28,7 +29,7 @@ export const getUserBets = async (opts?: GetUserBetsOptions) => {
     params.append("offset", opts.offset.toString());
   }
 
-  const url = `${process.env.API_URL ?? "http://localhost:8080"}/${API_ROUTES.BETS.BASE}${
+  const url = `${getApiOrigin()}/${API_ROUTES.BETS.BASE}${
     params.toString() ? `?${params.toString()}` : ""
   }`;
 
@@ -40,7 +41,7 @@ export const getUserBets = async (opts?: GetUserBetsOptions) => {
       headers: {
         Cookie: cookieHeader,
       },
-    })
+    }),
   );
 
   if (error) {

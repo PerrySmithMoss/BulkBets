@@ -26,7 +26,12 @@ func (app *application) DeserialiseUserMiddleware(next http.Handler) http.Handle
 				if err != nil {
 					log.Printf("Error reading accessToken subject claim: %v", err)
 				} else {
-					ctx := context.WithValue(r.Context(), userCtx, userIdClaim)
+					user, err := app.store.UserRepository.GetUserByID(r.Context(), userIdClaim)
+					if err != nil || user.Status != "active" {
+						next.ServeHTTP(w, r)
+						return
+					}
+					ctx := context.WithValue(store.WithViewer(r.Context(), userIdClaim), userCtx, userIdClaim)
 					next.ServeHTTP(w, r.WithContext(ctx))
 					return
 				}

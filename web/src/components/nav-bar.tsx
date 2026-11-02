@@ -58,7 +58,13 @@ export function NavBar() {
   const links = [
     { href: "/#markets", label: "Markets" },
     { href: "/how-it-works", label: "How it works" },
-    ...(user ? [{ href: "/customer/my-bets?tab=All", label: "My bets" }] : []),
+    ...(user
+      ? [
+          { href: "/customer/my-bets?tab=All", label: "My bets" },
+          { href: "/customer/wallet", label: "Wallet" },
+          { href: "/customer/sandbox", label: "Event studio" },
+        ]
+      : []),
   ];
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
@@ -138,7 +144,7 @@ export function NavBar() {
         </div>
         <nav
           aria-label="Main navigation"
-          className="hidden items-center gap-7 text-sm font-medium md:flex"
+          className="hidden items-center gap-4 text-xs font-medium md:flex"
         >
           {links.map((link) => (
             <Link
@@ -168,7 +174,7 @@ export function NavBar() {
                 <DropdownMenuItem asChild>
                   <Link href="/customer/my-bets">My bets</Link>
                 </DropdownMenuItem>
-                {user.is_demo && (
+                {user.is_guest && (
                   <>
                     <DropdownMenuItem onClick={logIn}>
                       Log in to an account
@@ -180,6 +186,12 @@ export function NavBar() {
                     </DropdownMenuItem>
                   </>
                 )}
+                <DropdownMenuItem asChild>
+                  <Link href="/customer/wallet">Demo wallet</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/customer/sandbox">Event studio</Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/help">Help & safer gambling</Link>
                 </DropdownMenuItem>

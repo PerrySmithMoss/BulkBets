@@ -1,5 +1,5 @@
 export async function demoRequest<T>(
-  action: "start" | "reset" | "settle",
+  action: "start" | "reset" | "settle" | `settle?mode=${string}`,
 ): Promise<T> {
   const response = await fetch(`/api/v1/demo/${action}`, {
     method: "POST",

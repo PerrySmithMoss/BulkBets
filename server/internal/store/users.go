@@ -40,6 +40,8 @@ var (
 )
 
 type User struct {
+	IsGuest             bool       `json:"is_guest"`
+	Status              string     `json:"-"`
 	IsDemo              bool       `json:"is_demo"`
 	Id                  uuid.UUID  `json:"id"`
 	FirstName           string     `json:"first_name"`
@@ -181,8 +183,8 @@ func NewUsersStore(db *sql.DB) *UsersStore {
 func (s *UsersStore) Create(ctx context.Context, user *User) error {
 	return withTx(s.db, ctx, func(tx *sql.Tx) error {
 		query := `
-			INSERT INTO users (first_name, last_name, email, password_hash, date_of_birth)
-			    VALUES ($1, $2, $3, $4, $5)
+			INSERT INTO users (first_name, last_name, email, password_hash, date_of_birth, is_demo)
+			    VALUES ($1, $2, $3, $4, $5, TRUE)
 			RETURNING
 			    id, created_at`
 
@@ -211,7 +213,7 @@ func (s *UsersStore) Create(ctx context.Context, user *User) error {
 			}
 		}
 
-		_, err = tx.ExecContext(ctx, `INSERT INTO user_balances (user_id, balance) VALUES ($1, 0)`, user.Id)
+		_, err = tx.ExecContext(ctx, `INSERT INTO user_balances (user_id, balance) VALUES ($1, 1000)`, user.Id)
 		return err
 	})
 }
@@ -219,8 +221,8 @@ func (s *UsersStore) Create(ctx context.Context, user *User) error {
 func (s *UsersStore) Upsert(ctx context.Context, user *User) error {
 	return withTx(s.db, ctx, func(tx *sql.Tx) error {
 		query := `
-			INSERT INTO users (first_name, last_name, email, password_hash, google_id, github_id, x_id, is_email_verified, email_verified_at, profile_image)
-			    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			INSERT INTO users (first_name, last_name, email, password_hash, google_id, github_id, x_id, is_email_verified, email_verified_at, profile_image, is_demo)
+			    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, TRUE)
 			ON CONFLICT (email)
 			    DO UPDATE SET
 			        first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash), google_id = COALESCE(EXCLUDED.google_id, users.google_id), github_id = COALESCE(EXCLUDED.github_id, users.github_id), x_id = COALESCE(EXCLUDED.x_id, users.x_id), is_email_verified = EXCLUDED.is_email_verified, email_verified_at = COALESCE(EXCLUDED.email_verified_at, users.email_verified_at), profile_image = COALESCE(EXCLUDED.profile_image, users.profile_image), refresh_token_version = users.refresh_token_version + 1 -- Increment version on update
@@ -286,7 +288,7 @@ func (s *UsersStore) Upsert(ctx context.Context, user *User) error {
 		//   TODO: extract into user_balances store
 		_, err = tx.Exec(`
 			INSERT INTO user_balances (user_id, balance, version)
-			    VALUES ($1, 0.00, 0)
+			    VALUES ($1, 1000.00, 0)
 			ON CONFLICT (user_id)
 			    DO NOTHING`, user.Id)
 		if err != nil {
@@ -302,6 +304,8 @@ func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, err
 		SELECT
 		    u.id,
 		    u.is_demo,
+		    u.status,
+		    (u.password_hash IS NULL AND u.google_id IS NULL AND u.github_id IS NULL AND u.x_id IS NULL AND u.email LIKE '%@demo.bulkbets.invalid'),
 		    u.first_name,
 		    u.last_name,
 		    u.email,
@@ -338,6 +342,8 @@ func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, err
 	).Scan(
 		&user.Id,
 		&user.IsDemo,
+		&user.Status,
+		&user.IsGuest,
 		&user.FirstName,
 		&user.LastName,
 		&user.Email,
@@ -360,6 +366,10 @@ func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, err
 		default:
 			return nil, err
 		}
+	}
+
+	if _, err := s.db.ExecContext(ctx, `UPDATE users SET last_seen_at=NOW() WHERE id=$1 AND last_seen_at<NOW()-INTERVAL '1 hour'`, user.Id); err != nil {
+		return nil, err
 	}
 
 	// Set the pointer fields in the User struct
@@ -421,6 +431,8 @@ func (s *UsersStore) GetUserByEmail(ctx context.Context, email string) (*User, e
 	query := `
 		SELECT
 		    id,
+		    status,
+		    is_demo,
 		    first_name,
 		    last_name,
 		    email,
@@ -450,6 +462,8 @@ func (s *UsersStore) GetUserByEmail(ctx context.Context, email string) (*User, e
 		email,
 	).Scan(
 		&user.Id,
+		&user.Status,
+		&user.IsDemo,
 		&user.FirstName,
 		&user.LastName,
 		&user.Email,
@@ -468,6 +482,10 @@ func (s *UsersStore) GetUserByEmail(ctx context.Context, email string) (*User, e
 		default:
 			return nil, err
 		}
+	}
+
+	if _, err := s.db.ExecContext(ctx, `UPDATE users SET last_seen_at=NOW() WHERE id=$1 AND last_seen_at<NOW()-INTERVAL '1 hour'`, user.Id); err != nil {
+		return nil, err
 	}
 
 	// Set the pointer fields in the User struct

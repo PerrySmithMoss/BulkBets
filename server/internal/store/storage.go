@@ -46,6 +46,7 @@ type BetsRepository interface {
 	CreateBet(ctx context.Context, betSlip *bets.BetSlip, user *User) error
 	FetchUserBets(ctx context.Context, userId string, status []string, limit int, offset int) ([]BetResponse, error)
 	SettleDivisionBets(ctx context.Context, settlement BetSettlement) error
+	PublishDivisionResult(ctx context.Context, params DivisionResultParams, userID uuid.UUID) (int64, error)
 }
 
 type TransactionsRepository interface {
@@ -56,6 +57,14 @@ type DemoRepository interface {
 	Create(ctx context.Context) (*User, error)
 	Reset(ctx context.Context, userID string) error
 	Settle(ctx context.Context, userID string) (*DemoSettlement, error)
+	SettleScenario(ctx context.Context, userID, mode string) (*DemoSettlement, error)
+	Wallet(ctx context.Context, userID string) ([]WalletTransaction, error)
+	Transfer(ctx context.Context, userID, key, kind string, amount float64) (*WalletTransaction, error)
+	CreateSandboxShow(ctx context.Context, userID string, input SandboxShowInput) (int64, error)
+	EditSandbox(ctx context.Context, userID string, showID int64, input SandboxEdit) error
+	PreviewSandbox(ctx context.Context, userID string, showID int64, mode string) (*SettlementPreview, error)
+	RunSandbox(ctx context.Context, userID string, showID int64, mode string) error
+	Maintain(ctx context.Context) error
 }
 
 type Storage struct {

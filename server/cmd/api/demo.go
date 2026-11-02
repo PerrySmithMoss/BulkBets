@@ -41,7 +41,11 @@ func (app *application) resetDemoHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (app *application) settleDemoHandler(w http.ResponseWriter, r *http.Request) {
-	result, err := app.store.DemoRepository.Settle(r.Context(), r.Context().Value(userCtx).(string))
+	mode := r.URL.Query().Get("mode")
+	if mode == "" {
+		mode = "favourite"
+	}
+	result, err := app.store.DemoRepository.SettleScenario(r.Context(), r.Context().Value(userCtx).(string), mode)
 	if err != nil {
 		app.demoError(w, r, err)
 		return
@@ -50,6 +54,22 @@ func (app *application) settleDemoHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (app *application) demoError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, store.ErrInvalidInput) {
+		writeJSONError(w, 400, "Use a valid amount, name, price or simulation option.")
+		return
+	}
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSONError(w, 404, "This private event could not be found.")
+		return
+	}
+	if errors.Is(err, store.ErrConflict) {
+		writeJSONError(w, 409, "This operation conflicts with a previous request or the event has already started.")
+		return
+	}
+	if errors.Is(err, store.ErrInsufficientFunds) {
+		writeJSONError(w, 409, "Insufficient virtual balance, or the £1,000,000 wallet limit would be exceeded.")
+		return
+	}
 	if errors.Is(err, store.ErrDemoOnly) {
 		writeJSONError(w, http.StatusForbidden, err.Error())
 		return

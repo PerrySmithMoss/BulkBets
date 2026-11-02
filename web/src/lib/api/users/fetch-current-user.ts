@@ -1,5 +1,7 @@
 "use server";
 
+import { getApiOrigin } from "@/lib/api/origin";
+
 import { unstable_rethrow } from "next/navigation";
 
 import { formatCookieHeader, getAuthCookies } from "@/lib/utils/cookies";
@@ -13,14 +15,14 @@ export const fetchCurrentUser = async () => {
     const cookieHeader = formatCookieHeader(authCookies);
 
     const { data, error } = await tryFetcher<User>(
-      fetch(`${process.env.API_URL ?? "http://localhost:8080"}/api/v1/users/me`, {
+      fetch(`${getApiOrigin()}/api/v1/users/me`, {
         method: "GET",
         cache: "no-store",
         credentials: "include",
         headers: {
           Cookie: cookieHeader,
         },
-      })
+      }),
     );
 
     if (error) {

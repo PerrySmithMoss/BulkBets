@@ -2,6 +2,7 @@ package bets
 
 import (
 	"fmt"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/currency"
 	"math"
 )
 
@@ -66,7 +67,7 @@ func IsValidAccumulatorBet(betSlip BetSlip) error {
 // Reject invalid monetary inputs before any balance calculation or database write.
 func ValidateAmounts(slip BetSlip) error {
 	valid := func(value *float64) bool {
-		return value == nil || (!math.IsNaN(*value) && !math.IsInf(*value, 0) && *value >= 0 && *value <= 999999.99 && math.Abs(*value*100-math.Round(*value*100)) < 0.000001)
+		return value == nil || (!math.IsNaN(*value) && !math.IsInf(*value, 0) && *value >= 0 && *value <= 10000 && math.Abs(*value*100-math.Round(*value*100)) < 0.000001)
 	}
 	if !valid(slip.StakeMultiplier) {
 		return fmt.Errorf("enter a valid stake with at most two decimal places")
@@ -98,7 +99,7 @@ func CalculateTotalBetsAmount(bets []ActiveBet) float64 {
 		}
 	}
 
-	return totalBetsAmount
+	return currency.RoundCurrency(totalBetsAmount)
 }
 
 func CalculateTotalStake(betSlip BetSlip) float64 {
@@ -107,7 +108,7 @@ func CalculateTotalStake(betSlip BetSlip) float64 {
 		multiplier = *betSlip.StakeMultiplier
 	}
 
-	return CalculateTotalBetsAmount(betSlip.ActiveBets) + multiplier
+	return currency.RoundCurrency(CalculateTotalBetsAmount(betSlip.ActiveBets) + multiplier)
 }
 
 func CalculateTotalDecimalOdds(odds []float64) (float64, error) {
@@ -115,15 +116,13 @@ func CalculateTotalDecimalOdds(odds []float64) (float64, error) {
 		return 0, fmt.Errorf("no odds provided")
 	}
 
-	totalOdds := 1.0
 	for _, currOdds := range odds {
 		if currOdds <= 0 {
 			return 0, fmt.Errorf("invalid odds: %v (must be positive)", currOdds)
 		}
-		totalOdds *= currOdds
 	}
 
-	totalOdds = math.Round(totalOdds*100) / 100
+	totalOdds := currency.MultiplyAndRound(odds...)
 
 	return totalOdds, nil
 }
@@ -150,8 +149,7 @@ func CalculateBetPotentialPayout(bet ActiveBet) float64 {
 	if bet.Amount == nil { // Check if Amount is nil to avoid dereferencing nil
 		return 0 // Return 0 if Amount is nil
 	}
-	potentialReturn := *bet.Amount * bet.Odds    // Dereference bet.Amount to get the float64 value
-	return math.Round(potentialReturn*100) / 100 // Round to two decimal places
+	return currency.MultiplyAndRound(*bet.Amount, bet.Odds)
 }
 
 func CalculateSingularBetsTotalReturn(bets []ActiveBet) float64 {
@@ -161,7 +159,7 @@ func CalculateSingularBetsTotalReturn(bets []ActiveBet) float64 {
 			continue
 		}
 		if bet.Amount != nil { // Check if Amount is not nil
-			totalReturn += *bet.Amount * bet.Odds // Dereference Amount to get the float64 value
+			totalReturn += currency.MultiplyAndRound(*bet.Amount, bet.Odds)
 		}
 	}
 	return math.Round(totalReturn*100) / 100 // Round to two decimal places
@@ -183,9 +181,7 @@ func CalculateAccumulatorBetTotalReturn(betSlip BetSlip) (float64, error) {
 		multiplier = *betSlip.StakeMultiplier
 	}
 
-	totalReturn := multiplier * totalOdds
-
-	return math.Round(totalReturn*100) / 100, nil // Round to two decimal places
+	return currency.MultiplyAndRound(multiplier, totalOdds), nil
 }
 
 type BetSlipTotals struct {

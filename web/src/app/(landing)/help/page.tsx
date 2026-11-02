@@ -11,8 +11,8 @@ export default function Page() {
           </h2>
           <p className="mt-3 leading-7">
             Choose Try demo to start with £1,000 in virtual funds. No
-            registration is required. Deposits, withdrawals and real-money
-            betting are not available. Your demo is saved in this browser
+            registration is required. Deposits and withdrawals use virtual pounds only;
+            real-money betting is not available. Your demo is saved in this browser
             session.
           </p>
         </section>
@@ -37,7 +37,7 @@ export default function Page() {
           <p className="mt-3 leading-7">
             Demo markets replay historical shows and stay playable regardless of
             the original event date. Simulate results settles only your pending
-            bets. Reset my demo clears your bets and restores your virtual
+            bets. Use the wallet to deposit or withdraw virtual funds, or the event studio to run private shows with automatic payouts. You can replay favourites winning, outsiders winning, or cancellations with refunds. Reset my demo clears your bets, studio events and receipts and restores your virtual
             balance to £1,000.{" "}
             <Link href="/how-it-works" className="text-primary underline">
               Read how odds and selections work

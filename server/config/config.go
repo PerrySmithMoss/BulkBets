@@ -1,6 +1,10 @@
 package config
 
 import (
+	"fmt"
+	"net"
+	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/PerrySmithMoss/BulkBets/server/internal/env"
@@ -23,6 +27,7 @@ type AppConfig struct {
 	AppPort      string
 	AppHost      string
 	AppClientUrl string
+	TrustEdge    bool
 }
 
 type CorsConfig struct {
@@ -91,6 +96,7 @@ func GetConfig() Config {
 
 func initConfig() Config {
 	appConfig := AppConfig{
+		TrustEdge:    env.GetEnvAsBool("TRUST_EDGE", false),
 		AppEnv:       env.GetEnv("APP_ENV", DefaultAppEnv),
 		AppHost:      env.GetEnv("APP_HOST", DefaultAppHost),
 		AppPort:      env.GetEnv("APP_PORT", DefaultAppPort),
@@ -113,8 +119,8 @@ func initConfig() Config {
 			DBSslMode:            env.GetEnv("DB_SSL_ENABLED", "disable"),
 		},
 		Cors: CorsConfig{
-			AllowedOrigins:   env.GetEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
-			AllowedMethods:   env.GetEnvAsSlice("CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+			AllowedOrigins:   env.GetEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8081", "http://127.0.0.1:8081"}),
+			AllowedMethods:   env.GetEnvAsSlice("CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}),
 			AllowedHeaders:   env.GetEnvAsSlice("CORS_ALLOWED_HEADERS", []string{"Accept", "Authorization", "Content-Type"}),
 			AllowCredentials: env.GetEnvAsBool("CORS_ALLOW_CREDENTIALS", true),
 		},
@@ -149,4 +155,38 @@ func generateIssuer(appConfig AppConfig) string {
 		return "https://" + appConfig.AppHost
 	}
 	return "http://" + appConfig.AppHost + ":" + appConfig.AppPort
+}
+
+func (c Config) Validate() error {
+	if c.App.AppEnv != "production" {
+		return nil
+	}
+	for name, value := range map[string]string{"ACCESS_TOKEN_SECRET": c.Auth.Token.AccessToken.Secret, "REFRESH_TOKEN_SECRET": c.Auth.Token.RefreshToken.Secret} {
+		if len(value) < 32 || strings.Contains(value, "change-for-production") || strings.Contains(value, "replace-with") || value == DefaultTokenSecret {
+			return fmt.Errorf("%s must be a unique random secret of at least 32 characters", name)
+		}
+	}
+	if c.Auth.Token.AccessToken.Secret == c.Auth.Token.RefreshToken.Secret {
+		return fmt.Errorf("access and refresh secrets must differ")
+	}
+	if c.DB.DBPassword == DefaultDBPassword || strings.Contains(c.DB.DBPassword, "replace-with") || len(c.DB.DBPassword) < 16 {
+		return fmt.Errorf("a production database password of at least 16 characters is required")
+	}
+	u, err := url.Parse(c.App.AppClientUrl)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.Path != "" || u.RawQuery != "" {
+		return fmt.Errorf("APP_CLIENT_URL must be an HTTPS origin")
+	}
+	if c.App.AppHost == "localhost" || c.App.AppHost == "" {
+		return fmt.Errorf("APP_HOST must be the public hostname")
+	}
+	return nil
+}
+
+// ConnectionString is shared by the API and one-off Swarm migration jobs.
+func (c DBConfig) ConnectionString() string {
+	u := url.URL{Scheme: "postgres", User: url.UserPassword(c.DBUser, c.DBPassword), Host: net.JoinHostPort(c.DBHost, c.DBPort), Path: c.DBName}
+	query := u.Query()
+	query.Set("sslmode", c.DBSslMode)
+	u.RawQuery = query.Encode()
+	return u.String()
 }

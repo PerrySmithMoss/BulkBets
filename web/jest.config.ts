@@ -12,6 +12,7 @@ const createJestConfig = nextJest({
 });
 
 const config: Config = {
+ modulePathIgnorePatterns:["<rootDir>/.next/"],
   testMatch: ["<rootDir>/src/**/*.test.ts", "<rootDir>/src/**/*.test.tsx"],
   // All imported modules in your tests should be mocked automatically
   // automock: false,

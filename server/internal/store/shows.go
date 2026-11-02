@@ -10,14 +10,16 @@ import (
 )
 
 type Show struct {
-	ID          int64     `json:"id"`
-	Name        string    `json:"name"`
-	Description *string   `json:"description"`
-	Location    *string   `json:"location"`
-	IsTwoDay    bool      `json:"is_two_day_show"`
-	StartTime   time.Time `json:"start_time"`
-	EndTime     time.Time `json:"end_time"`
-	Status      string    `json:"status"`
+	Sandbox     bool       `json:"sandbox"`
+	SettleAt    *time.Time `json:"settle_at,omitempty"`
+	ID          int64      `json:"id"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description"`
+	Location    *string    `json:"location"`
+	IsTwoDay    bool       `json:"is_two_day_show"`
+	StartTime   time.Time  `json:"start_time"`
+	EndTime     time.Time  `json:"end_time"`
+	Status      string     `json:"status"`
 }
 
 // Response structure
@@ -41,11 +43,11 @@ func (s *ShowsStore) GetShowByID(ctx context.Context, showId int) (*ShowDetails,
 	competitors := make(map[int64][]Competitor)
 
 	// Query: Fetch Show details
-	showQuery := `SELECT id, name, description, location, is_two_day_show, start_time, end_time, status 
-                    FROM shows WHERE id = $1`
-	err := s.db.QueryRow(showQuery, showId).Scan(
+	showQuery := `SELECT id, name, description, location, is_two_day_show, start_time, end_time, status, (owner_id IS NOT NULL), settle_at
+                    FROM shows WHERE id = $1 AND (owner_id IS NULL OR owner_id=$2)`
+	err := s.db.QueryRowContext(ctx, showQuery, showId, viewerID(ctx)).Scan(
 		&show.ID, &show.Name, &show.Description, &show.Location,
-		&show.IsTwoDay, &show.StartTime, &show.EndTime, &show.Status,
+		&show.IsTwoDay, &show.StartTime, &show.EndTime, &show.Status, &show.Sandbox, &show.SettleAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -158,9 +160,9 @@ func (s *ShowsStore) GetShowByID(ctx context.Context, showId int) (*ShowDetails,
 
 // ListShows returns the next scheduled shows followed by the most recent archive.
 func (s *ShowsStore) ListShows(ctx context.Context) ([]Show, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, description, location, is_two_day_show, start_time, end_time, status FROM shows
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, description, location, is_two_day_show, start_time, end_time, status,(owner_id IS NOT NULL),settle_at FROM shows WHERE owner_id IS NULL OR owner_id=$1
  ORDER BY CASE WHEN end_time > NOW() AND status IN ('upcoming', 'ongoing') THEN 0 ELSE 1 END,
- CASE WHEN end_time > NOW() AND status IN ('upcoming', 'ongoing') THEN start_time END ASC, start_time DESC LIMIT 20`)
+ CASE WHEN end_time > NOW() AND status IN ('upcoming', 'ongoing') THEN start_time END ASC, start_time DESC LIMIT 30`, viewerID(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +170,7 @@ func (s *ShowsStore) ListShows(ctx context.Context) ([]Show, error) {
 	shows := make([]Show, 0)
 	for rows.Next() {
 		var show Show
-		if err := rows.Scan(&show.ID, &show.Name, &show.Description, &show.Location, &show.IsTwoDay, &show.StartTime, &show.EndTime, &show.Status); err != nil {
+		if err := rows.Scan(&show.ID, &show.Name, &show.Description, &show.Location, &show.IsTwoDay, &show.StartTime, &show.EndTime, &show.Status, &show.Sandbox, &show.SettleAt); err != nil {
 			return nil, err
 		}
 		shows = append(shows, show)

@@ -26,11 +26,13 @@ test("registration creates a persisted account and preserves a guest selection",
     page.getByRole("button", { name: "Account menu" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Place bet", exact: true }),
+    page.getByRole("button", { name: "Place demo bet", exact: true }),
   ).toBeVisible();
   const me = await (await page.request.get("/api/v1/users/me")).json();
   expect(me.data.email).toBe(email);
-  expect(me.data.balance).toBe(0);
+  expect(me.data.balance).toBe(1000);
+  expect(me.data.is_demo).toBe(true);
+  expect(me.data.is_guest).toBe(false);
   const duplicate = await request.post("/api/v1/auth/register", {
     data: {
       first_name: "Demo",

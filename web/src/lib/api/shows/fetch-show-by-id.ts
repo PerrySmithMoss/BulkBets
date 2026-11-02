@@ -1,5 +1,7 @@
 "use server";
 
+import { getApiOrigin } from "@/lib/api/origin";
+
 import { unstable_rethrow } from "next/navigation";
 
 import { formatCookieHeader, getAuthCookies } from "@/lib/utils/cookies";
@@ -13,23 +15,20 @@ export const fetchShowById = async (id: number) => {
     const cookieHeader = formatCookieHeader(authCookies);
 
     const { data, error } = await tryFetcher<ShowDetailsResponse>(
-      fetch(
-        `${process.env.API_URL ?? "http://localhost:8080"}/${API_ROUTES.SHOWS.BASE}/${id}`,
-        {
-          method: "GET",
-          cache: "no-store",
-          credentials: "include",
-          headers: {
-            Cookie: cookieHeader,
-          },
-        }
-      )
+      fetch(`${getApiOrigin()}/${API_ROUTES.SHOWS.BASE}/${id}`, {
+        method: "GET",
+        cache: "no-store",
+        credentials: "include",
+        headers: {
+          Cookie: cookieHeader,
+        },
+      }),
     );
 
     if (error) {
       console.error(
         `[fetchShowById] - error fetching show with id ${id}: `,
-        String(error)
+        String(error),
       );
       return { data: null, error: String(error) };
     }

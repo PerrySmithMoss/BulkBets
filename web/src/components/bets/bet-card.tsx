@@ -115,7 +115,12 @@ export const BetCard: React.FC<Props> = ({ bet, getBetsInAccumulator }) => {
           </div>
           <div className="font-medium">
             {formatCurrency(
-              bet.status === BetStatus.Lost ? 0 : bet.potential_payout || 0,
+              bet.status === BetStatus.Lost
+                ? 0
+                : bet.status === BetStatus.Void ||
+                    bet.status === BetStatus.Cancelled
+                  ? bet.amount
+                  : bet.potential_payout || 0,
             )}
           </div>
         </div>

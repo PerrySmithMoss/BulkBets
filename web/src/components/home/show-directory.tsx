@@ -21,9 +21,11 @@ type Details = ShowDetailsResponse["data"];
 export function ShowDirectory({
   shows: rawShows,
   asOf,
+  initialShowID,
 }: {
   shows: Details[];
   asOf: number;
+  initialShowID?: number;
 }) {
   const shows = rawShows.map((s) => ({
     ...s,
@@ -38,8 +40,9 @@ export function ShowDirectory({
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [showID, setShowID] = useState(
-    shows.find((s) => Object.values(s.competitors).some((c) => c.length))?.show
-      .id,
+    initialShowID ??
+      shows.find((s) => Object.values(s.competitors).some((c) => c.length))
+        ?.show.id,
   );
   const [divisionID, setDivisionID] = useState<number>();
   const term = query.trim().toLowerCase();
@@ -204,7 +207,9 @@ export function ShowDirectory({
                   {selected.show.name}
                 </h2>
                 <span className="shrink-0 rounded border px-2 py-1 text-[10px] font-medium text-muted-foreground">
-                  EVENT REPLAY
+                  {selected.show.sandbox
+                    ? selected.show.status.toUpperCase()
+                    : "EVENT REPLAY"}
                 </span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -282,7 +287,7 @@ export function ShowDirectory({
                       (b.odds?.[0]?.odds_value ?? Infinity),
                   )}
                   asOf={asOf}
-                  demo
+                  demo={!selected.show.sandbox}
                 />
               </>
             ) : (
@@ -290,6 +295,14 @@ export function ShowDirectory({
                 There are no divisions for this show yet. Choose another show to
                 explore its markets.
               </p>
+            )}
+            {selected.show.sandbox && (
+              <Link
+                href="/customer/sandbox"
+                className="block border-t px-4 py-3 text-xs text-primary underline"
+              >
+                Manage this private event and publish results
+              </Link>
             )}
             <div className="border-t bg-background/30 px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
               Sample line-ups and prices. Simulated results are separate from

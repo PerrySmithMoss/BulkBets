@@ -112,6 +112,7 @@ func (app *application) showDivisionResultHandler(w http.ResponseWriter, r *http
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 32768)
 	var showDivisionResults ShowDivisionResult
 	if err := json.NewDecoder(r.Body).Decode(&showDivisionResults); err != nil {
 		log.Printf("Error %v: ", err)
@@ -130,22 +131,17 @@ func (app *application) showDivisionResultHandler(w http.ResponseWriter, r *http
 		Comments:   showDivisionResults.Comments,
 		Results:    showDivisionResults.Results,
 	}
-	divisionResultID, err := app.store.DivisionRepository.CreateDivisionResult(ctx, divisionResultParams, user.Id)
+	_, err = app.store.BetsRepository.PublishDivisionResult(ctx, divisionResultParams, user.Id)
 	if err != nil {
-		log.Printf("Error creating division result: %v", err)
-		writeJSONError(w, http.StatusInternalServerError, "Could not create division result")
-		return
-	}
-
-	settlement := store.BetSettlement{
-		DivisionID:       divisionDetails.ID,
-		DivisionResultID: divisionResultID,
-		Outcomes:         divisionResultParams.Results,
-	}
-	err = app.store.BetsRepository.SettleDivisionBets(ctx, settlement)
-	if err != nil {
-		log.Printf("Error settling division bets: %v", err)
-		writeJSONError(w, http.StatusInternalServerError, "Could not settle bets")
+		if errors.Is(err, store.ErrInvalidInput) {
+			writeJSONError(w, 400, "Supply one valid outcome for every participant in this division.")
+			return
+		}
+		if errors.Is(err, store.ErrConflict) {
+			writeJSONError(w, 409, "Results are already finalised. Published results cannot be overwritten.")
+			return
+		}
+		app.internalServerError(w, r, err)
 		return
 	}
 

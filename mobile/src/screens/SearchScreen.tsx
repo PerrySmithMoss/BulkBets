@@ -1,24 +1,4 @@
-import { View, Text, StyleSheet } from "react-native";
-import { CompositeScreenProps } from "@react-navigation/native";
-import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
-
-import { MainTabParamList, RootStackParamList } from "../navigation/types";
-
-type Props = CompositeScreenProps<
-  BottomTabScreenProps<MainTabParamList, "Search">,
-  NativeStackScreenProps<RootStackParamList>
->;
-
-export default function SearchScreen({ navigation }: Props) {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Search Screen</Text>
-    </View>
-  );
+import { MarketsScreen } from "../portfolio";
+export default function Screen() {
+  return <MarketsScreen search />;
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center" },
-  title: { fontSize: 20, fontWeight: "bold" },
-});

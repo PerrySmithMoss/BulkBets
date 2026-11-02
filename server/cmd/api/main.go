@@ -1,10 +1,12 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"log"
-	"net"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
@@ -13,6 +15,7 @@ import (
 	"github.com/PerrySmithMoss/BulkBets/server/internal/auth"
 	"github.com/PerrySmithMoss/BulkBets/server/internal/auth/oauth"
 	"github.com/PerrySmithMoss/BulkBets/server/internal/db"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/env"
 	"github.com/PerrySmithMoss/BulkBets/server/internal/store"
 )
 
@@ -22,10 +25,15 @@ func main() {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 
+	if err := env.LoadSecretFiles("DB_PASSWORD", "ACCESS_TOKEN_SECRET", "REFRESH_TOKEN_SECRET", "SMTP_PASSWORD", "GOOGLE_CLIENT_SECRET"); err != nil {
+		log.Fatal(err)
+	}
 	cfg := config.GetConfig()
+	if err := cfg.Validate(); err != nil {
+		log.Fatal(err)
+	}
 
-	postgresqlDbAddr := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s",
-		cfg.DB.DBUser, cfg.DB.DBPassword, net.JoinHostPort(cfg.DB.DBHost, cfg.DB.DBPort), cfg.DB.DBName, cfg.DB.DBSslMode)
+	postgresqlDbAddr := cfg.DB.ConnectionString()
 
 	db, err := db.New(
 		postgresqlDbAddr,
@@ -75,7 +83,29 @@ func main() {
 		oauth:         oauth,
 		cors:          corsHandler,
 	}
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	app.ctx = ctx
+	app.ping = db.PingContext
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				workCtx, stop := context.WithTimeout(ctx, 30*time.Second)
+				if err := store.DemoRepository.Maintain(workCtx); err != nil && ctx.Err() == nil {
+					log.Printf("portfolio maintenance failed: %v", err)
+				}
+				stop()
+			}
+		}
+	}()
 	hdl := app.mount()
 
-	log.Fatal(app.run(hdl))
+	if err := app.run(hdl); err != nil {
+		log.Print(err)
+	}
 }

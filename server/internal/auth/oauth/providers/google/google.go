@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -72,7 +73,12 @@ func (p *Provider) FetchUser(accessToken string) (types.OAuthUser, error) {
 		return user, fmt.Errorf("%s cannot get user information without accessToken", p.providerName)
 	}
 
-	response, err := http.Get(userInfoEndpoint + "?access_token=" + accessToken)
+	req, err := http.NewRequest(http.MethodGet, userInfoEndpoint, nil)
+	if err != nil {
+		return user, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	response, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
 		return user, err
 	}
@@ -82,7 +88,7 @@ func (p *Provider) FetchUser(accessToken string) (types.OAuthUser, error) {
 		return user, fmt.Errorf("%s responded with a %d trying to fetch user information", p.providerName, response.StatusCode)
 	}
 
-	responseBytes, err := io.ReadAll(response.Body)
+	responseBytes, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 	if err != nil {
 		return user, err
 	}

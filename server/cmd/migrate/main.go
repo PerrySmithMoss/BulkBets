@@ -13,18 +13,27 @@ import (
 	"github.com/pressly/goose/v3"
 
 	_ "github.com/PerrySmithMoss/BulkBets/server/cmd/migrate/migrations"
+	"github.com/PerrySmithMoss/BulkBets/server/config"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/env"
 	migrationService "github.com/PerrySmithMoss/BulkBets/server/internal/migrations"
 )
 
 func main() {
-	err := godotenv.Load("../../.env")
-	if err != nil && !os.IsNotExist(err) {
-		log.Fatalf("Error loading .env file: %v", err)
+	// Explicit connection settings take precedence over local dotenv files.
+	if os.Getenv("DB_ADDR") == "" && os.Getenv("DB_HOST") == "" {
+		if err := godotenv.Load("../../.env"); err != nil && !os.IsNotExist(err) {
+			log.Fatalf("Error loading .env file: %v", err)
+		}
 	}
-
+	if err := env.LoadSecretFiles("DB_PASSWORD", "ADMIN_USER_PASSWORD"); err != nil {
+		log.Fatal(err)
+	}
 	dbURL := os.Getenv("DB_ADDR")
 	if dbURL == "" {
-		log.Fatal("DB_ADDR is not set")
+		if os.Getenv("DB_HOST") == "" {
+			log.Fatal("Set DB_ADDR or DB_HOST with DB_USER, DB_NAME and DB_PASSWORD(_FILE)")
+		}
+		dbURL = config.GetConfig().DB.ConnectionString()
 	}
 
 	action := flag.String("action", "up", "Migration action (up, down, reset, status, to, seed)")

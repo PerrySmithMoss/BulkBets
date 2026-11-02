@@ -1,17 +1,18 @@
+import { getApiOrigin } from "@/lib/api/origin";
 import { NextResponse, NextRequest } from "next/server";
 import { API_ROUTES } from "./lib/api/constants";
 
 async function refreshTokens(refreshToken: string) {
   try {
     const response = await fetch(
-      `${process.env.API_URL ?? "http://localhost:8080"}/${API_ROUTES.AUTH.REFRESH_TOKENS}`,
+      `${getApiOrigin()}/${API_ROUTES.AUTH.REFRESH_TOKENS}`,
       {
         method: "GET",
         headers: {
           Cookie: `refresh_token=${refreshToken}`,
         },
         credentials: "include",
-      }
+      },
     );
 
     if (!response.ok) {
@@ -59,13 +60,21 @@ export default async function proxy(req: NextRequest) {
 
     // Clone the request to modify headers
     const requestHeaders = new Headers(req.headers);
-    const requestCookies = new Map(req.cookies.getAll().map(({ name, value }) => [name, value]));
+    const requestCookies = new Map(
+      req.cookies.getAll().map(({ name, value }) => [name, value]),
+    );
     for (const cookie of newCookies) {
       const pair = cookie.split(";", 1)[0];
       const separator = pair.indexOf("=");
-      if (separator > 0) requestCookies.set(pair.slice(0, separator), pair.slice(separator + 1));
+      if (separator > 0)
+        requestCookies.set(pair.slice(0, separator), pair.slice(separator + 1));
     }
-    requestHeaders.set("Cookie", Array.from(requestCookies, ([name, value]) => `${name}=${value}`).join("; "));
+    requestHeaders.set(
+      "Cookie",
+      Array.from(requestCookies, ([name, value]) => `${name}=${value}`).join(
+        "; ",
+      ),
+    );
 
     // Create response with the modified request and attach cookies for the client
     const response = NextResponse.next({

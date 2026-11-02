@@ -1,7 +1,7 @@
 # Used on its own; never reads or deletes the development database volume.
 services:
   db:
-    image: postgres:18.6
+    image: ${BULKBETS_TEST_POSTGRES_IMAGE:-postgres:18.6}
     environment:
       POSTGRES_DB: bulk_bets
       POSTGRES_USER: admin
@@ -38,6 +38,17 @@ services:
     ports:
       - "127.0.0.1:18025:8025"
 
+  store-tests:
+    build:
+      context: ./server
+      target: build
+    command: ["go", "test", "-race", "./internal/store", "-run", "TestIntegration", "-v"]
+    environment:
+      BULKBETS_TEST_DSN: postgres://admin:e2e-password@db:5432/bulk_bets?sslmode=disable
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+
   api:
     build: ./server
     environment:
@@ -46,13 +57,13 @@ services:
       DB_HOST: db
       DB_PASSWORD: e2e-password
       APP_CLIENT_URL: http://127.0.0.1:3100
-      CORS_ALLOWED_ORIGINS: http://127.0.0.1:3100
+      CORS_ALLOWED_ORIGINS: http://127.0.0.1:3100,http://127.0.0.1:3101
       ACCESS_TOKEN_SECRET: e2e-access-secret
       REFRESH_TOKEN_SECRET: e2e-refresh-secret
     ports:
       - "127.0.0.1:18080:8080"
     depends_on:
-      seed:
+      store-tests:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/api/v1/health"]

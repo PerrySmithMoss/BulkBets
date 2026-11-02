@@ -43,7 +43,7 @@ export function CompetitorTable({
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  const replay = demo && (!user || user.is_demo);
+  const replay = demo && !show.sandbox && (!user || user.is_demo);
   const open = replay || isMarketOpen(show, division, now);
   function handleSelection(competitor: Competitor) {
     // eslint-disable-next-line react-hooks/purity -- Recheck the clock when the user clicks, not during rendering.

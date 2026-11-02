@@ -32,10 +32,15 @@ export default function Page() {
           over.
         </p>
       </div>
+      <p className="mt-4 text-xs text-muted-foreground">
+        <Link href="/privacy" className="text-primary underline">
+          How your account and demo data are stored
+        </Link>
+      </p>
       <RegisterUserForm className="mt-8" />
       <p className="mt-6 text-sm leading-6 text-muted-foreground">
-        Accounts start with a £0 balance. Deposits and withdrawals are not
-        available in this preview.{" "}
+        Accounts start with £1,000 in virtual funds. Demo deposits, withdrawals,
+        betting and simulated results are included. No real money is used.{" "}
         <Link href="/help" className="text-primary hover:underline">
           About the preview
         </Link>

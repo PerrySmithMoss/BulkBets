@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,6 +18,8 @@ import (
 )
 
 type application struct {
+	ctx           context.Context
+	ping          func(context.Context) error
 	cfg           config.Config
 	store         store.Storage
 	authenticator *auth.TokenAuthenticator
@@ -28,8 +31,8 @@ func (app *application) mount() http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
+	r.Use(app.browserSecurity)
+	r.Use(safeRequestLog)
 	r.Use(middleware.Recoverer)
 
 	// Set a timeout value on the request context (ctx), that will signal
@@ -41,10 +44,10 @@ func (app *application) mount() http.Handler {
 		r.Get("/health", app.healthCheckHandler)
 
 		r.Route("/auth", func(r chi.Router) {
-			r.Post("/login", app.loginUserHandler)
-			r.With(middleware.Throttle(8)).Post("/register", app.registerUserHandler)
-			r.With(middleware.Throttle(8)).Post("/forgot-password", app.forgotPasswordHandler)
-			r.With(middleware.Throttle(8)).Post("/reset-password", app.resetPasswordHandler)
+			r.With(middleware.Throttle(8), requestLimit(60, 10*time.Minute)).Post("/login", app.loginUserHandler)
+			r.With(middleware.Throttle(8), requestLimit(60, 10*time.Minute)).Post("/register", app.registerUserHandler)
+			r.With(middleware.Throttle(8), requestLimit(60, 10*time.Minute)).Post("/forgot-password", app.forgotPasswordHandler)
+			r.With(middleware.Throttle(8), requestLimit(60, 10*time.Minute)).Post("/reset-password", app.resetPasswordHandler)
 
 			r.Group(func(r chi.Router) {
 				r.Use(app.DeserialiseUserMiddleware)
@@ -54,8 +57,9 @@ func (app *application) mount() http.Handler {
 		})
 
 		r.Route("/demo", func(r chi.Router) {
+			r.Use(requestLimit(180, time.Minute))
 			r.Use(app.DeserialiseUserMiddleware)
-			r.With(middleware.Throttle(8)).Post("/start", app.startDemoHandler)
+			r.With(middleware.Throttle(8), requestLimit(60, 10*time.Minute)).Post("/start", app.startDemoHandler)
 			r.With(app.RequireUserMiddleware).Post("/reset", app.resetDemoHandler)
 			r.With(app.RequireUserMiddleware).Post("/settle", app.settleDemoHandler)
 		})
@@ -72,20 +76,32 @@ func (app *application) mount() http.Handler {
 		})
 
 		r.Route("/shows", func(r chi.Router) {
+			r.Use(app.DeserialiseUserMiddleware)
 			r.Get("/", app.showsHandler)
 			// TODO: maybe add middleware so these routes require api key/token?
 			// That we we could monetise the API as well as using it for the platform itself.
 
 			r.Get("/{id}", app.showDetailsHandler)
 
-			r.With(app.DeserialiseUserMiddleware, app.RequirePermissionMiddleware(store.ResourceBettingResults, store.ActionWrite)).
+			r.With(app.RequirePermissionMiddleware(store.ResourceBettingResults, store.ActionWrite)).
 				Post("/{show_id}/divisions/{division_id}/result", app.showDivisionResultHandler)
 		})
 
+		r.Route("/wallet", func(r chi.Router) {
+			r.Use(app.DeserialiseUserMiddleware, app.RequireUserMiddleware)
+			r.Get("/", app.walletHandler)
+			r.With(requestLimit(120, time.Minute)).Post("/transfer", app.transferHandler)
+		})
+		r.Route("/sandbox", func(r chi.Router) {
+			r.Use(app.DeserialiseUserMiddleware, app.RequireUserMiddleware, requestLimit(180, time.Minute))
+			r.Post("/shows", app.createSandboxHandler)
+			r.Patch("/shows/{id}", app.editSandboxHandler)
+			r.Post("/shows/{id}/{action}", app.runSandboxHandler)
+		})
 		r.Route("/bets", func(r chi.Router) {
 			r.Use(app.DeserialiseUserMiddleware)
 			r.Use(app.RequireUserMiddleware)
-			r.Post("/", app.createBetHandler)
+			r.With(requestLimit(120, time.Minute)).Post("/", app.createBetHandler)
 			r.Get("/", app.getBetsHandler)
 		})
 	})
@@ -106,5 +122,19 @@ func (app *application) run(hdl http.Handler) error {
 
 	log.Printf("Server listening on %s:%s\n", app.cfg.App.AppHost, app.cfg.App.AppPort)
 
-	return srv.ListenAndServe()
+	if app.ctx != nil {
+		go func() {
+			<-app.ctx.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := srv.Shutdown(ctx); err != nil {
+				log.Printf("HTTP shutdown: %v", err)
+			}
+		}()
+	}
+	err := srv.ListenAndServe()
+	if err == http.ErrServerClosed {
+		return nil
+	}
+	return err
 }

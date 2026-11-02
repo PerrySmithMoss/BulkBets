@@ -1,19 +1,14 @@
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import RootNavigator from "./src/navigation/RootNavigator";
-import { StyleSheet, View } from "react-native";
-
+import { PortfolioProvider } from "./src/portfolio";
 export default function App() {
   return (
-    <View style={styles.container}>
-      <RootNavigator />
-      <StatusBar style="light" />
-    </View>
+    <SafeAreaProvider>
+      <PortfolioProvider>
+        <RootNavigator />
+        <StatusBar style="light" />
+      </PortfolioProvider>
+    </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#212121",
-  },
-});

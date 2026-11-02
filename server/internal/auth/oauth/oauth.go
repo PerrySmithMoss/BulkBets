@@ -26,7 +26,7 @@ func InitOAuthConfigs(cfg config.Config) OAuthConfigs {
 		"google": {
 			ClientID:     cfg.Auth.OAuth.GoogleClientID,
 			ClientSecret: cfg.Auth.OAuth.GoogleClientSecret,
-			RedirectURL:  "http://localhost:8080/api/v1/oauth2/google/callback",
+			RedirectURL:  cfg.App.AppClientUrl + "/api/v1/oauth2/google/callback",
 			Endpoint:     google.Endpoint,
 			Scopes:       []string{"https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"},
 		},

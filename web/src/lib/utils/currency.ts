@@ -45,7 +45,7 @@ export const formatInputAsCurrency = (value: string | number): string => {
 export const formatCurrency = (
   value: number,
   locale: Intl.LocalesArgument = "en-GB",
-  currency: Intl.NumberFormatOptions["currency"] = "GBP"
+  currency: Intl.NumberFormatOptions["currency"] = "GBP",
 ): string => {
   return new Intl.NumberFormat(locale, {
     style: "currency",
@@ -83,3 +83,18 @@ export const isValidNumber = (input: string): boolean => {
   const trimmedInput = input.trim();
   return trimmedInput !== "" && !isNaN(Number(trimmedInput));
 };
+
+// Stakes and prices arrive with two decimal places. Keep their product exact and
+// round half pennies up once, matching the API's decimal calculation.
+export function multiplyMoney(...values: number[]): number {
+  let numerator = BigInt(1),
+    denominator = BigInt(1);
+  for (const value of values) {
+    if (!Number.isFinite(value) || value < 0) return 0;
+    numerator *= BigInt(Math.round(value * 100));
+    denominator *= BigInt(100);
+  }
+  const cents =
+    (numerator * BigInt(100) + denominator / BigInt(2)) / denominator;
+  return Number(cents) / 100;
+}

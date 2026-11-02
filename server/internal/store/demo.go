@@ -4,14 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"math"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 var ErrDemoOnly = errors.New("this action requires a demo session")
 
-type DemoStore struct{ db *sql.DB }
+type DemoStore struct {
+	db            *sql.DB
+	maintenanceMu sync.Mutex
+	lastCleanup   time.Time
+}
 
 type DemoSettlement struct {
 	SettledBets int     `json:"settled_bets"`
@@ -50,10 +55,19 @@ func (s *DemoStore) Reset(ctx context.Context, userID string) error {
 		if err := lockDemo(ctx, tx, userID); err != nil {
 			return err
 		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM wallet_requests WHERE user_id=$1`, userID); err != nil {
+			return err
+		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM transactions WHERE user_id = $1`, userID); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM bets WHERE user_id = $1`, userID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM shows WHERE owner_id=$1`, userID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM athletes WHERE meta_data->>'sandbox_owner'=$1 AND NOT EXISTS (SELECT 1 FROM division_participants WHERE athlete_id=athletes.id)`, userID); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `UPDATE user_balances SET balance = 1000, version = version + 1 WHERE user_id = $1`, userID)
@@ -61,82 +75,26 @@ func (s *DemoStore) Reset(ctx context.Context, userID string) error {
 	})
 }
 
-// Each replay uses the lowest-priced athlete as its simulated winner. Only this
-// visitor's pending bets change; official results and other visitors are untouched.
-// The user lock also makes repeated/concurrent settlement requests idempotent.
+// Shared historical replays remain repeatable; sandbox events have their own lifecycle.
 func (s *DemoStore) Settle(ctx context.Context, userID string) (*DemoSettlement, error) {
-	result := &DemoSettlement{}
+	return s.SettleScenario(ctx, userID, "favourite")
+}
+
+func (s *DemoStore) SettleScenario(ctx context.Context, userID, mode string) (*DemoSettlement, error) {
+	if !validMode(mode) {
+		return nil, ErrInvalidInput
+	}
+	var result *DemoSettlement
 	err := withTx(s.db, ctx, func(tx *sql.Tx) error {
 		if err := lockDemo(ctx, tx, userID); err != nil {
 			return err
 		}
-		queries := []string{
-			`WITH winners AS (
-                SELECT DISTINCT ON (p.division_id) p.division_id, p.id
-                FROM division_participants p
-                JOIN odds o ON o.division_participant_id = p.id
-                JOIN bet_types bt ON bt.id = o.bet_type_id AND bt.name = 'win'
-                WHERE p.status IN ('registered', 'active', 'fulfilled') AND o.odds_value > 1
-                ORDER BY p.division_id, o.odds_value, p.id
-            )
-            UPDATE bets b SET status = CASE WHEN b.division_participant_id IN (SELECT id FROM winners)
-                THEN 'won'::bet_status ELSE 'lost'::bet_status END, settled_at = NOW()
-            WHERE b.user_id = $1 AND b.status = 'pending' AND b.division_participant_id IS NOT NULL
-            RETURNING b.id, COALESCE(b.amount, 0), COALESCE(b.potential_payout, 0), b.status, b.currency_code`,
-			`UPDATE bets b SET status = CASE WHEN NOT EXISTS (
-                SELECT 1 FROM accumulator_bet_components ac JOIN bets component ON component.id = ac.singular_bet_id
-                WHERE ac.accumulator_bet_id = b.id AND component.status != 'won'
-            ) THEN 'won'::bet_status ELSE 'lost'::bet_status END, settled_at = NOW()
-            WHERE b.user_id = $1 AND b.status = 'pending' AND b.division_participant_id IS NULL
-            AND EXISTS (SELECT 1 FROM accumulator_bet_components ac WHERE ac.accumulator_bet_id = b.id)
-            RETURNING b.id, COALESCE(b.amount, 0), COALESCE(b.potential_payout, 0), b.status, b.currency_code`,
+		divisions, winners, err := simulationSelections(ctx, tx, userID, 0, mode)
+		if err != nil {
+			return err
 		}
-		type settledBet struct {
-			id, status, currency string
-			amount, payout       float64
-		}
-		var settled []settledBet
-		for _, query := range queries {
-			rows, err := tx.QueryContext(ctx, query, userID)
-			if err != nil {
-				return err
-			}
-			for rows.Next() {
-				var bet settledBet
-				if err := rows.Scan(&bet.id, &bet.amount, &bet.payout, &bet.status, &bet.currency); err != nil {
-					rows.Close()
-					return err
-				}
-				settled = append(settled, bet)
-			}
-			err = rows.Err()
-			rows.Close()
-			if err != nil {
-				return err
-			}
-		}
-		for _, bet := range settled {
-			if bet.amount <= 0 {
-				continue
-			}
-			result.SettledBets++
-			if bet.status != "won" {
-				continue
-			}
-			var before, after float64
-			if err := tx.QueryRowContext(ctx, `UPDATE user_balances SET balance = balance + $1, version = version + 1
-                WHERE user_id = $2 RETURNING balance - $1, balance`, bet.payout, userID).Scan(&before, &after); err != nil {
-				return err
-			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO transactions
-                (user_id, amount, currency_code, balance_before, balance_after, transaction_type, reference_id, status)
-                VALUES ($1, $2, $3, $4, $5, 'DEMO_PAYOUT', $6, 'completed')`, userID, bet.payout, bet.currency, before, after, bet.id); err != nil {
-				return err
-			}
-			result.Payout += bet.payout
-		}
-		result.Payout = math.Round(result.Payout*100) / 100
-		return nil
+		result, err = settleUserTx(ctx, tx, userID, divisions, winners, mode == "void")
+		return err
 	})
 	return result, err
 }

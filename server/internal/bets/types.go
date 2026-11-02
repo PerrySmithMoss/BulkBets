@@ -1,7 +1,7 @@
 package bets
 
 type BetSlip struct {
-	ActiveBets      []ActiveBet `json:"activeBets"`
+	ActiveBets      []ActiveBet `json:"activeBets" validate:"required,min=1,max=30,dive"`
 	StakeMultiplier *float64    `json:"stakeMultiplier"`
 	OddsAtTime      float64     `json:"odds_at_time"`
 	// currently this is used in a context to mean the total
@@ -12,14 +12,14 @@ type BetSlip struct {
 }
 
 type ActiveBet struct {
-	ShowId          int64    `json:"showId" validate:"required"`
-	DivisionId      int64    `json:"divisionId" validate:"required"`
-	CompetitorId    string   `json:"competitorId" validate:"required"`
-	BetTypeId       int64    `json:"betTypeId" validate:"required"`
-	BetType         BetType  `json:"betType" validate:"required"`
+	ShowId          int64    `json:"showId" validate:"required,gt=0"`
+	DivisionId      int64    `json:"divisionId" validate:"required,gt=0"`
+	CompetitorId    string   `json:"competitorId" validate:"required,uuid"`
+	BetTypeId       int64    `json:"betTypeId" validate:"required,gt=0"`
+	BetType         BetType  `json:"betType" validate:"required,oneof=win"`
 	Amount          *float64 `json:"amount"`
 	PotentialPayout *float64 `json:"potential_payout"`
-	Odds            float64  `json:"odds" validate:"required"`
+	Odds            float64  `json:"odds" validate:"required,gt=1"`
 }
 
 type BetType string

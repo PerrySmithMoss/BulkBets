@@ -1,12 +1,15 @@
 package main
 
 import (
-	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -28,7 +31,14 @@ func (app *application) oauth2Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url := oauthConfig.AuthCodeURL(app.cfg.Auth.OAuth.AuthStateToken, oauth2.AccessTypeOffline) + "&prompt=select_account"
+	stateBytes := make([]byte, 32)
+	if _, err := rand.Read(stateBytes); err != nil {
+		writeJSONError(w, 500, "Unable to start login.")
+		return
+	}
+	state := base64.RawURLEncoding.EncodeToString(stateBytes)
+	http.SetCookie(w, &http.Cookie{Name: "oauth_state_" + providerName, Value: state, Path: "/", HttpOnly: true, Secure: app.cfg.App.AppEnv == "production", SameSite: http.SameSiteLaxMode, MaxAge: 600})
+	url := oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline) + "&prompt=select_account"
 
 	w.Header().Set("Content-Type", "application/json")
 	response := map[string]string{"oauthUrl": url}
@@ -49,13 +59,20 @@ func (app *application) oauth2CallbackHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	cookie, err := r.Cookie("oauth_state_" + providerName)
+	http.SetCookie(w, &http.Cookie{Name: "oauth_state_" + providerName, Value: "", Path: "/", HttpOnly: true, Secure: app.cfg.App.AppEnv == "production", SameSite: http.SameSiteLaxMode, MaxAge: -1})
+	state := r.URL.Query().Get("state")
+	if err != nil || len(state) != 43 || subtle.ConstantTimeCompare([]byte(state), []byte(cookie.Value)) != 1 {
+		writeJSONError(w, 400, "Login expired or could not be verified. Start again.")
+		return
+	}
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		http.Error(w, "Code query parameter missing", http.StatusBadRequest)
 		return
 	}
 
-	token, err := oauthConfig.Exchange(context.Background(), code)
+	token, err := oauthConfig.Exchange(r.Context(), code)
 	if err != nil {
 		log.Printf("Error exchanging code: %s", err)
 		http.Error(w, "Error exchanging code", http.StatusBadRequest)
@@ -171,9 +188,8 @@ func (app *application) oauth2CallbackHandler(w http.ResponseWriter, r *http.Req
 		HttpOnly: true,
 		Secure:   app.cfg.App.AppEnv == "production",
 		SameSite: http.SameSiteLaxMode,
-		// SameSite: http.SameSiteNoneMode, // uncomment in prod
-		Path:    "/",
-		Expires: time.Now().Add(accessTokenDurationExp),
+		Path:     "/",
+		Expires:  time.Now().Add(accessTokenDurationExp),
 	})
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
@@ -181,9 +197,8 @@ func (app *application) oauth2CallbackHandler(w http.ResponseWriter, r *http.Req
 		HttpOnly: true,
 		Secure:   app.cfg.App.AppEnv == "production",
 		SameSite: http.SameSiteLaxMode,
-		// SameSite: http.SameSiteNoneMode, // uncomment in prod
-		Path:    "/",
-		Expires: time.Now().Add(refreshTokenDurationExp),
+		Path:     "/",
+		Expires:  time.Now().Add(refreshTokenDurationExp),
 	})
 
 	redirectURL := frontendRedirectURL
@@ -238,7 +253,7 @@ func (app *application) tokenRenewalHandler(w http.ResponseWriter, r *http.Reque
 
 		refreshTokenVersion, err := auth.GetTypedClaim[int64](app.authenticator.RefreshTokenAuthenticator, refreshToken.Raw, "refreshTokenVersion")
 		if err != nil {
-			log.Printf("Error retrieving 'refreshTokenVersion' claim of: %s.\n%v", refreshToken.Raw, err)
+			log.Printf("Error retrieving refresh token version: %v", err)
 			http.Error(w, "Invalid or expired refresh token.", http.StatusInternalServerError)
 			return
 		}
@@ -253,7 +268,7 @@ func (app *application) tokenRenewalHandler(w http.ResponseWriter, r *http.Reque
 
 		// if refreshTokenVersion inside cookie doesn't match the user's refreshTokenVersion inside
 		// db it could potentially be bad actor, and thus we shouldn't proceed
-		if user.RefreshTokenVersion != refreshTokenVersion {
+		if user.Status != "active" || user.RefreshTokenVersion != refreshTokenVersion {
 			log.Printf("refreshTokenVersion mismatch - possible bad actor?")
 			http.Error(w, "Unauthorised.", http.StatusUnauthorized)
 			return
@@ -311,9 +326,8 @@ func (app *application) tokenRenewalHandler(w http.ResponseWriter, r *http.Reque
 				HttpOnly: true,
 				Secure:   app.cfg.App.AppEnv == "production",
 				SameSite: http.SameSiteLaxMode,
-				// SameSite: http.SameSiteNoneMode, // uncomment in prod
-				Path:    "/",
-				Expires: time.Now().Add(newAccessTokenDurationExp),
+				Path:     "/",
+				Expires:  time.Now().Add(newAccessTokenDurationExp),
 			})
 			http.SetCookie(w, &http.Cookie{
 				Name:     "refresh_token",
@@ -321,9 +335,8 @@ func (app *application) tokenRenewalHandler(w http.ResponseWriter, r *http.Reque
 				HttpOnly: true,
 				Secure:   app.cfg.App.AppEnv == "production",
 				SameSite: http.SameSiteLaxMode,
-				// SameSite: http.SameSiteNoneMode, // uncomment in prod
-				Path:    "/",
-				Expires: time.Now().Add(newRefreshTokenDurationExp),
+				Path:     "/",
+				Expires:  time.Now().Add(newRefreshTokenDurationExp),
 			})
 		}
 
@@ -340,6 +353,7 @@ type LoginRequestBody struct {
 }
 
 func (app *application) loginUserHandler(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 8192)
 	var reqBody LoginRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		log.Printf("Error %v: ", err)
@@ -350,10 +364,15 @@ func (app *application) loginUserHandler(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 
 	// Query the database for the user by email
-	user, err := app.store.UserRepository.GetUserByEmail(ctx, reqBody.Email)
+	user, err := app.store.UserRepository.GetUserByEmail(ctx, strings.ToLower(strings.TrimSpace(reqBody.Email)))
 	if err != nil {
 		log.Printf("Could not get user with email %v. Err: %v", reqBody.Email, err)
 		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+		return
+	}
+
+	if user.Status != "active" {
+		writeJSONError(w, 401, "Invalid email or password")
 		return
 	}
 
@@ -428,9 +447,8 @@ func (app *application) issueSession(w http.ResponseWriter, r *http.Request, use
 		HttpOnly: true,
 		Secure:   app.cfg.App.AppEnv == "production",
 		SameSite: http.SameSiteLaxMode,
-		// SameSite: http.SameSiteNoneMode, // uncomment in prod
-		Path:    "/",
-		Expires: time.Now().Add(accessTokenDurationExp),
+		Path:     "/",
+		Expires:  time.Now().Add(accessTokenDurationExp),
 	})
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
@@ -438,9 +456,8 @@ func (app *application) issueSession(w http.ResponseWriter, r *http.Request, use
 		HttpOnly: true,
 		Secure:   app.cfg.App.AppEnv == "production",
 		SameSite: http.SameSiteLaxMode,
-		// SameSite: http.SameSiteNoneMode, // uncomment in prod
-		Path:    "/",
-		Expires: time.Now().Add(refreshTokenDurationExp),
+		Path:     "/",
+		Expires:  time.Now().Add(refreshTokenDurationExp),
 	})
 
 	return true
@@ -462,9 +479,8 @@ func (app *application) logoutUserHandler(w http.ResponseWriter, r *http.Request
 		HttpOnly: true,
 		Secure:   app.cfg.App.AppEnv == "production",
 		SameSite: http.SameSiteLaxMode,
-		// SameSite: http.SameSiteNoneMode, // uncomment in prod
-		Path:    "/",
-		Expires: time.Unix(0, 0),
+		Path:     "/",
+		Expires:  time.Unix(0, 0),
 	})
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
@@ -472,9 +488,8 @@ func (app *application) logoutUserHandler(w http.ResponseWriter, r *http.Request
 		HttpOnly: true,
 		Secure:   app.cfg.App.AppEnv == "production",
 		SameSite: http.SameSiteLaxMode,
-		// SameSite: http.SameSiteNoneMode, // uncomment in prod
-		Path:    "/",
-		Expires: time.Unix(0, 0),
+		Path:     "/",
+		Expires:  time.Unix(0, 0),
 	})
 
 	user, err := app.store.UserRepository.GetUserByID(ctx, userID)

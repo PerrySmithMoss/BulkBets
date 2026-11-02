@@ -20,7 +20,7 @@ export default function Page() {
     ],
     [
       "4. Simulate the results",
-      "Use Simulate results in the bet slip to settle your pending bets. For this demo, the lowest-priced athlete in each division is the simulated winner (ties use a fixed order). Winning returns are added to your virtual balance. Visit My bets to see each outcome. These are sample outcomes, not official show results.",
+      "Choose favourites, outsiders or cancellation in the replay controls, then use Simulate results to settle historical replay bets. In the event studio, running a private event closes betting and automatically publishes results and virtual returns after five seconds. Visit My bets and Wallet to see outcomes and receipts. These are simulated outcomes, not official show results.",
     ],
     [
       "Play again",
@@ -28,7 +28,7 @@ export default function Page() {
     ],
     [
       "About BulkBets",
-      "BulkBets is a full-stack portfolio project. Event artwork depicts real shows, while line-ups and prices are sample data. All demo funds are virtual and cannot be deposited or withdrawn. Account registration, login and password recovery are also available to explore.",
+      "BulkBets is a full-stack portfolio project. Event artwork depicts real shows, while line-ups and prices are sample data. All funds are virtual. The demo wallet simulates deposits and withdrawals without moving real money. Account registration, login and password recovery are also available to explore.",
     ],
   ];
   return (

@@ -20,6 +20,7 @@ import { demoRequest } from "@/lib/api/demo";
 import { formatCurrency } from "@/lib/utils/currency";
 import {
   betExistsInSameDivision,
+  calculatePotentialWinnings,
   roundOddsToFractional,
 } from "@/lib/utils/betting";
 import { User } from "@/types/api/user/user";
@@ -32,6 +33,7 @@ function SlipContent() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [receipt, setReceipt] = useState("");
+  const [scenario, setScenario] = useState("favourite");
   const router = useRouter();
   const count = state.activeBets.length;
   const sameDivision = betExistsInSameDivision(state.activeBets);
@@ -80,11 +82,11 @@ function SlipContent() {
         const result = await demoRequest<{
           settled_bets: number;
           payout: number;
-        }>("settle");
+        }>(`settle?mode=${scenario}`);
         setReceipt(
           result.settled_bets
             ? `${result.settled_bets} bet${result.settled_bets === 1 ? "" : "s"} settled. ${formatCurrency(result.payout)} returned to your virtual balance.`
-            : "No pending bets to settle. Place a bet first.",
+            : "No historical replay bets to settle. Private events finish in the event studio.",
         );
         await refreshUser();
       }
@@ -203,7 +205,13 @@ function SlipContent() {
                   </div>
                   {Number(bet.amount) > 0 && (
                     <p className="mt-2 text-right text-[11px] text-muted-foreground">
-                      Returns {formatCurrency(Number(bet.amount) * bet.odds)}
+                      Returns{" "}
+                      {formatCurrency(
+                        calculatePotentialWinnings(
+                          Number(bet.amount),
+                          bet.odds,
+                        ),
+                      )}
                     </p>
                   )}
                 </div>
@@ -264,7 +272,18 @@ function SlipContent() {
               {tooMuch && (
                 <p role="alert" className="text-xs text-amber-400">
                   Not enough balance. Lower your stake
-                  {user?.is_demo ? " or reset your demo below" : ""}.
+                  {user?.is_demo ? (
+                    <>
+                      {" "}
+                      or{" "}
+                      <Link href="/customer/wallet" className="underline">
+                        add virtual funds
+                      </Link>
+                    </>
+                  ) : (
+                    ""
+                  )}
+                  .
                 </p>
               )}
               {user && (
@@ -318,6 +337,33 @@ function SlipContent() {
           <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
             Your demo controls
           </p>
+          <div className="mb-3 flex flex-wrap gap-3 text-xs text-primary">
+            <Link
+              href="/customer/wallet"
+              className="inline-flex min-h-11 items-center underline"
+            >
+              Deposit / withdraw
+            </Link>
+            <Link
+              href="/customer/sandbox"
+              className="inline-flex min-h-11 items-center underline"
+            >
+              Event studio
+            </Link>
+          </div>
+          <label className="mb-3 block text-xs text-muted-foreground">
+            Replay outcome
+            <select
+              aria-label="Replay outcome"
+              value={scenario}
+              onChange={(e) => setScenario(e.target.value)}
+              className="mt-2 min-h-11 w-full rounded-md border bg-background px-2"
+            >
+              <option value="favourite">Favourites win</option>
+              <option value="upset">Outsiders win</option>
+              <option value="void">Cancel and refund</option>
+            </select>
+          </label>
           <Button
             variant="outline"
             className="h-11 w-full gap-2 text-xs"
@@ -328,8 +374,8 @@ function SlipContent() {
             Simulate results
           </Button>
           <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-            Settles your pending bets using the lowest-priced athlete in each
-            division as the simulated winner.
+            Settles your historical replay bets using the selected scenario.
+            Private studio events settle automatically after you run them.
           </p>
           <div className="mt-3 flex items-center justify-between gap-2">
             <Link

@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -42,9 +43,10 @@ export function NoFundsInAccountDialog({ open, onOpenChange }: Props) {
           </p>
         </div>
         <p className="text-sm text-muted-foreground">
-          Deposits are unavailable in this product preview.
+          Add virtual funds in your demo wallet. No real money is charged.
         </p>
-        <Button onClick={close}>Back to bet slip</Button>
+        <Button asChild><Link href="/customer/wallet" onClick={onOpenChange}>Open demo wallet</Link></Button>
+ <Button onClick={close}>Back to bet slip</Button>
       </DialogContent>
     </Dialog>
   );

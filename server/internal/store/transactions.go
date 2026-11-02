@@ -28,7 +28,7 @@ type CreateBetTransactionParams struct {
 func (s *TransactionsStore) CreateBetTransaction(ctx context.Context, params CreateBetTransactionParams) (*uuid.UUID, error) {
 	var transactionID uuid.UUID
 
-	withTx(s.db, ctx, func(tx *sql.Tx) error {
+	err := withTx(s.db, ctx, func(tx *sql.Tx) error {
 		query := `
 			INSERT INTO transactions (user_id, amount, currency_code, balance_before, balance_after, transaction_type, reference_id, status)
 			    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -54,5 +54,8 @@ func (s *TransactionsStore) CreateBetTransaction(ctx context.Context, params Cre
 		return nil
 	})
 
+	if err != nil {
+		return nil, err
+	}
 	return &transactionID, nil
 }

@@ -1,6 +1,6 @@
 import { BetType } from "@/types/api/bets/bets";
 import { ActiveBet, BetSlipState, BetTypeDisplayMap } from "@/types/betting";
-import { roundCurrency } from "./currency";
+import { roundCurrency, multiplyMoney } from "./currency";
 import { isNumeric } from "./math";
 
 export const getBetTypeDisplay = (betType: BetType | undefined | null) => {
@@ -45,7 +45,7 @@ export const isValidBetSlip = (betSlip: BetSlipState): boolean => {
 
 export const betExistsForDivision = (
   activeBets: ActiveBet[],
-  divisionId: number
+  divisionId: number,
 ): boolean => {
   let occurrences = 0;
 
@@ -60,7 +60,7 @@ export const betExistsForDivision = (
 
 export const betExistsForCompetitor = (
   activeBets: ActiveBet[],
-  competitorId: string
+  competitorId: string,
 ): boolean => !!activeBets.find((bet) => bet.competitor.id === competitorId);
 
 export const betExistsInSameDivision = (activeBets: ActiveBet[]): boolean => {
@@ -80,16 +80,16 @@ export const getUniqueCategoriesFromBets = (bets: ActiveBet[]): string[] => {
     new Set(
       bets
         .map((bet) => bet.division.category)
-        .filter((category): category is string => category !== null) // Ensure only strings are kept
-    )
+        .filter((category): category is string => category !== null), // Ensure only strings are kept
+    ),
   );
 };
 
 export const calculatePotentialWinnings = (
   amount: number,
-  odds: number
+  odds: number,
 ): number => {
-  return amount * odds;
+  return multiplyMoney(amount, odds);
 };
 
 export const findMostRecentBet = (bets: ActiveBet[]): ActiveBet | null => {
@@ -112,7 +112,7 @@ export const findMostRecentBet = (bets: ActiveBet[]): ActiveBet | null => {
  */
 export const fractionalToDecimal = (
   numerator: number,
-  denominator: number
+  denominator: number,
 ): number => {
   return numerator / denominator + 1;
 };
@@ -123,7 +123,7 @@ export const fractionalToDecimal = (
  * @returns An object containing the simplified numerator and denominator.
  */
 export const decimalToFraction = (
-  decimalOdds: number
+  decimalOdds: number,
 ): { numerator: number; denominator: number } => {
   const profitPortion = decimalOdds - 1; // Subtract 1 to get the profit portion
   const precision = 10000; // To handle decimal precision
@@ -142,12 +142,12 @@ export const decimalToFraction = (
 
 export const roundOddsToFractional = (
   decimalOdds: number,
-  xTo1 = false
+  xTo1 = false,
 ): string => {
   // Ensure decimal odds are greater than 1 (odds below 1 don't make sense for betting)
   if (decimalOdds < 1) {
     throw new Error(
-      "Decimal odds must be greater than 1 to convert to fractional."
+      "Decimal odds must be greater than 1 to convert to fractional.",
     );
   }
 
@@ -189,13 +189,13 @@ export const calculateSingularBetReturn = (bets: ActiveBet[]): number => {
     if (!validateBet(bet)) {
       return totalReturn;
     }
-    const betReturn = parseFloat(bet.amount || "0") * bet.odds;
+    const betReturn = multiplyMoney(parseFloat(bet.amount || "0"), bet.odds);
     return totalReturn + betReturn;
   }, 0);
 };
 
 export const calculateAccumulatorBetReturn = (
-  betSlip: BetSlipState
+  betSlip: BetSlipState,
 ): number => {
   const { activeBets, stakeMultiplierRawValue } = betSlip;
 
@@ -207,20 +207,10 @@ export const calculateAccumulatorBetReturn = (
     throw new Error(`Invalid stake multiplier: ${stakeMultiplierRawValue}`);
   }
 
-  // Calculate total odds
-  const totalOdds = activeBets.reduce((product, bet) => {
-    if (bet.odds <= 0) {
-      console.warn(
-        `Skipping invalid odds (${bet.odds}) for bet ID: ${bet._id}`
-      );
-      return product;
-    }
-    return product * bet.odds;
-  }, 1);
-
-  const roundedTotalOdds = Math.round(totalOdds * 100) / 100;
-
-  return stake * roundedTotalOdds;
+  const roundedTotalOdds = multiplyMoney(
+    ...activeBets.filter((b) => b.odds > 0).map((b) => b.odds),
+  );
+  return multiplyMoney(stake, roundedTotalOdds);
 };
 
 export const calculateBetSlipTotals = (betSlip: BetSlipState) => {
@@ -238,7 +228,7 @@ export const calculateBetSlipTotals = (betSlip: BetSlipState) => {
   const totalDecimalOdds = activeBets.reduce((product, bet) => {
     if (bet.odds <= 0) {
       console.warn(
-        `Skipping invalid odds (${bet.odds}) for bet ID: ${bet._id}`
+        `Skipping invalid odds (${bet.odds}) for bet ID: ${bet._id}`,
       );
       return product;
     }
@@ -247,7 +237,7 @@ export const calculateBetSlipTotals = (betSlip: BetSlipState) => {
 
   const totalFractionalOdds = roundOddsToFractional(
     totalDecimalOdds,
-    isMultipleBets
+    isMultipleBets,
   );
 
   const totalStake = activeBets.reduce((sum, bet) => {
@@ -258,13 +248,13 @@ export const calculateBetSlipTotals = (betSlip: BetSlipState) => {
   const totalSingularBetReturn = calculateSingularBetReturn(activeBets);
   const totalAccumulatorBetReturn = calculateAccumulatorBetReturn(betSlip);
   const potentialReturn = roundCurrency(
-    totalSingularBetReturn + totalAccumulatorBetReturn
+    totalSingularBetReturn + totalAccumulatorBetReturn,
   );
   const potentialWinnings = roundCurrency(potentialReturn - totalStake);
 
   return {
     totalFractionalOdds,
-    totalStake,
+    totalStake: roundCurrency(totalStake),
     totalAccumulatorBetReturn,
     potentialReturn,
     potentialWinnings,

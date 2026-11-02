@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "IronOdds",
-    "slug": "IronOdds",
-    "scheme": "ironodds",
+    "name": "BulkBets",
+    "slug": "BulkBets",
+    "scheme": "bulkbets",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ironodds.mobile"

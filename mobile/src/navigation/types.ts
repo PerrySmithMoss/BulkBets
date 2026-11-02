@@ -3,6 +3,7 @@ export type RootStackParamList = {
   Search: undefined;
   InPlay: undefined;
   MyBets: undefined;
+ Wallet: undefined;
   Events: { eventId: string };
 };
 
@@ -11,4 +12,5 @@ export type MainTabParamList = {
   Search: undefined;
   InPlay: undefined;
   MyBets: undefined;
+ Wallet: undefined;
 };
