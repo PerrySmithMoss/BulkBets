@@ -150,6 +150,48 @@ Password recovery requires `SMTP_ADDR` (host:port), `SMTP_FROM` (an email addres
 
 Reset links expire after 30 minutes and can be used once. Only a token digest is stored. A completed reset revokes existing refresh tokens; existing access tokens remain valid until their configured expiry. The isolated E2E stack disables outbound email and uses database reset fixtures; in-process SMTP tests check message delivery without an external service.
 
+### Resend delivery
+
+The existing SMTP client supports Resend without an SDK. Sign into the Resend
+account for `bulkbetshq@gmail.com`, verify a sending domain using the DNS records
+provided by Resend, and use an API key with sending access. The account's Gmail
+address is the login; `SMTP_FROM` must use your verified sending domain.
+
+BulkBets uses `bulkbets.perrysmithmoss.com` as its sending domain and
+`noreply@bulkbets.perrysmithmoss.com` as its sender. The parent domain is registered
+at Namecheap, but its authoritative nameservers are Vercel's, so manage the Resend
+verification records in Vercel DNS. Domain verification must complete before live
+email delivery can work.
+
+The domain was verified on 2026-11-02. A live password-recovery check through the
+local web API proxy reached Resend and was marked Delivered to a dedicated Gmail
+test alias. The delivered token reset that test account successfully; login with
+the new password succeeded, the old password was rejected, and token reuse was
+rejected. Local credentials are stored only in the ignored root and server `.env`
+files; a deployment still needs its own environment configuration.
+
+For local Docker Compose, put the following in the repository-root `.env`
+(ignored by Git). For production, use the Vercel + Swarm instructions in
+`deploy/README.md`. Store the sending key in the `bulkbets_smtp_password` Docker
+secret and include `deploy/docker-stack.smtp.yml` when deploying.
+
+```dotenv
+SMTP_ADDR=smtp.resend.com:587
+SMTP_FROM=noreply@bulkbets.perrysmithmoss.com
+SMTP_USERNAME=resend
+SMTP_PASSWORD=<Resend API key>
+```
+
+Restart/recreate the API after changing these variables. If running Go directly,
+load them into the process environment instead. Use port 587 for STARTTLS;
+the client does not implement implicit TLS on port 465.
+
+For a live delivery check, request a password reset for an existing password-based
+test account whose inbox you control. Check delivery in Resend and the recipient
+inbox, then open the link and complete the reset using that test account. Keep
+automated E2E tests on isolated reset fixtures so they do not send real email or
+consume Resend's quota. Provider setup is documented at <https://resend.com/docs/send-with-smtp>.
+
 
 ## Portfolio wallet and settlement
 
