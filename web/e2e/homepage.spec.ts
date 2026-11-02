@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
 
 test("registration creates a persisted account and preserves a guest selection", async ({
   page,
@@ -143,7 +144,7 @@ test("keyboard selection works and reopening login clears previous errors", asyn
   await expect(page).toHaveURL(/forgot-password/);
 });
 
-test("password recovery delivers a single-use link through local SMTP", async ({
+test("password recovery handles disabled email and rejects expired or reused reset links", async ({
   page,
   request,
 }) => {
@@ -171,20 +172,17 @@ test("password recovery delivers a single-use link through local SMTP", async ({
   await page.goto("/forgot-password");
   await page.getByLabel("Email address").fill(email);
   await page.getByRole("button", { name: "Send reset link" }).click();
-  await expect(page.getByRole("status")).toContainText(
-    "If an account uses this email",
+  await expect(page.locator("form").getByRole("alert")).toContainText(
+    "Password recovery is temporarily unavailable",
   );
-  const messages = await (
-    await request.get("http://127.0.0.1:18025/api/v1/messages")
-  ).json();
-  const message = messages.messages.find((m: { To: { Address: string }[] }) =>
-    m.To.some((to) => to.Address === email),
-  );
-  expect(message).toBeTruthy();
-  const detail = await (
-    await request.get(`http://127.0.0.1:18025/api/v1/message/${message.ID}`)
-  ).json();
-  const link = detail.Text.match(/http[^\s]+reset-password#token=[a-f0-9]+/)[0];
+  // Seed only the isolated test database. SMTP delivery is tested in Go;
+  // browser tests must never use live provider credentials or send email.
+  const token = randomBytes(32).toString("hex");
+  const digest = createHash("sha256").update(token).digest("hex");
+  fixtureSQL(`INSERT INTO password_resets (user_id, token_hash, expires_at)
+    SELECT id, '${digest}', NOW() + INTERVAL '30 minutes'
+    FROM users WHERE email = '${email}'`);
+  const link = `http://127.0.0.1:3100/reset-password#token=${token}`;
   const adjustExpiry = (interval: string) =>
     execFileSync("docker", [
       "compose",

@@ -37,9 +37,16 @@ monitoring configuration. Those require the deployment's actual services/devices
   with uncached responses.
 - The VPS backup helper produced a private dump. Restoring into an isolated
   replacement database preserved data and writable ownership for the app role.
-- 31 browser tests, 5 storage integration tests with the race detector, 16 Jest
+- 31 browser tests, 6 storage integration tests with the race detector, 16 Jest
   tests, Go tests/vet and web/mobile lint/type checks passed. CI targets PostgreSQL
   17.4; local development can continue using PostgreSQL 18.6.
 
 These checks used local isolated containers. No Vercel/VPS deployment, live Swarm
 scheduling, public TLS/DNS, Google authorization, or Resend delivery was performed.
+
+
+Outbound email is disabled in browser tests. Password-reset fixtures retain expiry,
+one-use and session-revocation coverage; Go storage tests cover reset cooldown and
+token replacement. In-process SMTP tests check message contents and production's
+refusal to send over a server without STARTTLS. No mail service container or live
+provider credentials are required by the automated suite.

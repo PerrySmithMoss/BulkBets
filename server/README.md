@@ -148,7 +148,7 @@ Apply the `20261101190000_account_recovery.sql` migration before using the regis
 
 Password recovery requires `SMTP_ADDR` (host:port), `SMTP_FROM` (an email address), and `APP_CLIENT_URL` (the public web origin). Set `SMTP_USERNAME` and `SMTP_PASSWORD` when the mail server requires authentication. Production SMTP must support STARTTLS. Without mail configuration, the form reports recovery as unavailable.
 
-Reset links expire after 30 minutes and can be used once. Only a token digest is stored. A completed reset revokes existing refresh tokens; existing access tokens remain valid until their configured expiry. The isolated E2E stack uses Mailpit on port 18025 and does not send real email.
+Reset links expire after 30 minutes and can be used once. Only a token digest is stored. A completed reset revokes existing refresh tokens; existing access tokens remain valid until their configured expiry. The isolated E2E stack disables outbound email and uses database reset fixtures; in-process SMTP tests check message delivery without an external service.
 
 
 ## Portfolio wallet and settlement

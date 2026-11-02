@@ -28,7 +28,9 @@ version table, so running it again does not duplicate data.
 Compose defaults are for local development. Supply your own secrets and credentials
 for a deployment. OAuth is optional; password login works without provider credentials.
 Account registration, password login and recovery are available. Recovery needs the
-SMTP configuration in `server/.env.example` for external mail. The demo wallet supports simulated deposits and withdrawals. No real money is used.
+SMTP configuration in `server/.env.example` for external mail. For local Resend delivery,
+set `SMTP_ADDR`, `SMTP_FROM`, `SMTP_USERNAME` and `SMTP_PASSWORD` in the ignored
+repository-root `.env`. Recovery is unavailable until SMTP is configured. The demo wallet supports simulated deposits and withdrawals. No real money is used.
 
 ## Portfolio demo
 
