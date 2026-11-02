@@ -1,0 +1,75 @@
+version: "3.9"
+
+# Frontend: Vercel (Root Directory: web).
+# Backend: an application service on the existing portfolio Swarm infrastructure.
+# Build/push the image and run migrations before docker stack deploy.
+services:
+  api:
+    image: ${BULKBETS_API_IMAGE:?Set BULKBETS_API_IMAGE to a published image tag}
+    environment:
+      APP_ENV: production
+      # Backend issuer and frontend redirect origin are intentionally separate.
+      APP_HOST: ${API_HOST:?Set API_HOST to the VPS API hostname}
+      APP_CLIENT_URL: https://${APP_HOST:?Set APP_HOST to the Vercel frontend hostname}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS to the exact frontend origin}
+      # No blanket trust of client-supplied address headers on the public origin.
+      TRUST_EDGE: "false"
+      DB_HOST: ${DB_HOST:?Set DB_HOST to the existing Swarm PostgreSQL service}
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-bulk_bets}
+      DB_USER: ${DB_USER:-bulkbets}
+      DB_PASSWORD_FILE: /run/secrets/bulkbets_db_password
+      DB_SSL_ENABLED: ${DB_SSL_ENABLED:-disable}
+      ACCESS_TOKEN_SECRET_FILE: /run/secrets/bulkbets_access_token_secret
+      REFRESH_TOKEN_SECRET_FILE: /run/secrets/bulkbets_refresh_token_secret
+    secrets:
+      - bulkbets_db_password
+      - bulkbets_access_token_secret
+      - bulkbets_refresh_token_secret
+    networks:
+      - portfolio_network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=portfolio_network"
+        - "traefik.http.routers.bulkbets-api.rule=Host(`${API_HOST}`) && PathPrefix(`/api/v1`)"
+        - "traefik.http.routers.bulkbets-api.entrypoints=websecure"
+        - "traefik.http.routers.bulkbets-api.tls=true"
+        - "traefik.http.routers.bulkbets-api.tls.certresolver=myresolver"
+        - "traefik.http.routers.bulkbets-api.service=bulkbets-api"
+        - "traefik.http.services.bulkbets-api.loadbalancer.server.port=8080"
+        - "traefik.http.routers.bulkbets-api.middlewares=bulkbets-security"
+        - "traefik.http.middlewares.bulkbets-security.headers.stsseconds=31536000"
+        - "traefik.http.middlewares.bulkbets-security.headers.contenttypenosniff=true"
+        - "traefik.http.middlewares.bulkbets-security.headers.framedeny=true"
+        - "traefik.http.middlewares.bulkbets-security.headers.referrerpolicy=strict-origin-when-cross-origin"
+
+networks:
+  portfolio_network:
+    external: true
+
+secrets:
+  bulkbets_db_password:
+    external: true
+  bulkbets_access_token_secret:
+    external: true
+  bulkbets_refresh_token_secret:
+    external: true

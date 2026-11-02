@@ -144,8 +144,42 @@ Using MAKE commands inside MakeFile but prefixing the command with the path to r
 
 ## Account creation and recovery
 
-Apply the `20261101190000_account_recovery.sql` migration before using the registration and recovery endpoints. Registration creates a zero-balance account and requires a date of birth of at least 18 years ago and a password of at least 12 characters.
+Apply the `20261101190000_account_recovery.sql` migration before using the registration and recovery endpoints. Registration creates a virtual account with a £1,000 balance and requires a date of birth of at least 18 years ago and a password of at least 12 characters.
 
 Password recovery requires `SMTP_ADDR` (host:port), `SMTP_FROM` (an email address), and `APP_CLIENT_URL` (the public web origin). Set `SMTP_USERNAME` and `SMTP_PASSWORD` when the mail server requires authentication. Production SMTP must support STARTTLS. Without mail configuration, the form reports recovery as unavailable.
 
 Reset links expire after 30 minutes and can be used once. Only a token digest is stored. A completed reset revokes existing refresh tokens; existing access tokens remain valid until their configured expiry. The isolated E2E stack uses Mailpit on port 18025 and does not send real email.
+
+
+## Portfolio wallet and settlement
+
+Apply `20261102120000_portfolio_wallet.sql` before starting the updated API. All
+customer and guest funds are virtual. The bootstrap admin remains an ordinary
+protected account; customer registration and OAuth onboarding enable the demo.
+`GET /api/v1/wallet` returns up to 100 receipts. `POST /api/v1/wallet/transfer`
+accepts `{amount, kind, request_key}` where kind is `DEMO_DEPOSIT` or
+`DEMO_WITHDRAWAL`, and request_key is a UUID unique to the attempted transfer.
+A retried key returns its original receipt; changing its payload returns 409.
+Transfers are £0.01–£10,000, with a £1,000,000 deposit balance ceiling.
+
+The `/api/v1/sandbox/shows` endpoints manage only the caller's private events.
+`POST /sandbox/shows/{id}/preview` and `/run` accept a mode of `favourite`,
+`upset`, or `void`. Selected winners override price-based winners. The worker
+resumes due events from Postgres after a restart. Historical replay settlement
+excludes these private events. Publication of ordinary-account results and
+settlement is atomic, and paid bets cannot be selected a second time.
+
+See `deploy/README.md` from the repository root for hosting, retention and
+operational details. `BULKBETS_TEST_DSN` enables the storage integration tests
+against a disposable migrated database; never point it at development or live data.
+
+
+Production supports Docker secret files through `DB_PASSWORD_FILE`,
+`ACCESS_TOKEN_SECRET_FILE`, `REFRESH_TOKEN_SECRET_FILE`, `SMTP_PASSWORD_FILE`
+and `GOOGLE_CLIENT_SECRET_FILE`. Migrations also accept `ADMIN_USER_PASSWORD_FILE`.
+A key cannot be configured through both its value and its `_FILE` setting.
+Migration jobs can use `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_NAME`,
+`DB_PASSWORD_FILE` and `DB_SSL_ENABLED` instead of a password-bearing `DB_ADDR`.
+The VPS stack reuses the existing PostgreSQL 17 service and `portfolio_network`;
+it does not create or alter the infrastructure stack. Give BulkBets a dedicated
+login/database rather than mounting the infrastructure admin credentials in the API.

@@ -1,0 +1,13 @@
+version: "3.9"
+services:
+  api:
+    environment:
+      SMTP_ADDR: ${SMTP_ADDR:?Set SMTP_ADDR to the STARTTLS SMTP endpoint}
+      SMTP_FROM: ${SMTP_FROM:?Set SMTP_FROM to your verified sender}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD_FILE: /run/secrets/bulkbets_smtp_password
+    secrets:
+      - bulkbets_smtp_password
+secrets:
+  bulkbets_smtp_password:
+    external: true
