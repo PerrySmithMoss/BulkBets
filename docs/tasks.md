@@ -7,7 +7,7 @@
   Local delivery is verified. The production deployment still needs its SMTP
   credentials and public application URL configured.
 
-  - Configure the VPS deployment’s non-secret `.env.production` and Swarm secrets:
+  - Configure the VPS deployment’s exported settings and Swarm secrets (see `deploy/README.md`):
     - `SMTP_ADDR=smtp.resend.com:587`
     - `SMTP_FROM=noreply@bulkbets.perrysmithmoss.com`
     - `SMTP_USERNAME=resend`

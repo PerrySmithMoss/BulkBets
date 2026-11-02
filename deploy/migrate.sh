@@ -2,7 +2,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-# Run from a Swarm manager after exporting the non-secret .env.production values.
+# Run from a Swarm manager after exporting the non-secret deployment settings.
 # Uses a service, not docker run, so the overlay need not be attachable.
 action=${1:-up}
 case "$action" in up|seed|status) ;; *) echo "Usage: sh deploy/migrate.sh [up|seed|status]" >&2; exit 2 ;; esac

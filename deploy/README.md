@@ -48,26 +48,36 @@ amd64 VPS (or build directly on the VPS).
 
 ### 1. Configure non-secret values
 
-Copy `.env.production.example` to `.env.production` and edit:
+The stack and migration helper read exported environment variables; no production
+example file is required. Set these values in your VPS deployment shell or CI
+configuration before running the commands below:
+
+```sh
+export STACK_NAME=bulkbets
+export APP_HOST=bulkbets.your-domain.example
+export API_HOST=api.bulkbets.your-domain.example
+export BULKBETS_API_IMAGE=ghcr.io/perrysmithmoss/bulkbets-api:REPLACE_WITH_RELEASE_TAG
+export DB_HOST=infra_postgres
+export POSTGRES_SERVICE="$DB_HOST"
+export DB_USER=bulkbets
+export DB_NAME=bulk_bets
+export DB_PORT=5432
+export DB_SSL_ENABLED=disable
+export CORS_ALLOWED_ORIGINS="https://${APP_HOST}"
+```
 
 - `APP_HOST`: your Vercel frontend hostname, without scheme or trailing slash.
 - `API_HOST`: a separate DNS hostname pointing to your VPS, without a scheme.
-- `BULKBETS_API_IMAGE`: a registry image with an immutable release tag you will push.
-- `DB_HOST` / `POSTGRES_SERVICE`: the existing PostgreSQL Swarm service name.
-- `DB_USER` / `DB_NAME`: a dedicated BulkBets database login/database.
-- `CORS_ALLOWED_ORIGINS`: exact browser origins; the example derives it from `APP_HOST` when sourced.
+- `BULKBETS_API_IMAGE`: an immutable release tag you will build and push.
+- `DB_HOST` / `POSTGRES_SERVICE`: replace `infra_postgres` with the actual
+  `<infrastructure-stack>_postgres` service name from `docker service ls`.
+- `DB_USER` / `DB_NAME`: your dedicated BulkBets database login/database.
+- `CORS_ALLOWED_ORIGINS`: exact browser origins; append a stable preview if needed.
 
-Load the shell-compatible file in each deployment shell. It contains configuration,
-not passwords or signing keys:
-
-```sh
-set -a
-. ./.env.production
-set +a
-```
-
-`docker stack deploy` does not automatically load Compose's `.env` file. Keep
-these variables exported for the migration helper and stack interpolation.
+Repeat these exports in each deployment shell, or persist the non-secret settings
+in your deployment tooling. Passwords and signing keys belong in the Swarm secrets
+created below. `docker stack deploy` does not automatically load Compose's `.env`
+file; keep the settings exported for stack interpolation and the helper scripts.
 `DB_SSL_ENABLED=disable` matches your same-VPS private overlay. For a database
 across untrusted networks, configure database TLS and CA trust before connecting.
 
@@ -166,10 +176,17 @@ browser to access a protected preview's callbacks.
 
 ### Optional SMTP and Google OAuth
 
-For Resend, keep `SMTP_ADDR`, `SMTP_FROM` and `SMTP_USERNAME` as shown in the
-example and verify the sender domain in Resend. Store a sending API key in the
-`bulkbets_smtp_password` Swarm secret using the same hidden-prompt pattern above.
-Include the SMTP overlay on every deployment that enables email:
+For Resend, verify the sender domain and export these non-secret settings:
+
+```sh
+export SMTP_ADDR=smtp.resend.com:587
+export SMTP_FROM=noreply@bulkbets.perrysmithmoss.com
+export SMTP_USERNAME=resend
+```
+
+Use your verified sender if deploying with a different domain. Store a sending API
+key in the `bulkbets_smtp_password` Swarm secret using the hidden-prompt pattern
+above. Include the SMTP overlay on every deployment that enables email:
 
 ```sh
 docker stack deploy --with-registry-auth \
