@@ -5,9 +5,10 @@ version: "3.9"
 # Build/push the image and run migrations before docker stack deploy.
 services:
   api:
-    image: ${BULKBETS_API_IMAGE:?Set BULKBETS_API_IMAGE to a published image tag}
+    image: ghcr.io/perrysmithmoss/bulkbets:${GIT_COMMIT_HASH:-latest}
     environment:
       APP_ENV: production
+      APP_PORT: "8080"
       # Backend issuer and frontend redirect origin are intentionally separate.
       APP_HOST: ${API_HOST:?Set API_HOST to the VPS API hostname}
       APP_CLIENT_URL: https://${APP_HOST:?Set APP_HOST to the Vercel frontend hostname}
@@ -15,7 +16,7 @@ services:
       # No blanket trust of client-supplied address headers on the public origin.
       TRUST_EDGE: "false"
       DB_HOST: ${DB_HOST:?Set DB_HOST to the existing Swarm PostgreSQL service}
-      DB_PORT: "5432"
+      DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-bulk_bets}
       DB_USER: ${DB_USER:-bulkbets}
       DB_PASSWORD_FILE: /run/secrets/bulkbets_db_password

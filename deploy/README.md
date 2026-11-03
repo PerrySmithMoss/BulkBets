@@ -56,7 +56,7 @@ configuration before running the commands below:
 export STACK_NAME=bulkbets
 export APP_HOST=bulkbets.your-domain.example
 export API_HOST=api.bulkbets.your-domain.example
-export BULKBETS_API_IMAGE=ghcr.io/perrysmithmoss/bulkbets-api:REPLACE_WITH_RELEASE_TAG
+export GIT_COMMIT_HASH=REPLACE_WITH_RELEASE_COMMIT_SHA
 export DB_HOST=infra_postgres
 export POSTGRES_SERVICE="$DB_HOST"
 export DB_USER=bulkbets
@@ -68,7 +68,9 @@ export CORS_ALLOWED_ORIGINS="https://${APP_HOST}"
 
 - `APP_HOST`: your Vercel frontend hostname, without scheme or trailing slash.
 - `API_HOST`: a separate DNS hostname pointing to your VPS, without a scheme.
-- `BULKBETS_API_IMAGE`: an immutable release tag you will build and push.
+- `GIT_COMMIT_HASH`: the immutable image tag you will build and push to
+  `ghcr.io/perrysmithmoss/bulkbets`. The stack and migration helper use this same
+  tag. If omitted, both use `latest`; use a commit tag for repeatable deployments.
 - `DB_HOST` / `POSTGRES_SERVICE`: replace `infra_postgres` with the actual
   `<infrastructure-stack>_postgres` service name from `docker service ls`.
 - `DB_USER` / `DB_NAME`: your dedicated BulkBets database login/database.
@@ -78,27 +80,47 @@ Repeat these exports in each deployment shell, or persist the non-secret setting
 in your deployment tooling. Passwords and signing keys belong in the Swarm secrets
 created below. `docker stack deploy` does not automatically load Compose's `.env`
 file; keep the settings exported for stack interpolation and the helper scripts.
+Service-level `env_file` injects container variables; it does not supply those
+Swarm substitutions. The production stack intentionally lists its environment
+explicitly. Do not load the local development `.env` into the API service: its
+password values would conflict with the `_FILE` secret settings. Deployment
+tooling may load a separate set of non-secret settings into the shell before
+running `docker stack deploy`.
+
+BulkBets reads Docker secret files through `DB_PASSWORD_FILE`,
+`ACCESS_TOKEN_SECRET_FILE`, `REFRESH_TOKEN_SECRET_FILE`, `SMTP_PASSWORD_FILE` and
+`GOOGLE_CLIENT_SECRET_FILE`. Setting `DB_PASSWORD=/run/secrets/...` would pass that
+literal path as the password. The stack's `_FILE` values are intentional.
+
 `DB_SSL_ENABLED=disable` matches your same-VPS private overlay. For a database
 across untrusted networks, configure database TLS and CA trust before connecting.
 
-### 2. Create a dedicated database and Swarm secrets
+### 2. Create Swarm secrets; the deployment provisions the database
 
-Using an interactive `psql` session in the existing PostgreSQL task, connect as its
-infrastructure administrator to database `postgres`. Read that administrator's
-username/password from the existing `/run/secrets/postgres_user` and
-`/run/secrets/postgres_password` inside the Postgres container. Then run:
+You do not need to create the BulkBets role or database manually. Before migrations,
+`sh deploy/migrate.sh provision` runs a temporary job from the published API image.
+It uses the existing infrastructure secrets `postgres_user` and `postgres_password`
+to connect to database `postgres` on `DB_HOST`. These administrator secrets must
+already exist in the same Swarm; their values never enter GitHub Actions settings.
+The provisioning job alone receives them. Normal migrations and the API use the
+dedicated application login and never mount infrastructure administrator secrets.
 
-```sql
-CREATE ROLE bulkbets LOGIN;
-\password bulkbets
-CREATE DATABASE bulk_bets OWNER bulkbets;
-```
+The job creates `DB_USER` and `DB_NAME` only when missing, with the new role's
+password taken from `bulkbets_db_password`. Choose a unique password of at least
+16 characters and store it in that secret before the first deployment. A generated
+ASCII password from a password manager is suitable. The dedicated login owns its
+database and can install the trusted extensions used by the migrations, without
+superuser, role-creation or database-creation privileges.
 
-Choose a unique database password of at least 16 characters and enter it at the
-`\password` prompt, which avoids a password in SQL history. Use the same password
-for `bulkbets_db_password` below. The dedicated login owns its database and can
-install the trusted extensions used by the migrations. Do not grant superuser or
-mount infrastructure administrator secrets in the API.
+Existing passwords, data, ownership and privileges are never reset. The job checks
+database ownership, the role's LOGIN flag, absence of elevated privileges/role
+memberships, and an actual application login. A mismatch fails deployment and
+requires an explicit correction; it does not adopt another application's database
+or silently rotate credentials. A session advisory lock serializes provisioning
+jobs, and CREATE DATABASE runs outside a transaction. New passwords are converted
+to SCRAM verifiers in Go before entering SQL; plaintext passwords are not placed
+in statement logs. Provisioning errors omit driver messages that might contain
+credentials. No additional database container or host port is created.
 
 Create the application secrets on the Swarm manager. This example runs in bash;
 enter passwords interactively rather than putting them in command history:
@@ -121,18 +143,20 @@ are loaded from files, so passwords need no URL escaping in deployment config.
 Docker secrets are immutable; rotate them with new names and update the stack's
 secret mappings plus migration helper before removing old versions.
 
-### 3. Build/push, migrate, then start the API
+### 3. Build/push, provision, migrate, then start the API
 
 Build on the VPS (or use buildx with the correct `--platform` from your workstation).
 Log in to the chosen registry on the manager if the image is private:
 
 ```sh
-docker build -t "$BULKBETS_API_IMAGE" ./server
-docker push "$BULKBETS_API_IMAGE"
+bulkbets_image="ghcr.io/perrysmithmoss/bulkbets:${GIT_COMMIT_HASH:-latest}"
+docker build -t "$bulkbets_image" ./server
+docker push "$bulkbets_image"
+sh deploy/migrate.sh provision
 sh deploy/migrate.sh up
 sh deploy/migrate.sh seed
-docker stack config --compose-file docker-stack.production.yml
-docker stack deploy --with-registry-auth --compose-file docker-stack.production.yml "$STACK_NAME"
+docker stack config --compose-file docker-stack.yaml
+docker stack deploy --with-registry-auth --compose-file docker-stack.yaml "$STACK_NAME"
 docker service ps "${STACK_NAME}_api"
 docker service logs --tail 100 "${STACK_NAME}_api"
 curl --fail "https://${API_HOST}/api/v1/health"
@@ -145,6 +169,85 @@ Migrations run before the API upgrade. Back up before upgrading an existing
 installation and keep migrations compatible with the API being replaced. For an
 application-only rollback, use `docker service rollback "${STACK_NAME}_api"`;
 this does not revert database changes.
+
+### Automated deployment with GitHub Actions
+
+[`.github/workflows/pipeline.yaml`](../.github/workflows/pipeline.yaml) runs on
+pull requests and pushes to **master**. Every run checks Go, web/mobile lint and
+types, unit tests, native exports, and the isolated browser/storage suite against
+PostgreSQL 17.4. Backend, stack, deployment or workflow changes on master then
+publish `ghcr.io/perrysmithmoss/bulkbets` with the commit SHA and `latest` tags.
+Frontend-only changes are handled by Vercel. **Run workflow** on master forces an
+API build/deploy even when the backend path filter has no changes.
+
+The deployment job connects to the existing Swarm manager using Docker over SSH,
+checks the overlay and external secrets, provisions missing database objects,
+runs migrations and idempotent seeds,
+then deploys the base stack plus the SMTP overlay. Setting `GOOGLE_CLIENT_ID` also
+includes the OAuth overlay. The job waits for the requested image's running tasks,
+a completed Swarm update and a successful public HTTPS health check. An automatic
+rollback, paused update, wrong image or failed health check fails the job.
+Production runs are serialized and are not cancelled midway by later pushes.
+
+Before the first run, create the application Docker secrets from section 2 and
+configure API DNS for Traefik. The database/role are provisioned automatically using
+the existing infrastructure administrator secrets. The workflow does not recreate
+PostgreSQL or Traefik, or store application credentials in GitHub.
+
+In **BulkBets → Settings → Secrets and variables → Actions**, configure:
+
+| Repository secret | Purpose |
+| --- | --- |
+| `VPS_IP` | VPS IP address or SSH hostname |
+| `DEPLOY_SSH_PRIVATE_KEY` | The deploy user's SSH private key, as in your existing VPS setup |
+| `VPS_KNOWN_HOSTS` (optional) | Verified known_hosts entry; otherwise the job scans the server key during setup |
+| `GHCR_READ_TOKEN` (optional) | Classic personal access token with `read:packages` for durable private-image pulls; see below |
+
+The deploy user must have Docker access on the Swarm manager. Secrets configured
+only in another repository are not automatically available to BulkBets; add them
+here or grant this repository access through organization secrets.
+
+| Repository variable | Required/default |
+| --- | --- |
+| `APP_HOST` | **Required:** Vercel frontend hostname, without scheme/path |
+| `API_HOST` | **Required:** API hostname pointing at the VPS, without scheme/path |
+| `DB_HOST` | **Required:** existing PostgreSQL Swarm DNS name, e.g. `infra_postgres` |
+| `CORS_ALLOWED_ORIGINS` | Defaults to `https://APP_HOST`; use comma-separated exact origins for additional frontends |
+| `DB_USER`, `DB_NAME`, `DB_PORT` | Defaults: `bulkbets`, `bulk_bets`, `5432` |
+| `DB_SSL_ENABLED` | Defaults to `disable` on the same-VPS overlay |
+| `SMTP_ADDR`, `SMTP_USERNAME` | Defaults: `smtp.resend.com:587`, `resend` |
+| `SMTP_FROM` | Defaults to `noreply@bulkbets.perrysmithmoss.com`; must be a verified sender |
+| `GOOGLE_CLIENT_ID` | Optional; enables the OAuth overlay when nonempty |
+| `VPS_SSH_USER`, `VPS_SSH_PORT` | Defaults: `deploy`, `22` |
+| `GHCR_USERNAME` | Defaults to the workflow actor; set to the owner of `GHCR_READ_TOKEN` if using one |
+
+The SHA tag comes from `github.sha`; it is not a repository variable to set.
+The API image targets `linux/amd64`, matching the standard GitHub runner build
+used by the existing VPS deployment. Change the build platform if the target VPS
+architecture changes.
+
+Required external Swarm secrets are `bulkbets_db_password`,
+`bulkbets_admin_password`, `bulkbets_access_token_secret`,
+`bulkbets_refresh_token_secret` and `bulkbets_smtp_password`. Google additionally
+requires `bulkbets_google_client_secret`. Keep database, SMTP, Google and signing
+credentials in these secrets, rather than in the runner's `.env` or GitHub vars.
+Provisioning additionally mounts the existing `postgres_user` and
+`postgres_password` secrets into its temporary job only. The job is removed when
+it completes or fails. `DB_HOST` must resolve to that existing PostgreSQL instance.
+
+The workflow uses GitHub's automatic token to push images. Make the GHCR package
+public for credential-free future pulls, or configure `GHCR_READ_TOKEN` for a
+private package so workers can pull again after the workflow's automatic token
+expires. Registry authentication is passed to Swarm for migrations and rollout.
+See [GitHub token lifetime](https://docs.github.com/en/actions/concepts/security/github_token)
+and [GHCR authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
+for the public/private package access rules.
+
+The workflow starts deploying only after these files are committed and pushed to
+master and the settings above exist. Before an existing database is upgraded,
+use the backup procedure below. Service rollback restores the previous application
+image; it does not undo migrations. Vercel's frontend deployment remains managed
+by its Git integration.
 
 ### 4. Deploy Next.js on Vercel
 
@@ -190,7 +293,7 @@ above. Include the SMTP overlay on every deployment that enables email:
 
 ```sh
 docker stack deploy --with-registry-auth \
-  --compose-file docker-stack.production.yml \
+  --compose-file docker-stack.yaml \
   --compose-file deploy/docker-stack.smtp.yml "$STACK_NAME"
 ```
 

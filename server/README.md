@@ -167,10 +167,10 @@ The domain was verified on 2026-11-02. A live password-recovery check through th
 local web API proxy reached Resend and was marked Delivered to a dedicated Gmail
 test alias. The delivered token reset that test account successfully; login with
 the new password succeeded, the old password was rejected, and token reuse was
-rejected. Local credentials are stored only in the ignored root and server `.env`
-files; a deployment still needs its own environment configuration.
+rejected. Local backend credentials are stored only in the ignored `server/.env`
+file; a deployment still needs its own environment configuration.
 
-For local Docker Compose, put the following in the repository-root `.env`
+For local Docker Compose or Go development, put the following in `server/.env`
 (ignored by Git). For production, use the Vercel + Swarm instructions in
 `deploy/README.md`. Store the sending key in the `bulkbets_smtp_password` Docker
 secret and include `deploy/docker-stack.smtp.yml` when deploying.
@@ -182,8 +182,8 @@ SMTP_USERNAME=resend
 SMTP_PASSWORD=<Resend API key>
 ```
 
-Restart/recreate the API after changing these variables. If running Go directly,
-load them into the process environment instead. Use port 587 for STARTTLS;
+Restart/recreate the API after changing these variables. Compose loads this file
+directly; Go loads it when started from the `server` directory. Use port 587 for STARTTLS;
 the client does not implement implicit TLS on port 465.
 
 For a live delivery check, request a password reset for an existing password-based

@@ -1,0 +1,223 @@
+name: BulkBets Pipeline
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Do not interrupt a production migration or deploy when another commit arrives.
+concurrency:
+  group: bulkbets-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            server:
+              - 'server/**'
+              - 'docker-stack.yaml'
+              - 'deploy/**'
+              - '.github/workflows/**'
+
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            mobile/package-lock.json
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: Install dependencies
+        run: npm --prefix web ci && npm --prefix mobile ci
+      - name: Check Go API
+        working-directory: server
+        run: go test ./... && go vet ./...
+      - name: Check GitHub Actions workflow
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 .github/workflows/pipeline.yaml
+      - name: Check web app
+        run: npm --prefix web run lint && npm --prefix web run typecheck && npm --prefix web test -- --runInBand
+      - name: Type-check Node tooling
+        run: npm --prefix web run typecheck:tools
+      - name: Check mobile app and native exports
+        run: npm --prefix mobile run lint && npm --prefix mobile run typecheck && npm --prefix mobile run export:native
+      - name: Check deployment shell syntax
+        run: sh -n deploy/migrate.sh deploy/backup.sh deploy/rollout.sh
+      - name: Check deployment ordering and failure handling
+        run: node --test deploy/tests/rollout.test.mts
+
+  e2e:
+    needs: [validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BULKBETS_TEST_POSTGRES_IMAGE: postgres:17.4
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            mobile/package-lock.json
+      - name: Install dependencies
+        run: npm --prefix web ci && npm --prefix mobile ci
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('web/package-lock.json') }}
+      - name: Install Playwright browser and OS dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Install Playwright OS dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        working-directory: web
+        run: npx playwright install-deps chromium
+      - name: Run browser and storage integration tests
+        run: npm --prefix web run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failures
+          path: |
+            web/test-results
+            web/playwright-report
+
+  build-and-push-image:
+    needs: [changes, e2e]
+    if: >-
+      github.ref == 'refs/heads/master' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (needs.changes.outputs.server == 'true' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/perrysmithmoss/bulkbets
+          tags: |
+            type=raw,value=${{ github.sha }}
+            type=raw,value=latest
+      - name: Build and push Go API image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./server
+          file: ./server/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: [build-and-push-image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      packages: read
+    env:
+      STACK_NAME: bulkbets
+      GIT_COMMIT_HASH: ${{ github.sha }}
+      APP_HOST: ${{ vars.APP_HOST }}
+      API_HOST: ${{ vars.API_HOST }}
+      CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS }}
+      DB_HOST: ${{ vars.DB_HOST }}
+      DB_PORT: ${{ vars.DB_PORT || '5432' }}
+      DB_USER: ${{ vars.DB_USER || 'bulkbets' }}
+      DB_NAME: ${{ vars.DB_NAME || 'bulk_bets' }}
+      DB_SSL_ENABLED: ${{ vars.DB_SSL_ENABLED || 'disable' }}
+      SMTP_ADDR: ${{ vars.SMTP_ADDR || 'smtp.resend.com:587' }}
+      SMTP_FROM: ${{ vars.SMTP_FROM || 'noreply@bulkbets.perrysmithmoss.com' }}
+      SMTP_USERNAME: ${{ vars.SMTP_USERNAME || 'resend' }}
+      GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+      DOCKER_HOST: ssh://bulkbets-vps
+    steps:
+      - uses: actions/checkout@v6
+      - name: Configure VPS SSH connection
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          VPS_SSH_USER: ${{ vars.VPS_SSH_USER || 'deploy' }}
+          VPS_SSH_PORT: ${{ vars.VPS_SSH_PORT || '22' }}
+        run: |
+          set -eu
+          : "${VPS_IP:?Configure the VPS_IP repository secret}"
+          : "${DEPLOY_SSH_PRIVATE_KEY:?Configure the DEPLOY_SSH_PRIVATE_KEY repository secret}"
+          : "${APP_HOST:?Configure the APP_HOST repository variable}"
+          : "${API_HOST:?Configure the API_HOST repository variable}"
+          : "${DB_HOST:?Configure the DB_HOST repository variable}"
+          install -d -m 700 "$HOME/.ssh"
+          umask 077
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/bulkbets-deploy-key"
+          if [ -n "$VPS_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$VPS_KNOWN_HOSTS" > "$RUNNER_TEMP/bulkbets-known-hosts"
+          else
+            ssh-keyscan -T 15 -p "$VPS_SSH_PORT" -H "$VPS_IP" > "$RUNNER_TEMP/bulkbets-known-hosts"
+          fi
+          cat > "$HOME/.ssh/config" <<EOF
+          Host bulkbets-vps
+            HostName $VPS_IP
+            User $VPS_SSH_USER
+            Port $VPS_SSH_PORT
+            IdentityFile $RUNNER_TEMP/bulkbets-deploy-key
+            UserKnownHostsFile $RUNNER_TEMP/bulkbets-known-hosts
+            IdentitiesOnly yes
+            BatchMode yes
+            StrictHostKeyChecking yes
+            ConnectTimeout 30
+          EOF
+      - name: Authenticate for GHCR image pulls
+        env:
+          GHCR_USERNAME: ${{ vars.GHCR_USERNAME || github.actor }}
+          GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN || secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+      - name: Provision database, migrate, seed and deploy the API stack
+        run: sh deploy/rollout.sh
+      - name: Clean up runner credentials
+        if: always()
+        run: |
+          docker logout ghcr.io || true
+          rm -f "$RUNNER_TEMP/bulkbets-deploy-key" "$RUNNER_TEMP/bulkbets-known-hosts" "$HOME/.ssh/config"

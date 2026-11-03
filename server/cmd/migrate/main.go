@@ -16,9 +16,38 @@ import (
 	"github.com/PerrySmithMoss/BulkBets/server/config"
 	"github.com/PerrySmithMoss/BulkBets/server/internal/env"
 	migrationService "github.com/PerrySmithMoss/BulkBets/server/internal/migrations"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/provision"
 )
 
 func main() {
+	action := flag.String("action", "up", "Database action (provision, up, down, reset, status, to, seed)")
+	version := flag.Int64("version", 0, "Version to migrate to (only for 'to' action)")
+	flag.Parse()
+
+	if *action == "provision" {
+		if err := env.LoadSecretFiles("DB_PASSWORD", "DB_ADMIN_USER", "DB_ADMIN_PASSWORD"); err != nil {
+			log.Fatal(err)
+		}
+		if os.Getenv("DB_HOST") == "" || os.Getenv("DB_ADMIN_USER") == "" || os.Getenv("DB_ADMIN_PASSWORD") == "" {
+			log.Fatal("Provisioning requires DB_HOST and DB_ADMIN_USER/DB_ADMIN_PASSWORD(_FILE)")
+		}
+		cfg := config.GetConfig().DB
+		admin := cfg
+		admin.DBUser = os.Getenv("DB_ADMIN_USER")
+		admin.DBPassword = os.Getenv("DB_ADMIN_PASSWORD")
+		admin.DBName = env.GetEnv("DB_ADMIN_NAME", "postgres")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		result, err := provision.Ensure(ctx, provision.Settings{
+			AdminURL: admin.ConnectionString(), AppURL: cfg.ConnectionString(),
+			User: cfg.DBUser, Database: cfg.DBName, Password: cfg.DBPassword,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("Database provisioned and login verified (role_created=%t database_created=%t)", result.RoleCreated, result.DatabaseCreated)
+		return
+	}
 	// Explicit connection settings take precedence over local dotenv files.
 	if os.Getenv("DB_ADDR") == "" && os.Getenv("DB_HOST") == "" {
 		if err := godotenv.Load("../../.env"); err != nil && !os.IsNotExist(err) {
@@ -35,10 +64,6 @@ func main() {
 		}
 		dbURL = config.GetConfig().DB.ConnectionString()
 	}
-
-	action := flag.String("action", "up", "Migration action (up, down, reset, status, to, seed)")
-	version := flag.Int64("version", 0, "Version to migrate to (only for 'to' action)")
-	flag.Parse()
 
 	migrationService, err := migrationService.NewMigrationService(dbURL)
 	if err != nil {

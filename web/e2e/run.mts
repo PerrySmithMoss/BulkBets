@@ -7,9 +7,9 @@ const composeArgs = [
   "-p",
   "bulkbets-e2e",
   "-f",
-  "docker-compose.e2e.yml",
+  "docker-compose.e2e.yaml",
 ];
-function compose(args) {
+function compose(args: readonly string[]): void {
   const result = spawnSync("docker", [...composeArgs, ...args], {
     cwd: root,
     stdio: "inherit",
@@ -22,7 +22,7 @@ let status = 1;
 try {
   compose(["down", "--volumes", "--remove-orphans"]);
   compose(["up", "--build", "--wait", "--wait-timeout", "180"]);
-  compose(["logs", "--no-color", "store-tests"]);
+  compose(["logs", "--no-color", "provision-tests", "provision", "store-tests"]);
   compose([
     "exec",
     "-T",

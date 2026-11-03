@@ -47,7 +47,7 @@ export default defineConfig({
     },
     {
       command:
-        "npm --prefix ../mobile run export:web && node e2e/serve-mobile.mjs",
+        "npm --prefix ../mobile run export:web && node e2e/serve-mobile.mts",
       url: "http://127.0.0.1:3101",
       timeout: 180_000,
     },

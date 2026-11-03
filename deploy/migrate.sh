@@ -5,25 +5,37 @@ cd "$(dirname "$0")/.."
 # Run from a Swarm manager after exporting the non-secret deployment settings.
 # Uses a service, not docker run, so the overlay need not be attachable.
 action=${1:-up}
-case "$action" in up|seed|status) ;; *) echo "Usage: sh deploy/migrate.sh [up|seed|status]" >&2; exit 2 ;; esac
-: "${BULKBETS_API_IMAGE:?Set BULKBETS_API_IMAGE}"
+case "$action" in provision|up|seed|status) ;; *) echo "Usage: sh deploy/migrate.sh [provision|up|seed|status]" >&2; exit 2 ;; esac
+api_image="ghcr.io/perrysmithmoss/bulkbets:${GIT_COMMIT_HASH:-latest}"
 : "${DB_HOST:?Set DB_HOST to the existing PostgreSQL service}"
 job="${STACK_NAME:-bulkbets}-migrate-$(date -u +%Y%m%d%H%M%S)-$$"
+# Invoked indirectly by the EXIT trap, including failed provisioning jobs.
+# shellcheck disable=SC2329
 cleanup() { docker service rm "$job" >/dev/null 2>&1 || true; }
-trap cleanup EXIT
+trap 'cleanup' EXIT
 trap 'exit 1' HUP INT TERM
+
+# Only the temporary provisioning job can read infrastructure administrator
+# secrets. Migrations and the long-running API use the dedicated application role.
+if [ "$action" = provision ]; then
+  set -- --secret postgres_user --secret postgres_password \
+    --env DB_ADMIN_USER_FILE=/run/secrets/postgres_user \
+    --env DB_ADMIN_PASSWORD_FILE=/run/secrets/postgres_password
+else
+  set -- --secret bulkbets_admin_password \
+    --env ADMIN_USER_PASSWORD_FILE=/run/secrets/bulkbets_admin_password
+fi
 
 docker service create --detach --with-registry-auth --name "$job" \
   --restart-condition none \
   --network portfolio_network \
   --secret bulkbets_db_password \
-  --secret bulkbets_admin_password \
+  "$@" \
   --env "DB_HOST=$DB_HOST" --env "DB_PORT=${DB_PORT:-5432}" \
   --env "DB_USER=${DB_USER:-bulkbets}" --env "DB_NAME=${DB_NAME:-bulk_bets}" \
   --env "DB_SSL_ENABLED=${DB_SSL_ENABLED:-disable}" \
   --env DB_PASSWORD_FILE=/run/secrets/bulkbets_db_password \
-  --env ADMIN_USER_PASSWORD_FILE=/run/secrets/bulkbets_admin_password \
-  "$BULKBETS_API_IMAGE" /app/migrate -action "$action" >/dev/null
+  "$api_image" /app/migrate -action "$action" >/dev/null
 
 remaining=600
 while [ "$remaining" -gt 0 ]; do

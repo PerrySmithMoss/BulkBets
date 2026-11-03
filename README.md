@@ -13,15 +13,16 @@ From the repository root:
 npm --prefix web ci
 npm --prefix mobile ci
 cp -n web/.env.example web/.env
+cp -n server/.env.example server/.env
 docker compose up --build --wait
 docker compose run --rm migrate /app/migrate -action seed
 npm --prefix web run dev
 ```
 
 Open <http://localhost:3000>. The API is at <http://localhost:8080/api/v1/health>.
-Postgres is exposed on localhost port 55432 (`DB_PORT` can override it).
+Postgres is exposed on localhost port 55432 (a shell `DB_PORT` can override it).
 Registered customer accounts start with £1,000 in virtual funds. The migrations create `admin@bulkbets.com` with password `local-development-password`
-(or `ADMIN_USER_PASSWORD` supplied to Docker Compose). Its balance starts at zero.
+(or `ADMIN_USER_PASSWORD` set in `server/.env`). Its balance starts at zero.
 Seeds contain demo shows, competitors, and odds. The seed command tracks its own
 version table, so running it again does not duplicate data.
 
@@ -30,7 +31,9 @@ for a deployment. OAuth is optional; password login works without provider crede
 Account registration, password login and recovery are available. Recovery needs the
 SMTP configuration in `server/.env.example` for external mail. For local Resend delivery,
 set `SMTP_ADDR`, `SMTP_FROM`, `SMTP_USERNAME` and `SMTP_PASSWORD` in the ignored
-repository-root `.env`. Recovery is unavailable until SMTP is configured. The demo wallet supports simulated deposits and withdrawals. No real money is used.
+`server/.env`. Compose loads the server environment directly, with Docker database
+addresses overriding the localhost settings used when running Go on the host.
+Recovery is unavailable until SMTP is configured. The demo wallet supports simulated deposits and withdrawals. No real money is used.
 
 ## Portfolio demo
 
@@ -92,11 +95,35 @@ See [the deployment guide](deploy/README.md) for the Vercel frontend and Traefik
 SMTP, backups, monitoring, guest retention, mobile configuration and verification.
 The project has no real-money payment or redemption path.
 
+[The GitHub Actions pipeline](.github/workflows/pipeline.yaml) validates changes,
+publishes the API image and deploys backend changes from `master` to the existing
+VPS Swarm. A temporary job creates the dedicated database/role if missing before
+running migrations and seeds. Configure the repository secrets/variables listed in the deployment
+guide before enabling the first rollout. Frontend hosting remains on Vercel.
+
+## Language and tooling conventions
+
+Use TypeScript for web/mobile code, custom Node scripts and test fixtures. Keep
+the backend in Go. Tool-owned configuration can use JavaScript where that avoids
+extra loaders; GitHub workflows and small deployment wrappers retain their native
+YAML/shell formats. Do not introduce additional language runtimes for utilities.
+
+Standalone Node tooling uses `.mts` for explicit ES modules and runs directly on
+our pinned Node 24. Native execution strips types but does not check them; CI also
+runs the strict `tsconfig.tools.json` check. Use erasable TypeScript syntax, explicit
+type imports and runtime validation at JSON/environment boundaries.
+
+`deploy/tsconfig.json` extends the same tooling configuration so editors discover
+the deployment tests and their Node types automatically. VS Code is configured to
+offer the workspace TypeScript version installed by `npm --prefix web ci`.
+
 ## Verification
 
 ```sh
 npm --prefix web run lint
 npm --prefix web run typecheck
+npm --prefix web run typecheck:tools
+node --test deploy/tests/rollout.test.mts
 npm --prefix web test -- --runInBand
 npm --prefix mobile run lint
 npm --prefix mobile run typecheck

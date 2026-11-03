@@ -189,7 +189,7 @@ test("password recovery handles disabled email and rejects expired or reused res
       "-p",
       "bulkbets-e2e",
       "-f",
-      "../docker-compose.e2e.yml",
+      "../docker-compose.e2e.yaml",
       "exec",
       "-T",
       "db",
@@ -244,7 +244,7 @@ function fixtureSQL(sql: string) {
     "-p",
     "bulkbets-e2e",
     "-f",
-    "../docker-compose.e2e.yml",
+    "../docker-compose.e2e.yaml",
     "exec",
     "-T",
     "db",
@@ -333,7 +333,7 @@ test("show service failure displays a useful retry and recovers", async ({
       "-p",
       "bulkbets-e2e",
       "-f",
-      "../docker-compose.e2e.yml",
+      "../docker-compose.e2e.yaml",
       ...args,
     ]);
   compose(["stop", "-t", "1", "api"]);
