@@ -175,10 +175,12 @@ this does not revert database changes.
 [`.github/workflows/pipeline.yaml`](../.github/workflows/pipeline.yaml) runs on
 pull requests and pushes to **master**. Every run checks Go, web/mobile lint and
 types, unit tests, native exports, and the isolated browser/storage suite against
-PostgreSQL 17.4. Backend, stack, deployment or workflow changes on master then
-publish `ghcr.io/perrysmithmoss/bulkbets` with the commit SHA and `latest` tags.
-Frontend-only changes are handled by Vercel. **Run workflow** on master forces an
-API build/deploy even when the backend path filter has no changes.
+PostgreSQL 17.4. Every successful master push then publishes
+`ghcr.io/perrysmithmoss/bulkbets` with the commit SHA and `latest` tags and deploys
+the API. This includes frontend/test fixes, so they can unblock an earlier failed
+release without another backend edit. Pull requests only run validation and E2E.
+Vercel manages frontend deployments independently. **Run workflow** on master
+also runs the full build/deploy without requiring a new commit.
 
 The deployment job connects to the existing Swarm manager using Docker over SSH,
 checks the overlay and external secrets, provisions missing database objects,

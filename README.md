@@ -96,7 +96,7 @@ SMTP, backups, monitoring, guest retention, mobile configuration and verificatio
 The project has no real-money payment or redemption path.
 
 [The GitHub Actions pipeline](.github/workflows/pipeline.yaml) validates changes,
-publishes the API image and deploys backend changes from `master` to the existing
+publishes the API image and deploys every validated push to `master` to the existing
 VPS Swarm. A temporary job creates the dedicated database/role if missing before
 running migrations and seeds. Configure the repository secrets/variables listed in the deployment
 guide before enabling the first rollout. Frontend hosting remains on Vercel.

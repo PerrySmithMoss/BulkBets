@@ -15,27 +15,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  changes:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      server: ${{ steps.filter.outputs.server }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          filters: |
-            server:
-              - 'server/**'
-              - 'docker-stack.yaml'
-              - 'deploy/**'
-              - '.github/workflows/**'
-
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -112,11 +91,12 @@ jobs:
             web/playwright-report
 
   build-and-push-image:
-    needs: [changes, e2e]
+    # Every validated master push is a release, including fixes that unblock an
+    # earlier failed deployment without changing the backend again.
+    needs: [e2e]
     if: >-
       github.ref == 'refs/heads/master' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      (needs.changes.outputs.server == 'true' || github.event_name == 'workflow_dispatch')
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
