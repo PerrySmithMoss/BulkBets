@@ -2,17 +2,27 @@ import type { NextConfig } from "next";
 import { getApiOrigin } from "./src/lib/api/origin";
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   ...(process.env.VERCEL === "1" ? {} : { output: "standalone" as const }),
   images: {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "**",
+        hostname: "**.googleusercontent.com",
       },
     ],
   },
   async headers() {
     return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
       {
         source: "/api/:path*",
         headers: [

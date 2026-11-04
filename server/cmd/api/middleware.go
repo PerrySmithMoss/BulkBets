@@ -27,7 +27,8 @@ func (app *application) DeserialiseUserMiddleware(next http.Handler) http.Handle
 					log.Printf("Error reading accessToken subject claim: %v", err)
 				} else {
 					user, err := app.store.UserRepository.GetUserByID(r.Context(), userIdClaim)
-					if err != nil || user.Status != "active" {
+					version, versionErr := auth.GetTypedClaim[int64](app.authenticator.AccessTokenAuthenticator, accessTokenStr, "sessionVersion")
+					if err != nil || versionErr != nil || user.Status != "active" || user.SessionVersion != version {
 						next.ServeHTTP(w, r)
 						return
 					}

@@ -23,11 +23,12 @@ const (
 )
 
 type AppConfig struct {
-	AppEnv       string
-	AppPort      string
-	AppHost      string
-	AppClientUrl string
-	TrustEdge    bool
+	AppEnv           string
+	AppPort          string
+	AppHost          string
+	AppClientUrl     string
+	EdgeProxySecret  string
+	TrustedProxyCIDR string
 }
 
 type CorsConfig struct {
@@ -47,6 +48,7 @@ type DBConfig struct {
 	DBMaxIdleConnections int
 	DBMaxIdleTime        string
 	DBSslMode            string
+	DBSSLRootCert        string
 }
 
 type TokenClaimsConfig struct {
@@ -96,11 +98,12 @@ func GetConfig() Config {
 
 func initConfig() Config {
 	appConfig := AppConfig{
-		TrustEdge:    env.GetEnvAsBool("TRUST_EDGE", false),
-		AppEnv:       env.GetEnv("APP_ENV", DefaultAppEnv),
-		AppHost:      env.GetEnv("APP_HOST", DefaultAppHost),
-		AppPort:      env.GetEnv("APP_PORT", DefaultAppPort),
-		AppClientUrl: env.GetEnv("APP_CLIENT_URL", DefaultAppClient),
+		EdgeProxySecret:  env.GetEnv("EDGE_PROXY_SECRET", ""),
+		TrustedProxyCIDR: env.GetEnv("TRUSTED_PROXY_CIDR", ""),
+		AppEnv:           env.GetEnv("APP_ENV", DefaultAppEnv),
+		AppHost:          env.GetEnv("APP_HOST", DefaultAppHost),
+		AppPort:          env.GetEnv("APP_PORT", DefaultAppPort),
+		AppClientUrl:     env.GetEnv("APP_CLIENT_URL", DefaultAppClient),
 	}
 
 	issuer := generateIssuer(appConfig)
@@ -117,6 +120,7 @@ func initConfig() Config {
 			DBMaxIdleConnections: env.GetEnvAsInt("DB_MAX_IDLE_CONNS", 30),
 			DBMaxIdleTime:        env.GetEnv("DB_MAX_IDLE_TIME", "15m"),
 			DBSslMode:            env.GetEnv("DB_SSL_ENABLED", "disable"),
+			DBSSLRootCert:        env.GetEnv("DB_SSL_ROOT_CERT", ""),
 		},
 		Cors: CorsConfig{
 			AllowedOrigins:   env.GetEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8081", "http://127.0.0.1:8081"}),
@@ -187,6 +191,9 @@ func (c DBConfig) ConnectionString() string {
 	u := url.URL{Scheme: "postgres", User: url.UserPassword(c.DBUser, c.DBPassword), Host: net.JoinHostPort(c.DBHost, c.DBPort), Path: c.DBName}
 	query := u.Query()
 	query.Set("sslmode", c.DBSslMode)
+	if c.DBSSLRootCert != "" {
+		query.Set("sslrootcert", c.DBSSLRootCert)
+	}
 	u.RawQuery = query.Encode()
 	return u.String()
 }

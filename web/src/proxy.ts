@@ -1,6 +1,8 @@
 import { getApiOrigin } from "@/lib/api/origin";
 import { NextResponse, NextRequest } from "next/server";
 import { API_ROUTES } from "./lib/api/constants";
+import { createHmac } from "node:crypto";
+import { isIP } from "node:net";
 
 async function refreshTokens(refreshToken: string) {
   try {
@@ -29,20 +31,48 @@ async function refreshTokens(refreshToken: string) {
 }
 
 export default async function proxy(req: NextRequest) {
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const csp = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https://*.googleusercontent.com",
+    "font-src 'self' data:", "connect-src 'self'", "object-src 'none'",
+    "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'",
+  ].join('; ');
+  const requestHeaders = new Headers(req.headers);
+  // Never forward client-provided assertions. Only sign Vercel's own address.
+  for (const name of ['X-BulkBets-Client-IP', 'X-BulkBets-Timestamp', 'X-BulkBets-Signature']) requestHeaders.delete(name);
+  const edgeSecret = process.env.EDGE_PROXY_SECRET;
+  const ip = req.headers.get('x-vercel-forwarded-for') || '';
+  if (process.env.VERCEL === '1' && edgeSecret && edgeSecret.length >= 32 && isIP(ip)) {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    requestHeaders.set('X-BulkBets-Client-IP', ip);
+    requestHeaders.set('X-BulkBets-Timestamp', timestamp);
+    requestHeaders.set('X-BulkBets-Signature', createHmac('sha256', edgeSecret).update(`${req.method}\n${req.nextUrl.pathname}\n${ip}\n${timestamp}`).digest('hex'));
+  }
+  requestHeaders.set('Content-Security-Policy', csp);
+  requestHeaders.set('x-nonce', nonce);
+  const response = await handleSession(req, requestHeaders);
+  response.headers.set('Content-Security-Policy', csp);
+  return response;
+}
+
+async function handleSession(req: NextRequest, requestHeaders: Headers) {
   const { pathname } = req.nextUrl;
   // The API refresh endpoint performs its own rotation; do not refresh it twice.
   if (pathname === `/${API_ROUTES.AUTH.REFRESH_TOKENS}`) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
   const accessToken = req.cookies.get("access_token")?.value;
   const refreshToken = req.cookies.get("refresh_token")?.value;
 
   // 🔹 Protected routes (only logged-in users should access these)
-  const isProtectedRoute = pathname.startsWith("/customer");
+  const isProtectedRoute = pathname.startsWith("/customer") && pathname !== "/customer/account/create";
 
   // ✅ If access token exists, allow access
   if (accessToken) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   // 🔄 If no access token but refresh token exists, try refreshing
@@ -55,11 +85,10 @@ export default async function proxy(req: NextRequest) {
         // Redirect to login page if user is not authenticated
         return NextResponse.redirect(new URL("/", req.url));
       }
-      return NextResponse.next();
+      return NextResponse.next({ request: { headers: requestHeaders } });
     }
 
     // Clone the request to modify headers
-    const requestHeaders = new Headers(req.headers);
     const requestCookies = new Map(
       req.cookies.getAll().map(({ name, value }) => [name, value]),
     );
@@ -90,17 +119,17 @@ export default async function proxy(req: NextRequest) {
   }
 
   // Define protected routes
-  if (req.nextUrl.pathname.startsWith("/customer")) {
+  if (isProtectedRoute) {
     // Redirect to login page if user is not authenticated
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  return NextResponse.next();
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {
   matcher: [
-    "/((?!customer/account/create|api/v1/auth/token/refresh|_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     "/(api)(.*)",
   ],
 };

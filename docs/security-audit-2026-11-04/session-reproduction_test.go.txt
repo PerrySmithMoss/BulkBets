@@ -1,0 +1,100 @@
+package main
+
+import (
+	"context"
+	"github.com/PerrySmithMoss/BulkBets/server/config"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/auth"
+	"github.com/PerrySmithMoss/BulkBets/server/internal/store"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"net/http"
+	"net/http/httptest"
+	"sync"
+	"testing"
+	"time"
+)
+
+type auditUsers struct {
+	store.UserRepository
+	mu      sync.Mutex
+	user    store.User
+	reads   int
+	barrier chan struct{}
+}
+
+func (s *auditUsers) GetUserByID(ctx context.Context, id string) (*store.User, error) {
+	s.mu.Lock()
+	u := s.user
+	s.reads++
+	if s.barrier != nil && s.reads == 2 {
+		close(s.barrier)
+	}
+	s.mu.Unlock()
+	if s.barrier != nil {
+		<-s.barrier
+	}
+	return &u, nil
+}
+func (s *auditUsers) SetRefreshTokenVersion(ctx context.Context, v int64, id string) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.user.RefreshTokenVersion = v
+	return v, nil
+}
+func auditApp(u *auditUsers) *application {
+	issuer := "https://audit.invalid"
+	return &application{cfg: config.Config{Auth: config.Auth{Token: config.TokenConfig{AccessToken: config.TokenClaimsConfig{Iss: issuer, Exp: "15m"}, RefreshToken: config.TokenClaimsConfig{Iss: issuer, Exp: "168h"}}}}, store: store.Storage{UserRepository: u}, authenticator: &auth.TokenAuthenticator{AccessTokenAuthenticator: auth.NewJWTAuthenticator("audit-access-secret", issuer, issuer), RefreshTokenAuthenticator: auth.NewJWTAuthenticator("audit-refresh-secret", issuer, issuer)}}
+}
+func TestAuditConcurrentRefreshReplay(t *testing.T) {
+	u := &auditUsers{user: store.User{Id: uuid.New(), Status: "active", RefreshTokenVersion: 7}, barrier: make(chan struct{})}
+	app := auditApp(u)
+	token, err := app.authenticator.RefreshTokenAuthenticator.GenerateToken(jwt.MapClaims{"sub": u.user.Id.String(), "exp": time.Now().Add(time.Hour).Unix(), "iss": app.cfg.Auth.Token.RefreshToken.Iss, "aud": app.cfg.Auth.Token.AccessToken.Iss, "refreshTokenVersion": 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	responses := make([]*httptest.ResponseRecorder, 2)
+	for i := range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			r := httptest.NewRequest("GET", "/api/v1/auth/token/refresh", nil)
+			r.AddCookie(&http.Cookie{Name: "refresh_token", Value: token})
+			w := httptest.NewRecorder()
+			app.tokenRenewalHandler(w, r)
+			responses[i] = w
+		}()
+	}
+	wg.Wait()
+	for _, w := range responses {
+		if w.Code != 200 {
+			t.Fatalf("expected reproduction, got %d", w.Code)
+		}
+		for _, c := range w.Result().Cookies() {
+			if c.Name == "refresh_token" {
+				v, e := auth.GetTypedClaim[int64](app.authenticator.RefreshTokenAuthenticator, c.Value, "refreshTokenVersion")
+				if e != nil || v != 8 {
+					t.Fatal("unexpected version")
+				}
+			}
+		}
+	}
+	t.Log("REPRODUCED: two uses of the same refresh token both return 200 and valid version 8 refresh tokens")
+}
+func TestAuditAccessTokenSurvivesRevocation(t *testing.T) {
+	u := &auditUsers{user: store.User{Id: uuid.New(), Status: "active", RefreshTokenVersion: 99}}
+	app := auditApp(u)
+	token, err := app.authenticator.AccessTokenAuthenticator.GenerateToken(jwt.MapClaims{"sub": u.user.Id.String(), "exp": time.Now().Add(time.Minute).Unix(), "iss": app.cfg.Auth.Token.AccessToken.Iss, "aud": app.cfg.Auth.Token.AccessToken.Iss})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := httptest.NewRequest("GET", "/api/v1/users/me", nil)
+	r.AddCookie(&http.Cookie{Name: "access_token", Value: token})
+	w := httptest.NewRecorder()
+	h := app.DeserialiseUserMiddleware(app.RequireUserMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })))
+	h.ServeHTTP(w, r)
+	if w.Code != 204 {
+		t.Fatalf("expected reproduction, got %d", w.Code)
+	}
+	t.Log("REPRODUCED: active user with advanced token version still authenticates using an earlier unexpired access token")
+}

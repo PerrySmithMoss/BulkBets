@@ -25,7 +25,7 @@ func main() {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 
-	if err := env.LoadSecretFiles("DB_PASSWORD", "ACCESS_TOKEN_SECRET", "REFRESH_TOKEN_SECRET", "SMTP_PASSWORD", "GOOGLE_CLIENT_SECRET"); err != nil {
+	if err := env.LoadSecretFiles("DB_PASSWORD", "ACCESS_TOKEN_SECRET", "REFRESH_TOKEN_SECRET", "SMTP_PASSWORD", "GOOGLE_CLIENT_SECRET", "EDGE_PROXY_SECRET"); err != nil {
 		log.Fatal(err)
 	}
 	cfg := config.GetConfig()

@@ -222,6 +222,4 @@ and `GOOGLE_CLIENT_SECRET_FILE`. Migrations also accept `ADMIN_USER_PASSWORD_FIL
 A key cannot be configured through both its value and its `_FILE` setting.
 Migration jobs can use `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_NAME`,
 `DB_PASSWORD_FILE` and `DB_SSL_ENABLED` instead of a password-bearing `DB_ADDR`.
-The VPS stack reuses the existing PostgreSQL 17 service and `portfolio_network`;
-it does not create or alter the infrastructure stack. Give BulkBets a dedicated
-login/database rather than mounting the infrastructure admin credentials in the API.
+The VPS stack reuses PostgreSQL 17.11 over a dedicated database overlay with TLS verification and a restricted runtime login. Migrations use the schema owner. See `deploy/README.md` for the separate ingress network, CA/secret requirements and runtime grants.

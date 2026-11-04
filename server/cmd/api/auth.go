@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -120,231 +121,53 @@ func (app *application) oauth2CallbackHandler(w http.ResponseWriter, r *http.Req
 		SetGoogleId(userInfo.UserID).
 		Build()
 
-	// TODO: add this to register auth (email/pass) handler when implemented
-	// hash the user password
-	// if err := user.Password.Set(payload.Password); err != nil {
-	// 	app.internalServerError(w, r, err)
-	// 	return
-	// }
-
-	ctx := r.Context()
-	if err := app.store.UserRepository.Upsert(ctx, user); err != nil {
-		log.Printf("Error upserting user: %v", err)
-		// TODO: Does this need switching to a redirect with a error query param
-		// containing the error. What if the user tries signing up but the email
-		// they provided is taken, should we send an email to that email asking if
-		// it was them that just tried to sign up but from different oauth provider?
-		http.Error(w, "Error processing user data", http.StatusInternalServerError)
+	if err := app.store.UserRepository.Upsert(r.Context(), user); err != nil {
+		if errors.Is(err, store.ErrIdentityLinkRequired) {
+			http.Redirect(w, r, frontendRedirectURL+"?error="+url.QueryEscape("This email already has an account. Use its existing sign-in method or reset its password."), http.StatusSeeOther)
+			return
+		}
+		writeJSONError(w, 500, "Unable to complete login.")
 		return
 	}
-
-	accessTokenDurationExp, err := time.ParseDuration(app.cfg.Auth.Token.AccessToken.Exp)
-	if err != nil {
-		log.Printf("Error parsing access token duration: %v", err)
-		http.Error(w, "Error parsing access token duration", http.StatusInternalServerError)
-		return
+	if app.issueSession(w, r, user) {
+		http.Redirect(w, r, frontendRedirectURL, http.StatusSeeOther)
 	}
-	refreshTokenDurationExp, err := time.ParseDuration(app.cfg.Auth.Token.RefreshToken.Exp)
-	if err != nil {
-		log.Printf("Error parsing refresh token duration: %v", err)
-		http.Error(w, "Error parsing refresh token duration", http.StatusInternalServerError)
-		return
-	}
-
-	accessTokenClaims := jwt.MapClaims{
-		"sub": user.Id,
-		"exp": time.Now().Add(accessTokenDurationExp).Unix(),
-		"iat": time.Now().Unix(),
-		"iss": app.cfg.Auth.Token.AccessToken.Iss,
-		"aud": app.cfg.Auth.Token.AccessToken.Iss,
-	}
-	accessToken, err := app.authenticator.AccessTokenAuthenticator.GenerateToken(accessTokenClaims)
-	if err != nil {
-		log.Printf("Error signing access token: %v", err)
-		http.Error(w, "Error signing access token", http.StatusInternalServerError)
-		return
-	}
-
-	refreshTokenClaims := jwt.MapClaims{
-		"sub":                 user.Id,
-		"refreshTokenVersion": user.RefreshTokenVersion,
-		"exp":                 time.Now().Add(refreshTokenDurationExp).Unix(),
-		"iat":                 time.Now().Unix(),
-		"iss":                 app.cfg.Auth.Token.RefreshToken.Iss,
-		"aud":                 app.cfg.Auth.Token.AccessToken.Iss,
-	}
-	refreshToken, err := app.authenticator.RefreshTokenAuthenticator.GenerateToken(refreshTokenClaims)
-	if err != nil {
-		log.Printf("Error signing refresh token: %v", err)
-		http.Error(w, "Error signing refresh token", http.StatusInternalServerError)
-		return
-	}
-
-	// Set cookies
-	// TODO extract this into util func?
-	http.SetCookie(w, &http.Cookie{
-		Name:     "access_token",
-		Value:    accessToken,
-		HttpOnly: true,
-		Secure:   app.cfg.App.AppEnv == "production",
-		SameSite: http.SameSiteLaxMode,
-		Path:     "/",
-		Expires:  time.Now().Add(accessTokenDurationExp),
-	})
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    refreshToken,
-		HttpOnly: true,
-		Secure:   app.cfg.App.AppEnv == "production",
-		SameSite: http.SameSiteLaxMode,
-		Path:     "/",
-		Expires:  time.Now().Add(refreshTokenDurationExp),
-	})
-
-	redirectURL := frontendRedirectURL
-	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
-// Handles access/refresh token renewal
 func (app *application) tokenRenewalHandler(w http.ResponseWriter, r *http.Request) {
-	// Check for refresh token if access token is expired or invalid
-	refreshTokenCookie, err := r.Cookie(auth.RefreshTokenCookieName)
+	cookie, err := r.Cookie(auth.RefreshTokenCookieName)
 	if err != nil {
-		http.Error(w, "Unable to read refresh token.", http.StatusUnauthorized)
+		writeJSONError(w, 401, "Please log in again.")
 		return
 	}
-
-	// Attempt to validate the refresh token
-	refreshToken, err := app.authenticator.RefreshTokenAuthenticator.ValidateToken(refreshTokenCookie.Value)
-	if err != nil || !refreshToken.Valid {
-		log.Printf("Invalid or expired refresh token: %v", err)
-		http.Error(w, "Invalid or expired refresh token.", http.StatusInternalServerError)
+	token, err := app.authenticator.RefreshTokenAuthenticator.ValidateToken(cookie.Value)
+	if err != nil || !token.Valid {
+		writeJSONError(w, 401, "Please log in again.")
 		return
 	}
-
-	if refreshToken.Valid {
-		userIdClaim, err := refreshToken.Claims.GetSubject()
-		if err != nil {
-			log.Printf("Error reading refreshToken subject claim: %v", err)
-			http.Error(w, "Invalid or expired refresh token.", http.StatusInternalServerError)
-			return
-		}
-
-		newAccessTokenDurationExp, err := time.ParseDuration(app.cfg.Auth.Token.AccessToken.Exp)
-		if err != nil {
-			log.Printf("Error parsing accessToken exp of: %s\n%v", app.cfg.Auth.Token.AccessToken.Exp, err)
-			http.Error(w, "Invalid or expired refresh token.", http.StatusInternalServerError)
-			return
-		}
-
-		accessTokenClaims := jwt.MapClaims{
-			"sub": userIdClaim,
-			"exp": time.Now().Add(newAccessTokenDurationExp).Unix(),
-			"iat": time.Now().Unix(),
-			"iss": app.cfg.Auth.Token.AccessToken.Iss,
-			"aud": app.cfg.Auth.Token.AccessToken.Iss,
-		}
-		newAccessToken, err := app.authenticator.AccessTokenAuthenticator.GenerateToken(accessTokenClaims)
-		if err != nil {
-			log.Printf("Error generating new access token: %v", err)
-			http.Error(w, "Invalid or expired refresh token.", http.StatusInternalServerError)
-			return
-		}
-
-		refreshTokenVersion, err := auth.GetTypedClaim[int64](app.authenticator.RefreshTokenAuthenticator, refreshToken.Raw, "refreshTokenVersion")
-		if err != nil {
-			log.Printf("Error retrieving refresh token version: %v", err)
-			http.Error(w, "Invalid or expired refresh token.", http.StatusInternalServerError)
-			return
-		}
-
-		ctx := r.Context()
-		user, err := app.store.UserRepository.GetUserByID(ctx, userIdClaim)
-		if err != nil {
-			log.Printf("No user with ID %s found", userIdClaim)
-			http.Error(w, "User unauthorised.", http.StatusUnauthorized)
-			return
-		}
-
-		// if refreshTokenVersion inside cookie doesn't match the user's refreshTokenVersion inside
-		// db it could potentially be bad actor, and thus we shouldn't proceed
-		if user.Status != "active" || user.RefreshTokenVersion != refreshTokenVersion {
-			log.Printf("refreshTokenVersion mismatch - possible bad actor?")
-			http.Error(w, "Unauthorised.", http.StatusUnauthorized)
-			return
-		}
-
-		// if tokenVersion match we can safely generate new refresh token and increment
-		// the user's refresh token version
-		newRefreshTokenDurationExp, err := time.ParseDuration(app.cfg.Auth.Token.RefreshToken.Exp)
-		if err != nil {
-			log.Printf("Error parsing refreshToken exp: %s.\n%v", app.cfg.Auth.Token.RefreshToken.Exp, err)
-			http.Error(w, "Unauthorised.", http.StatusUnauthorized)
-			return
-		}
-
-		updatedRefreshTokenVersion, err := app.store.UserRepository.SetRefreshTokenVersion(r.Context(), user.RefreshTokenVersion+1, userIdClaim)
-		if err != nil {
-			http.Error(w, "Failed to increment refresh token version", http.StatusInternalServerError)
-			return
-		}
-
-		refreshTokenClaims := jwt.MapClaims{
-			"sub":                 userIdClaim,
-			"refreshTokenVersion": updatedRefreshTokenVersion,
-			"exp":                 time.Now().Add(newRefreshTokenDurationExp).Unix(),
-			"iat":                 time.Now().Unix(),
-			"iss":                 app.cfg.Auth.Token.RefreshToken.Iss,
-			"aud":                 app.cfg.Auth.Token.AccessToken.Iss,
-		}
-		newRefreshToken, err := app.authenticator.RefreshTokenAuthenticator.GenerateToken(refreshTokenClaims)
-		if err != nil {
-			log.Printf("Error generating new access token: %v", err)
-			http.Error(w, "Unauthorised.", http.StatusUnauthorized)
-			return
-		}
-
-		// Validate new access/refresh tokens
-		newAccessTokenClaims, err := app.authenticator.AccessTokenAuthenticator.ValidateToken(newAccessToken)
-		if err != nil {
-			log.Printf("newAccessToken invalid: %v", newAccessTokenClaims)
-			http.Error(w, "Unauthorised.", http.StatusUnauthorized)
-			return
-		}
-		newRefreshTokenClaims, err := app.authenticator.RefreshTokenAuthenticator.ValidateToken(newRefreshToken)
-		if err != nil {
-			log.Printf("newRefreshToken invalid: %v", newRefreshTokenClaims)
-			http.Error(w, "Unauthorised.", http.StatusUnauthorized)
-			return
-		}
-
-		if newAccessTokenClaims.Valid && newRefreshTokenClaims.Valid {
-			// TODO extract this into util func?
-			http.SetCookie(w, &http.Cookie{
-				Name:     "access_token",
-				Value:    newAccessToken,
-				HttpOnly: true,
-				Secure:   app.cfg.App.AppEnv == "production",
-				SameSite: http.SameSiteLaxMode,
-				Path:     "/",
-				Expires:  time.Now().Add(newAccessTokenDurationExp),
-			})
-			http.SetCookie(w, &http.Cookie{
-				Name:     "refresh_token",
-				Value:    newRefreshToken,
-				HttpOnly: true,
-				Secure:   app.cfg.App.AppEnv == "production",
-				SameSite: http.SameSiteLaxMode,
-				Path:     "/",
-				Expires:  time.Now().Add(newRefreshTokenDurationExp),
-			})
-		}
-
-		app.jsonResponse(w, http.StatusOK, nil)
+	id, err := token.Claims.GetSubject()
+	if err != nil {
+		writeJSONError(w, 401, "Please log in again.")
 		return
 	}
-
-	app.jsonResponse(w, http.StatusUnauthorized, nil)
+	refreshVersion, err := auth.GetTypedClaim[int64](app.authenticator.RefreshTokenAuthenticator, cookie.Value, "refreshTokenVersion")
+	if err != nil {
+		writeJSONError(w, 401, "Please log in again.")
+		return
+	}
+	sessionVersion, err := auth.GetTypedClaim[int64](app.authenticator.RefreshTokenAuthenticator, cookie.Value, "sessionVersion")
+	if err != nil {
+		writeJSONError(w, 401, "Please log in again.")
+		return
+	}
+	next, err := app.store.UserRepository.RotateRefreshToken(r.Context(), id, refreshVersion, sessionVersion)
+	if err != nil {
+		writeJSONError(w, 401, "Please log in again.")
+		return
+	}
+	if app.writeSessionCookies(w, id, sessionVersion, next) {
+		app.jsonResponse(w, 200, nil)
+	}
 }
 
 type LoginRequestBody struct {
@@ -366,7 +189,7 @@ func (app *application) loginUserHandler(w http.ResponseWriter, r *http.Request)
 	// Query the database for the user by email
 	user, err := app.store.UserRepository.GetUserByEmail(ctx, strings.ToLower(strings.TrimSpace(reqBody.Email)))
 	if err != nil {
-		log.Printf("Could not get user with email %v. Err: %v", reqBody.Email, err)
+		log.Print("Password login rejected")
 		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
 		return
 	}
@@ -389,122 +212,61 @@ func (app *application) loginUserHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (app *application) issueSession(w http.ResponseWriter, r *http.Request, user *store.User) bool {
-	// Create access and refresh tokens
-	accessTokenDurationExp, err := time.ParseDuration(app.cfg.Auth.Token.AccessToken.Exp)
-	if err != nil {
-		log.Printf("Error parsing accessToken exp of: %s\n%v", app.cfg.Auth.Token.AccessToken.Exp, err)
-		http.Error(w, "Invalid or expired refresh token.", http.StatusInternalServerError)
+	if err := app.store.UserRepository.BeginSession(r.Context(), user); err != nil {
+		writeJSONError(w, 401, "Your session changed. Please log in again.")
 		return false
 	}
+	return app.writeSessionCookies(w, user.Id.String(), user.SessionVersion, user.RefreshTokenVersion)
+}
 
-	accessTokenClaims := jwt.MapClaims{
-		"sub": user.Id,
-		"exp": time.Now().Add(accessTokenDurationExp).Unix(),
-		"iat": time.Now().Unix(),
-		"iss": app.cfg.Auth.Token.AccessToken.Iss,
-		"aud": app.cfg.Auth.Token.AccessToken.Iss,
-	}
-	accessToken, err := app.authenticator.AccessTokenAuthenticator.GenerateToken(accessTokenClaims)
+func (app *application) writeSessionCookies(w http.ResponseWriter, id string, sessionVersion, refreshVersion int64) bool {
+	accessTTL, err := time.ParseDuration(app.cfg.Auth.Token.AccessToken.Exp)
 	if err != nil {
-		log.Printf("Error signing access token: %v", err)
-		http.Error(w, "Error signing access token", http.StatusInternalServerError)
+		writeJSONError(w, 500, "Unable to create session.")
 		return false
 	}
-
-	refreshTokenDurationExp, err := time.ParseDuration(app.cfg.Auth.Token.RefreshToken.Exp)
+	refreshTTL, err := time.ParseDuration(app.cfg.Auth.Token.RefreshToken.Exp)
 	if err != nil {
-		log.Printf("Error parsing refreshToken exp: %s.\n%v", app.cfg.Auth.Token.RefreshToken.Exp, err)
-		http.Error(w, "Unauthorised.", http.StatusUnauthorized)
+		writeJSONError(w, 500, "Unable to create session.")
 		return false
 	}
-
-	updatedRefreshTokenVersion, err := app.store.UserRepository.SetRefreshTokenVersion(r.Context(), user.RefreshTokenVersion+1, user.Id.String())
+	now := time.Now()
+	claims := func(ttl time.Duration, issuer string) jwt.MapClaims {
+		return jwt.MapClaims{"sub": id, "exp": now.Add(ttl).Unix(), "iat": now.Unix(), "iss": issuer, "aud": issuer, "sessionVersion": sessionVersion}
+	}
+	access, err := app.authenticator.AccessTokenAuthenticator.GenerateToken(claims(accessTTL, app.cfg.Auth.Token.AccessToken.Iss))
 	if err != nil {
-		http.Error(w, "Failed to increment refresh token version", http.StatusInternalServerError)
+		writeJSONError(w, 500, "Unable to create session.")
 		return false
 	}
-
-	refreshTokenClaims := jwt.MapClaims{
-		"sub":                 user.Id,
-		"refreshTokenVersion": updatedRefreshTokenVersion,
-		"exp":                 time.Now().Add(refreshTokenDurationExp).Unix(),
-		"iat":                 time.Now().Unix(),
-		"iss":                 app.cfg.Auth.Token.RefreshToken.Iss,
-		"aud":                 app.cfg.Auth.Token.AccessToken.Iss,
-	}
-	refreshToken, err := app.authenticator.RefreshTokenAuthenticator.GenerateToken(refreshTokenClaims)
+	refreshClaims := claims(refreshTTL, app.cfg.Auth.Token.RefreshToken.Iss)
+	refreshClaims["refreshTokenVersion"] = refreshVersion
+	refresh, err := app.authenticator.RefreshTokenAuthenticator.GenerateToken(refreshClaims)
 	if err != nil {
-		log.Printf("Error signing refresh token: %v", err)
-		http.Error(w, "Error signing refresh token", http.StatusInternalServerError)
+		writeJSONError(w, 500, "Unable to create session.")
 		return false
 	}
-
-	// Set cookies
-	// TODO extract this into util func?
-	http.SetCookie(w, &http.Cookie{
-		Name:     "access_token",
-		Value:    accessToken,
-		HttpOnly: true,
-		Secure:   app.cfg.App.AppEnv == "production",
-		SameSite: http.SameSiteLaxMode,
-		Path:     "/",
-		Expires:  time.Now().Add(accessTokenDurationExp),
-	})
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    refreshToken,
-		HttpOnly: true,
-		Secure:   app.cfg.App.AppEnv == "production",
-		SameSite: http.SameSiteLaxMode,
-		Path:     "/",
-		Expires:  time.Now().Add(refreshTokenDurationExp),
-	})
-
+	for _, c := range []struct {
+		name, value string
+		ttl         time.Duration
+	}{{auth.AccessTokenCookieName, access, accessTTL}, {auth.RefreshTokenCookieName, refresh, refreshTTL}} {
+		http.SetCookie(w, &http.Cookie{Name: c.name, Value: c.value, Path: "/", HttpOnly: true, Secure: app.cfg.App.AppEnv == "production", SameSite: http.SameSiteLaxMode, Expires: now.Add(c.ttl)})
+	}
 	return true
 }
 
 func (app *application) logoutUserHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	userID, ok := r.Context().Value(userCtx).(string)
-	if !ok || userID == "" {
-		writeJSONError(w, http.StatusUnauthorized, "Unauthorised")
+	id, ok := r.Context().Value(userCtx).(string)
+	if !ok || id == "" {
+		writeJSONError(w, 401, "Unauthorised")
 		return
 	}
-
-	// TODO extract this into util func?
-	http.SetCookie(w, &http.Cookie{
-		Name:     "access_token",
-		Value:    "",
-		HttpOnly: true,
-		Secure:   app.cfg.App.AppEnv == "production",
-		SameSite: http.SameSiteLaxMode,
-		Path:     "/",
-		Expires:  time.Unix(0, 0),
-	})
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    "",
-		HttpOnly: true,
-		Secure:   app.cfg.App.AppEnv == "production",
-		SameSite: http.SameSiteLaxMode,
-		Path:     "/",
-		Expires:  time.Unix(0, 0),
-	})
-
-	user, err := app.store.UserRepository.GetUserByID(ctx, userID)
-	if err != nil {
-		log.Printf("No user with ID %s found", userID)
-		writeJSONError(w, http.StatusUnauthorized, "Unauthorised")
+	if err := app.store.UserRepository.RevokeSessions(r.Context(), id); err != nil {
+		writeJSONError(w, 500, "Unable to log out. Please retry.")
 		return
 	}
-
-	_, err = app.store.UserRepository.SetRefreshTokenVersion(r.Context(), user.RefreshTokenVersion+1, userID)
-	if err != nil {
-		log.Printf("Failed to update refresh token version for user ID %s: %v", userID, err)
-		writeJSONError(w, http.StatusInternalServerError, "Failed to log out")
-		return
+	for _, name := range []string{auth.AccessTokenCookieName, auth.RefreshTokenCookieName} {
+		http.SetCookie(w, &http.Cookie{Name: name, Value: "", Path: "/", HttpOnly: true, Secure: app.cfg.App.AppEnv == "production", SameSite: http.SameSiteLaxMode, MaxAge: -1})
 	}
-
-	app.jsonResponse(w, http.StatusNoContent, nil)
+	w.WriteHeader(http.StatusNoContent)
 }

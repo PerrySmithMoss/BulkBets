@@ -34,9 +34,10 @@ const (
 )
 
 var (
-	ErrDuplicateEmail  = errors.New("a user with that email already exists")
-	ErrNoPasswordSet   = errors.New("no password set for User")
-	ErrInvalidPassword = errors.New("invalid password")
+	ErrDuplicateEmail       = errors.New("a user with that email already exists")
+	ErrIdentityLinkRequired = errors.New("use the existing sign-in method; automatic identity linking is disabled")
+	ErrNoPasswordSet        = errors.New("no password set for User")
+	ErrInvalidPassword      = errors.New("invalid password")
 )
 
 type User struct {
@@ -51,6 +52,7 @@ type User struct {
 	EmailVerifiedAt     *time.Time `json:"email_verified_at"`
 	Password            Password   `json:"-"`
 	ProfileImage        *string    `json:"profile_image"`
+	SessionVersion      int64      `json:"-"`
 	RefreshTokenVersion int64      `json:"-"`
 	DefaultCurrency     string     `json:"default_currency"`
 	Balance             float64    `json:"balance"`
@@ -225,9 +227,10 @@ func (s *UsersStore) Upsert(ctx context.Context, user *User) error {
 			    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, TRUE)
 			ON CONFLICT (email)
 			    DO UPDATE SET
-			        first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash), google_id = COALESCE(EXCLUDED.google_id, users.google_id), github_id = COALESCE(EXCLUDED.github_id, users.github_id), x_id = COALESCE(EXCLUDED.x_id, users.x_id), is_email_verified = EXCLUDED.is_email_verified, email_verified_at = COALESCE(EXCLUDED.email_verified_at, users.email_verified_at), profile_image = COALESCE(EXCLUDED.profile_image, users.profile_image), refresh_token_version = users.refresh_token_version + 1 -- Increment version on update
+			        first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash), google_id = COALESCE(EXCLUDED.google_id, users.google_id), github_id = COALESCE(EXCLUDED.github_id, users.github_id), x_id = COALESCE(EXCLUDED.x_id, users.x_id), is_email_verified = EXCLUDED.is_email_verified, email_verified_at = COALESCE(EXCLUDED.email_verified_at, users.email_verified_at), profile_image = COALESCE(EXCLUDED.profile_image, users.profile_image)
+                WHERE users.google_id = EXCLUDED.google_id AND users.is_email_verified AND users.status = 'active'
 			    RETURNING
-			        id, created_at, updated_at, refresh_token_version`
+			        id, created_at, updated_at, refresh_token_version, session_version`
 
 		// 1. Create user
 		var passwordHash *string
@@ -274,9 +277,12 @@ func (s *UsersStore) Upsert(ctx context.Context, user *User) error {
 			&user.CreatedAt,
 			&user.UpdatedAt,
 			&user.RefreshTokenVersion,
+			&user.SessionVersion,
 		)
 		if err != nil {
 			switch {
+			case errors.Is(err, sql.ErrNoRows):
+				return ErrIdentityLinkRequired
 			case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
 				return ErrDuplicateEmail
 			default:
@@ -316,6 +322,7 @@ func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, err
 		    u.x_id,
 		    u.github_id,
 		    u.refresh_token_version,
+            u.session_version,
 		    u.default_currency,
 		    COALESCE(ub.balance, 0.00) AS balance,
 		    u.created_at,
@@ -354,6 +361,7 @@ func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, err
 		&xId,
 		&githubId,
 		&user.RefreshTokenVersion,
+		&user.SessionVersion,
 		&user.DefaultCurrency,
 		&user.Balance,
 		&user.CreatedAt,
@@ -382,26 +390,33 @@ func (s *UsersStore) GetUserByID(ctx context.Context, userId string) (*User, err
 	return user, nil
 }
 
-func (s *UsersStore) SetRefreshTokenVersion(ctx context.Context, refreshTokenVersion int64, userId string) (int64, error) {
-	query := `
-		UPDATE
-		    users
-		SET
-		    refresh_token_version = $1
-		WHERE
-		    id = $2
-		RETURNING
-		    refresh_token_version;
-		
-		`
-
-	var updatedVersion int64
-	err := s.db.QueryRowContext(ctx, query, refreshTokenVersion, userId).Scan(&updatedVersion)
-	if err != nil {
-		return 0, fmt.Errorf("failed to set new refresh_token_version: %w", err)
+// BeginSession also checks the version observed before password verification, so a
+// concurrent password reset cannot be undone by a login using the old password.
+func (s *UsersStore) BeginSession(ctx context.Context, user *User) error {
+	err := s.db.QueryRowContext(ctx, `UPDATE users SET session_version=session_version+1,
+ refresh_token_version=refresh_token_version+1 WHERE id=$1 AND session_version=$2 AND status='active'
+ RETURNING session_version,refresh_token_version`, user.Id, user.SessionVersion).Scan(&user.SessionVersion, &user.RefreshTokenVersion)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrConflict
 	}
+	return err
+}
 
-	return updatedVersion, nil
+func (s *UsersStore) RotateRefreshToken(ctx context.Context, id string, refreshVersion, sessionVersion int64) (int64, error) {
+	var next int64
+	err := s.db.QueryRowContext(ctx, `UPDATE users SET refresh_token_version=refresh_token_version+1
+ WHERE id=$1 AND refresh_token_version=$2 AND session_version=$3 AND status='active'
+ RETURNING refresh_token_version`, id, refreshVersion, sessionVersion).Scan(&next)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrConflict
+	}
+	return next, err
+}
+
+func (s *UsersStore) RevokeSessions(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE users SET session_version=session_version+1,
+ refresh_token_version=refresh_token_version+1 WHERE id=$1`, id)
+	return err
 }
 
 func (s *UsersStore) HasPermission(userID string, resource Resource, action Action) (bool, error) {
@@ -441,6 +456,7 @@ func (s *UsersStore) GetUserByEmail(ctx context.Context, email string) (*User, e
 		    profile_image,
 		    COALESCE(password_hash, ''),
 		    refresh_token_version,
+            session_version,
 		    created_at,
 		    updated_at
 		FROM
@@ -472,6 +488,7 @@ func (s *UsersStore) GetUserByEmail(ctx context.Context, email string) (*User, e
 		&profileImage,
 		&user.Password.hash,
 		&user.RefreshTokenVersion,
+		&user.SessionVersion,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)

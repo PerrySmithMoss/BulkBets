@@ -265,3 +265,54 @@ func TestIntegrationProvisionWithNonSuperuserCreator(t *testing.T) {
 		t.Fatal("application login must not inherit the creator's privileges")
 	}
 }
+
+func TestIntegrationRuntimeRoleCannotChangeSchema(t *testing.T) {
+	s, admin := integrationSettings(t)
+	ensure(t, *s)
+	if _, err := admin.Exec(`CREATE ROLE bulkbets_runtime LOGIN PASSWORD 'isolated-runtime-password-123'`); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		admin.Exec(`DROP DATABASE IF EXISTS ` + pq.QuoteIdentifier(s.Database) + ` WITH (FORCE)`)
+		admin.Exec(`DROP ROLE bulkbets_runtime`)
+	}()
+	owner, err := sql.Open("postgres", s.AppURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer owner.Close()
+	for _, q := range []string{`CREATE TABLE example (id BIGSERIAL PRIMARY KEY, value TEXT)`, `CREATE TABLE goose_db_version (id BIGINT)`} {
+		if _, err = owner.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err = GrantRuntime(context.Background(), owner, "bulkbets_runtime"); err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse(s.AppURL)
+	u.User = url.UserPassword("bulkbets_runtime", "isolated-runtime-password-123")
+	runtime, err := sql.Open("postgres", u.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runtime.Close()
+	for _, q := range []string{`INSERT INTO example(value) VALUES ('test')`, `UPDATE example SET value='updated'`, `DELETE FROM example`} {
+		if _, err = runtime.Exec(q); err != nil {
+			t.Fatalf("runtime data operation failed: %v", err)
+		}
+	}
+	for _, q := range []string{`CREATE TABLE forbidden(id INT)`, `ALTER TABLE example ADD COLUMN forbidden INT`, `DROP TABLE example`, `SELECT * FROM goose_db_version`, `SET ROLE ` + pq.QuoteIdentifier(s.User)} {
+		if _, err = runtime.Exec(q); err == nil {
+			t.Fatalf("runtime privilege escape: %s", q)
+		}
+	}
+	if _, err = owner.Exec(`CREATE TABLE later (id INT)`); err != nil {
+		t.Fatal(err)
+	}
+	if err = GrantRuntime(context.Background(), owner, "bulkbets_runtime"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = runtime.Exec(`INSERT INTO later VALUES (1)`); err != nil {
+		t.Fatal("new migration table was not granted", err)
+	}
+}

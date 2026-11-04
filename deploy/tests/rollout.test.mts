@@ -103,7 +103,7 @@ for (const scenario of ["healthy", "new_service"] as const) {
       result.calls
         .filter((call) => isCommand(call, "service", "create"))
         .map((call) => call.at(-1)),
-      ["provision", "up", "seed"],
+      ["provision", "up", "seed", "runtime-grants"],
     );
     const lastMigration = creates.at(-1);
     const deployment = result.calls[deploy];
@@ -178,7 +178,7 @@ test("only the temporary provisioning job receives infrastructure administrator 
   const jobs = result.calls.filter((call) =>
     isCommand(call, "service", "create"),
   );
-  assert.equal(jobs.length, 3);
+  assert.equal(jobs.length, 4);
   for (const job of jobs) {
     const provisioning = job.at(-1) === "provision";
     assert.equal(

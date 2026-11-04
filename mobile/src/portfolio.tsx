@@ -85,6 +85,11 @@ const baseURL =
       ? `${globalThis.location.protocol}//${globalThis.location.hostname}:8080/api/v1`
       : `${globalThis.location.origin}/api/v1`
     : "http://localhost:8080/api/v1");
+if (Platform.OS !== "web" && !__DEV__) {
+  const origin = new URL(baseURL);
+  if (origin.protocol !== "https:" || origin.username || origin.password)
+    throw new Error("Release builds require an HTTPS EXPO_PUBLIC_API_URL without credentials.");
+}
 const money = (n: number) => `£${n.toFixed(2)}`;
 
 // This is an idempotency identifier, never an authentication secret.

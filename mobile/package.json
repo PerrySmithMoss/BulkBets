@@ -13,7 +13,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "export:web": "expo export --platform web",
-    "export:native": "expo export --platform ios --platform android --output-dir dist-native"
+    "export:native": "node scripts/validate-release.mts && expo export --platform ios --platform android --output-dir dist-native"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

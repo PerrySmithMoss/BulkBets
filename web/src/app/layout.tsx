@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import "./globals.css";
 import { DialogManager } from "@/components/dialog-manager";
 import { DialogProvider } from "@/store/dialog/dialog-context";
@@ -19,6 +20,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  await connection(); // Each document needs its own CSP nonce.
   const { data: user } = await fetchCurrentUser();
   return (
     <html lang="en" suppressHydrationWarning>

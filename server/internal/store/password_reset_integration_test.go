@@ -43,11 +43,11 @@ func TestIntegrationPasswordResetCooldownAndSingleUse(t *testing.T) {
 		t.Fatal(err)
 	}
 	var hash string
-	var version int
-	if err := f.db.QueryRow(`SELECT password_hash,refresh_token_version FROM users WHERE id=$1`, f.user.Id).Scan(&hash, &version); err != nil {
+	var version, sessionVersion int
+	if err := f.db.QueryRow(`SELECT password_hash,refresh_token_version,session_version FROM users WHERE id=$1`, f.user.Id).Scan(&hash, &version, &sessionVersion); err != nil {
 		t.Fatal(err)
 	}
-	if hash != "replacement-test-hash" || version != initialVersion+1 {
+	if hash != "replacement-test-hash" || version != initialVersion+1 || sessionVersion != 1 {
 		t.Fatal("reset did not update the password and revoke refresh sessions")
 	}
 	if err := users.ResetPassword(ctx, second, "reused-test-hash"); !errors.Is(err, ErrNotFound) {

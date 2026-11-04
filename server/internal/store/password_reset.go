@@ -33,7 +33,7 @@ func (s *UsersStore) ResetPassword(ctx context.Context, hash string, passwordHas
 			return err
 		}
 		_, err = tx.ExecContext(ctx, `UPDATE users SET password_hash = $1,
-			refresh_token_version = refresh_token_version + 1, updated_at = NOW()
+			refresh_token_version = refresh_token_version + 1, session_version = session_version + 1, updated_at = NOW()
 			WHERE id = $2`, passwordHash, userID)
 		return err
 	})

@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"github.com/go-chi/chi/v5/middleware"
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,8 +22,7 @@ type rateBucket struct {
 	updated time.Time
 }
 
-// Bounded, per-address token buckets. Forwarded headers are deliberately ignored:
-// accepting an untrusted X-Forwarded-For would let clients bypass the limiter.
+// Bounded token buckets use only an authenticated edge address or trusted ingress.
 func requestLimit(capacity int, period time.Duration) func(http.Handler) http.Handler {
 	var mu sync.Mutex
 	buckets := map[string]rateBucket{}
@@ -73,10 +76,8 @@ func requestLimit(capacity int, period time.Duration) func(http.Handler) http.Ha
 
 func (app *application) browserSecurity(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if app.cfg.App.TrustEdge {
-			if ip := net.ParseIP(r.Header.Get("X-BulkBets-Client-IP")); ip != nil {
-				r = r.WithContext(context.WithValue(r.Context(), clientAddressKey{}, ip.String()))
-			}
+		if ip := app.clientAddress(r); ip != "" {
+			r = r.WithContext(context.WithValue(r.Context(), clientAddressKey{}, ip))
 		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
@@ -96,6 +97,32 @@ func (app *application) browserSecurity(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (app *application) clientAddress(r *http.Request) string {
+	secret := app.cfg.App.EdgeProxySecret
+	ip := net.ParseIP(r.Header.Get("X-BulkBets-Client-IP"))
+	stamp := r.Header.Get("X-BulkBets-Timestamp")
+	seconds, err := strconv.ParseInt(stamp, 10, 64)
+	if len(secret) >= 32 && ip != nil && err == nil && seconds >= time.Now().Unix()-60 && seconds <= time.Now().Unix()+10 {
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write([]byte(r.Method + "\n" + r.URL.EscapedPath() + "\n" + r.Header.Get("X-BulkBets-Client-IP") + "\n" + stamp))
+		signature, err := hex.DecodeString(r.Header.Get("X-BulkBets-Signature"))
+		if err == nil && hmac.Equal(mac.Sum(nil), signature) {
+			return ip.String()
+		}
+	}
+	// This subnet must contain ONLY Traefik and this API. Traefik overwrites
+	// incoming X-Forwarded-For (forwardedHeaders.insecure remains false).
+	peer, _, _ := net.SplitHostPort(r.RemoteAddr)
+	_, subnet, err := net.ParseCIDR(app.cfg.App.TrustedProxyCIDR)
+	if err == nil && subnet.Contains(net.ParseIP(peer)) {
+		parts := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+		if ip := net.ParseIP(strings.TrimSpace(parts[len(parts)-1])); ip != nil {
+			return ip.String()
+		}
+	}
+	return ""
 }
 
 func safeRequestLog(next http.Handler) http.Handler {

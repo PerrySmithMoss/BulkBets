@@ -1,0 +1,46 @@
+# BulkBets security remediation — 4 November 2026
+
+This follows the [audit snapshot](security-audit-2026-11-04.md). The owner authorized remediation and explicitly declined scheduled backups because this is a portfolio website. This is a record of verified changes and remaining limitations, not a claim that every system is secure or that no compromise occurred.
+
+## Changes
+
+| Audit item | Remediation and remaining limits |
+| --- | --- |
+| F01 PostgreSQL vulnerabilities | Shared production PostgreSQL upgraded from 17.4 to 17.11-bookworm, pinned by digest. A one-off AES-256-GCM recovery copy of all five databases and roles was restored successfully into a disposable instance before the update. CI targets 17.11. No scheduled backup was created. |
+| F02 Docker socket exposure | Traefik no longer mounts the Docker socket. A private internal overlay connects it to a pinned socket proxy that permits only discovery APIs. Container/secret/config access and writes are denied. The proxy itself remains security sensitive because it mounts the socket. |
+| F03 repository and deployment authority | Actions and container base images are pinned. Both repositories require SHA-pinned Actions and allow only GitHub-owned Actions plus Docker Actions where needed. Deployments require verified SSH host keys; the infrastructure workflow no longer uses a third-party deployment action. **Not fully closed:** GitHub refuses branch protection on these private repositories under the current plan. Existing CI SSH credentials still have Docker-manager authority. Replacing that with a host-owned deployment broker requires VPS administrator access. |
+| F04 refresh/logout races | Refresh rotation uses a conditional database UPDATE; only one concurrent request can consume a refresh version. Login and logout increment versions atomically, and stale login work cannot overwrite a password-reset revocation. |
+| F05 access-token revocation | Access tokens carry a separate session version checked against the database on authenticated requests. Logout, password reset and a new login revoke previous sessions immediately. Existing tokens without this claim require one new sign-in/demo start after rollout. |
+| F06 client rate limits | API verifies HMAC-signed IP/method/path/timestamp assertions and trusts unsigned forwarding only from the dedicated ingress subnet. Tests cover independent signed clients, forgery, expiry and untrusted proxies. A shared hashing semaphore bounds Argon2 memory. **Pending Vercel secret installation:** until the same server-only EDGE_PROXY_SECRET is present in Vercel production, web requests still share Vercel egress buckets. Limits remain in-process for the single replica. |
+| F07 container bounds | API, Traefik and socket proxy have resource/PID limits and rotated logs. API and Traefik have read-only root filesystems and all capabilities dropped. PostgreSQL logs rotate. Shared host capacity and other apps still need their own operating limits; Docker-manager access remains privileged. |
+| F08 database isolation | Dedicated non-attachable encrypted ingress/database overlays isolate BulkBets from the common application network. Runtime role has data privileges without schema ownership, role memberships or elevated flags; migrations retain the owner credential separately. API and jobs use TLS verify-full with a private CA. HBA rejects plaintext BulkBets logins and access to other databases. Legacy apps retain their network/rules. |
+| F09 browser headers | Frontend has framing denial, nosniff, referrer/permissions policies and an enforcing CSP with a new script nonce per HTML response. Remote images are restricted to Google profile-image hosts. Dynamic rendering avoids cached nonce reuse. |
+| F10 vulnerability monitoring | Dependabot alerts and automated security fixes enabled for both repos; weekly update configuration added. BulkBets CI scans full Git history with Gitleaks, production npm dependencies, Go reachability with govulncheck, and the release image with Trivy before deploying. High/critical image or production dependency findings fail release. Remaining build-tool advisories are detailed below. |
+| F11 deployment sequencing | Vercel production branch changed from master to production. CI fast-forwards it only after validation, integration tests, image scan, migrations and a healthy API deployment. Private previews remain separate. Without paid branch protection, an authorized direct push to production can bypass this convention. |
+| Conditional OAuth account takeover | Google sign-in cannot implicitly merge with an existing password account. Existing Google identity must match and be verified/active. Regression tests cover an attacker-precreated password account. Google OAuth remains disabled in production. |
+| Native configuration | Native exports require an explicit public HTTPS API URL; release runtime also rejects plaintext URLs. iOS and Android bundles export successfully. Device/store distribution was not performed. |
+
+## Validation
+
+- Go tests with race detector and go vet; real PostgreSQL storage/provisioning tests, including concurrent refresh rotation, revocation and runtime privilege denial.
+- 33 Playwright cases pass across desktop, phone and Expo web while the API uses the restricted runtime login. Security checks verify enforcing headers, matching HTML script nonce and nonce uniqueness.
+- 16 web unit tests; web/mobile lint and type checks; Node tooling type check; native iOS/Android exports.
+- 15 deployment orchestration tests; shell syntax and actionlint for both workflows.
+- Trivy 0.76.1 found no high/critical vulnerability in the built Alpine API image or either Go binary. Source files intended for Git passed Gitleaks 8.30.1. The original full Git history scan also found no secrets.
+- Production PostgreSQL reports TLS 1.3 for the existing BulkBets connection. Explicit runtime tests verify TLS identity and reject cross-database/plaintext connections.
+- Traefik discovery and BulkBets health remained operational after infrastructure updates. The three other app hostnames reach their applications and return application-specific 404 responses for unsupported health URLs; their full business workflows were not exercised.
+
+## Remaining work and boundaries
+
+1. Complete Vercel CLI sign-in, then install the generated edge key as a **production-only**, server-only environment variable and redeploy production. Do not expose it to unreviewed previews or public client bundles. The browser's device authorization button remained disabled during this session; no browser session credentials were extracted.
+2. GitHub branch protection/environment approval requires a paid private-repository plan or a separate policy decision to make the repos public. Neither a purchase nor a visibility change was made. The most significant remaining deployment risk is the broad Docker-manager CI credential combined with unprotected branches.
+3. VPS sudo is unavailable noninteractively. Effective SSH configuration, root-only firewall rules, host patch installation and a restricted deployment broker remain outstanding. `deploy/host-security-review.sh` collects the relevant non-secret administrator diagnostics. Do not infer that UFW/fail2ban/unattended-upgrades being active proves correct effective configuration. No privileged Docker container or host mount was used to bypass this boundary.
+4. Provider firewall/IPv6/UDP enforcement, account MFA/recovery/token inventories, IONOS administration, registrar control, Resend production delivery and OAuth-provider settings need their respective account access. No broad port stress tests or real-money actions were run.
+5. npm still reports moderate glob/minimatch issues in build/lint/test tooling (8 production-tree mobile entries, 34 total web entries including 3 low). The vulnerable inputs are glob patterns/filesystem traversal in tooling; the frontend production tree had zero findings. Current upstream compatible dependency trees have no safe patch-only resolution; suggested audit fixes downgrade Expo/Jest/ESLint several major versions. No such downgrade or API-breaking forced override was made. Deepmerge's low-severity advisory also has no newer release. Dependabot remains enabled; revisit when compatible upstream updates ship.
+6. The database certificate expires **6 February 2029**. Rotate versioned server secrets before then, preserving CA trust. The one-off encrypted recovery copy is on this Mac under `~/.codex/bulkbets-recovery-8qIHf2` with restricted filesystem permissions; it is not a scheduled or independently retained backup.
+
+Sources for the new deployment/address controls: [Vercel production branch tracking](https://vercel.com/docs/git), [Vercel request header trust](https://vercel.com/docs/headers/request-headers), [Docker secret management](https://docs.docker.com/engine/swarm/secrets/). Original advisory sources and scope limitations remain in the audit snapshot.
+
+## Release verification
+
+Application rollout and post-deployment evidence will be recorded here after CI completes.

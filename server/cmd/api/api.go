@@ -29,6 +29,8 @@ type application struct {
 
 func (app *application) mount() http.Handler {
 	r := chi.NewRouter()
+	// One shared budget caps Argon2 memory across login, registration and reset.
+	credentialBudget := middleware.Throttle(2)
 
 	r.Use(middleware.RequestID)
 	r.Use(app.browserSecurity)
@@ -44,10 +46,10 @@ func (app *application) mount() http.Handler {
 		r.Get("/health", app.healthCheckHandler)
 
 		r.Route("/auth", func(r chi.Router) {
-			r.With(middleware.Throttle(8), requestLimit(60, 10*time.Minute)).Post("/login", app.loginUserHandler)
-			r.With(middleware.Throttle(8), requestLimit(60, 10*time.Minute)).Post("/register", app.registerUserHandler)
-			r.With(middleware.Throttle(8), requestLimit(60, 10*time.Minute)).Post("/forgot-password", app.forgotPasswordHandler)
-			r.With(middleware.Throttle(8), requestLimit(60, 10*time.Minute)).Post("/reset-password", app.resetPasswordHandler)
+			r.With(credentialBudget, requestLimit(60, 10*time.Minute)).Post("/login", app.loginUserHandler)
+			r.With(credentialBudget, requestLimit(60, 10*time.Minute)).Post("/register", app.registerUserHandler)
+			r.With(credentialBudget, requestLimit(60, 10*time.Minute)).Post("/forgot-password", app.forgotPasswordHandler)
+			r.With(credentialBudget, requestLimit(60, 10*time.Minute)).Post("/reset-password", app.resetPasswordHandler)
 
 			r.Group(func(r chi.Router) {
 				r.Use(app.DeserialiseUserMiddleware)
@@ -59,7 +61,7 @@ func (app *application) mount() http.Handler {
 		r.Route("/demo", func(r chi.Router) {
 			r.Use(requestLimit(180, time.Minute))
 			r.Use(app.DeserialiseUserMiddleware)
-			r.With(middleware.Throttle(8), requestLimit(60, 10*time.Minute)).Post("/start", app.startDemoHandler)
+			r.With(credentialBudget, requestLimit(60, 10*time.Minute)).Post("/start", app.startDemoHandler)
 			r.With(app.RequireUserMiddleware).Post("/reset", app.resetDemoHandler)
 			r.With(app.RequireUserMiddleware).Post("/settle", app.settleDemoHandler)
 		})

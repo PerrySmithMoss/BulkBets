@@ -28,8 +28,8 @@ if [ "$(docker info --format '{{.Swarm.ControlAvailable}}')" != true ]; then
   echo "The Docker connection must point to a Swarm manager." >&2
   exit 1
 fi
-docker network inspect portfolio_network >/dev/null
-docker secret inspect bulkbets_db_password bulkbets_admin_password \
+docker network inspect bulkbets_ingress bulkbets_database >/dev/null
+docker secret inspect bulkbets_runtime_db_password bulkbets_db_ca bulkbets_edge_proxy_secret bulkbets_db_password bulkbets_admin_password \
   bulkbets_access_token_secret bulkbets_refresh_token_secret \
   bulkbets_smtp_password "${DB_ADMIN_USER_SECRET:-postgres_user}" \
   "${DB_ADMIN_PASSWORD_SECRET:-postgres_password}" >/dev/null
@@ -44,6 +44,7 @@ docker stack config "$@" >/dev/null
 sh deploy/migrate.sh provision
 sh deploy/migrate.sh up
 sh deploy/migrate.sh seed
+sh deploy/migrate.sh runtime-grants
 docker stack deploy --with-registry-auth --resolve-image always --detach=true "$@" "$STACK_NAME"
 
 service="${STACK_NAME}_api"

@@ -26,7 +26,7 @@ events, restores £1,000, and leaves its login and other visitors intact.
 ## Vercel frontend + existing VPS infrastructure
 
 The supplied stack targets your existing **Docker Swarm** infrastructure:
-`portfolio_network`, Traefik entrypoint `websecure`, certificate resolver
+dedicated `bulkbets_ingress` and `bulkbets_database` overlays, Traefik entrypoint `websecure`, certificate resolver
 `myresolver`, and the existing PostgreSQL 17 service. It adds only the BulkBets API.
 It does not deploy a second database, proxy, or frontend container. Service labels
 are under `deploy.labels`, as required by the Traefik Swarm provider. The API has
@@ -62,7 +62,7 @@ export POSTGRES_SERVICE="$DB_HOST"
 export DB_USER=bulkbets
 export DB_NAME=bulk_bets
 export DB_PORT=5432
-export DB_SSL_ENABLED=disable
+export DB_SSL_ENABLED=verify-full
 export CORS_ALLOWED_ORIGINS="https://${APP_HOST}"
 ```
 
@@ -73,7 +73,7 @@ export CORS_ALLOWED_ORIGINS="https://${APP_HOST}"
   tag. If omitted, both use `latest`; use a commit tag for repeatable deployments.
 - `DB_HOST` / `POSTGRES_SERVICE`: replace `infra_postgres` with the actual
   `<infrastructure-stack>_postgres` service name from `docker service ls`.
-- `DB_USER` / `DB_NAME`: your dedicated BulkBets database login/database.
+- `DB_USER` / `DB_NAME`: migration owner (`bulkbets`) and database. The API always uses the separate `bulkbets_runtime` login.
 - `CORS_ALLOWED_ORIGINS`: exact browser origins; append a stable preview if needed.
 
 Repeat these exports in each deployment shell, or persist the non-secret settings
@@ -92,8 +92,7 @@ BulkBets reads Docker secret files through `DB_PASSWORD_FILE`,
 `GOOGLE_CLIENT_SECRET_FILE`. Setting `DB_PASSWORD=/run/secrets/...` would pass that
 literal path as the password. The stack's `_FILE` values are intentional.
 
-`DB_SSL_ENABLED=disable` matches your same-VPS private overlay. For a database
-across untrusted networks, configure database TLS and CA trust before connecting.
+The API and migration jobs require `verify-full` TLS using the `bulkbets_db_ca` Swarm secret. The certificate SAN must match `DB_HOST`. Infrastructure HBA rules reject plaintext BulkBets logins and connections to other databases.
 
 ### 2. Create Swarm secrets; the deployment provisions the database
 
@@ -104,8 +103,7 @@ By default it uses the existing infrastructure secrets `postgres_user` and
 set `DB_ADMIN_USER_SECRET` and `DB_ADMIN_PASSWORD_SECRET` to the names of Docker
 secrets for a dedicated provisioning login. These secrets must already exist in
 the same Swarm; their values never enter GitHub Actions settings.
-The provisioning job alone receives them. Normal migrations and the API use the
-dedicated application login and never mount infrastructure administrator secrets.
+The provisioning job alone receives them. Migrations use the schema owner; the API uses `bulkbets_runtime` and never mounts owner or infrastructure administrator credentials.
 
 The current VPS deployment selects `bulkbets_provisioner_user` and
 `bulkbets_provisioner_password`. They authenticate `bulkbets_provisioner`, a
@@ -165,6 +163,23 @@ are loaded from files, so passwords need no URL escaping in deployment config.
 Docker secrets are immutable; rotate them with new names and update the stack's
 secret mappings plus migration helper before removing old versions.
 
+### Additional production prerequisites
+
+The infrastructure repository defines the TLS server certificate/key and HBA configuration. Create non-attachable encrypted overlay networks once:
+
+```sh
+docker network create --driver overlay --subnet 10.42.10.0/24 --opt encrypted bulkbets_ingress
+docker network create --driver overlay --subnet 10.42.11.0/24 --opt encrypted bulkbets_database
+```
+
+Only Traefik and the API join ingress; only PostgreSQL, the API, and temporary migration jobs join the database network. Never attach unrelated applications to these networks. The trusted ingress CIDR in the API must match this configuration.
+
+Using trusted database administration, create `bulkbets_runtime` with LOGIN, NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION and NOBYPASSRLS, without role memberships. Store its random password in `bulkbets_runtime_db_password`. The deployment grants data operations after each migration, excluding Goose metadata; it does not grant schema ownership or CREATE.
+
+Additional Swarm secrets: `bulkbets_db_ca` (public CA certificate), `bulkbets_db_cert` (server certificate), `bulkbets_db_key` (server private key, PostgreSQL UID 999, mode 0400), and `bulkbets_edge_proxy_secret` (random signing key). The edge key must also be a **server-only production** Vercel environment variable named `EDGE_PROXY_SECRET`; never prefix it with NEXT_PUBLIC or EXPO_PUBLIC. Do not put it in Preview environments that execute unreviewed branches. The proxy discards incoming assertions and signs Vercel's own visitor IP, method, path and timestamp. The API verifies signatures and freshness. Direct native requests use the trusted ingress's rightmost forwarded address.
+
+The November 2026 database certificate expires February 6, 2029; renew before then using versioned Docker secrets, preserving CA trust during rotation. No scheduled backups are configured: the owner explicitly opted out for this portfolio. Take a temporary verified recovery copy before shared database maintenance.
+
 ### 3. Build/push, provision, migrate, then start the API
 
 Build on the VPS (or use buildx with the correct `--platform` from your workstation).
@@ -177,6 +192,7 @@ docker push "$bulkbets_image"
 sh deploy/migrate.sh provision
 sh deploy/migrate.sh up
 sh deploy/migrate.sh seed
+sh deploy/migrate.sh runtime-grants
 docker stack config --compose-file docker-stack.yaml
 docker stack deploy --with-registry-auth --compose-file docker-stack.yaml "$STACK_NAME"
 docker service ps "${STACK_NAME}_api"
@@ -197,16 +213,16 @@ this does not revert database changes.
 [`.github/workflows/pipeline.yaml`](../.github/workflows/pipeline.yaml) runs on
 pull requests and pushes to **master**. Every run checks Go, web/mobile lint and
 types, unit tests, native exports, and the isolated browser/storage suite against
-PostgreSQL 17.4. Every successful master push then publishes
+PostgreSQL 17.11. Every successful master push then publishes
 `ghcr.io/perrysmithmoss/bulkbets` with the commit SHA and `latest` tags and deploys
 the API. This includes frontend/test fixes, so they can unblock an earlier failed
 release without another backend edit. Pull requests only run validation and E2E.
-Vercel manages frontend deployments independently. **Run workflow** on master
+After a healthy API deployment, CI fast-forwards the `production` branch tracked by Vercel. Only that branch deploys the public frontend; do not push to it manually. **Run workflow** on master
 also runs the full build/deploy without requiring a new commit.
 
 The deployment job connects to the existing Swarm manager using Docker over SSH,
 checks the overlay and external secrets, provisions missing database objects,
-runs migrations and idempotent seeds,
+runs migrations, idempotent seeds and runtime grants,
 then deploys the base stack plus the SMTP overlay. Setting `GOOGLE_CLIENT_ID` also
 includes the OAuth overlay. The job waits for the requested image's running tasks,
 a completed Swarm update and a successful public HTTPS health check. An automatic
@@ -224,7 +240,7 @@ In **BulkBets → Settings → Secrets and variables → Actions**, configure:
 | --- | --- |
 | `VPS_IP` | VPS IP address or SSH hostname |
 | `DEPLOY_SSH_PRIVATE_KEY` | The deploy user's SSH private key, as in your existing VPS setup |
-| `VPS_KNOWN_HOSTS` (optional) | Verified known_hosts entry; otherwise the job scans the server key during setup |
+| `VPS_KNOWN_HOSTS` | Required verified known_hosts entry; deployment fails if absent |
 | `GHCR_READ_TOKEN` (optional) | Classic personal access token with `read:packages` for durable private-image pulls; see below |
 
 The deploy user must have Docker access on the Swarm manager. Secrets configured
@@ -238,7 +254,7 @@ here or grant this repository access through organization secrets.
 | `DB_HOST` | **Required:** existing PostgreSQL Swarm DNS name, e.g. `infra_postgres` |
 | `CORS_ALLOWED_ORIGINS` | Defaults to `https://APP_HOST`; use comma-separated exact origins for additional frontends |
 | `DB_USER`, `DB_NAME`, `DB_PORT` | Defaults: `bulkbets`, `bulk_bets`, `5432` |
-| `DB_SSL_ENABLED` | Defaults to `disable` on the same-VPS overlay |
+| `DB_SSL_ENABLED` | Production helpers enforce `verify-full`; local development can use `disable` |
 | `DB_ADMIN_USER_SECRET`, `DB_ADMIN_PASSWORD_SECRET` | Defaults: `postgres_user`, `postgres_password`; current VPS overrides: `bulkbets_provisioner_user`, `bulkbets_provisioner_password` |
 | `SMTP_ADDR`, `SMTP_USERNAME` | Defaults: `smtp.resend.com:587`, `resend` |
 | `SMTP_FROM` | Defaults to `noreply@bulkbets.perrysmithmoss.com`; must be a verified sender |
@@ -355,13 +371,7 @@ overlays can be passed together. Omit the OAuth overlay when Google isn't enable
 
 ### Rate limiting
 
-The API does not trust caller-supplied address headers (`TRUST_EDGE=false`), since
-the API hostname is public. Anonymous limits can group requests behind Vercel or
-Traefik egress; authenticated action budgets additionally distinguish accounts.
-Limits are bounded, in process, and reset on restart. The supplied stack starts
-one API replica. Configure a trusted edge address policy and shared rate limits
-before scaling or relying on per-visitor IP limits across proxies. The existing
-Traefik stack is not modified by this repository.
+The API accepts signed, short-lived visitor IP assertions from the production Vercel proxy. Configure the shared edge secret as described above; without it, web visitors share Vercel egress buckets. Unsigned direct requests use only the dedicated trusted ingress subnet. Client-provided X-Forwarded-For values outside that subnet are ignored. Authenticated action budgets additionally distinguish accounts. A shared two-request hashing budget bounds concurrent password work. Limits are bounded, in process, and reset on restart; use shared storage before scaling beyond one API replica.
 
 ## Backups and recovery
 
@@ -445,7 +455,7 @@ seeds, then runs the Go storage integration tests with the race detector before
 the browser tests. It covers concurrent wallet operations, settlement retries,
 atomic results, private-event isolation, preview rollback and voided accumulator
 legs. It never uses the development database and needs no local Go installation.
-Set `BULKBETS_TEST_POSTGRES_IMAGE=postgres:17.4` to target your VPS database version;
+Set `BULKBETS_TEST_POSTGRES_IMAGE=postgres:17.11-bookworm` to target your VPS database version;
 CI uses that version, while local development defaults to Postgres 18.6.
 GitHub Actions also runs lint, type checks, Go checks, unit tests and native exports.
 

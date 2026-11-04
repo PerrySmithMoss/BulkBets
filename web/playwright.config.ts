@@ -15,7 +15,7 @@ export default defineConfig({
   projects: [
     {
       name: "web-desktop",
-      testMatch: /(?:web|homepage|demo|portfolio).spec.ts/,
+      testMatch: /(?:web|homepage|demo|portfolio|security).spec.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
     {

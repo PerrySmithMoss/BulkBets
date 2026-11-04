@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 # Run from a Swarm manager after exporting the non-secret deployment settings.
 # Uses a service, not docker run, so the overlay need not be attachable.
 action=${1:-up}
-case "$action" in provision|up|seed|status) ;; *) echo "Usage: sh deploy/migrate.sh [provision|up|seed|status]" >&2; exit 2 ;; esac
+case "$action" in provision|up|seed|status|runtime-grants) ;; *) echo "Usage: sh deploy/migrate.sh [provision|up|seed|status]" >&2; exit 2 ;; esac
 api_image="ghcr.io/perrysmithmoss/bulkbets:${GIT_COMMIT_HASH:-latest}"
 : "${DB_HOST:?Set DB_HOST to the existing PostgreSQL service}"
 job="${STACK_NAME:-bulkbets}-migrate-$(date -u +%Y%m%d%H%M%S)-$$"
@@ -29,12 +29,14 @@ fi
 
 docker service create --detach --with-registry-auth --name "$job" \
   --restart-condition none \
-  --network portfolio_network \
+  --network bulkbets_database \
+  --secret bulkbets_db_ca \
   --secret bulkbets_db_password \
   "$@" \
   --env "DB_HOST=$DB_HOST" --env "DB_PORT=${DB_PORT:-5432}" \
   --env "DB_USER=${DB_USER:-bulkbets}" --env "DB_NAME=${DB_NAME:-bulk_bets}" \
-  --env "DB_SSL_ENABLED=${DB_SSL_ENABLED:-disable}" \
+  --env DB_SSL_ENABLED=verify-full \
+  --env DB_SSL_ROOT_CERT=/run/secrets/bulkbets_db_ca \
   --env DB_PASSWORD_FILE=/run/secrets/bulkbets_db_password \
   "$api_image" /app/migrate -action "$action" >/dev/null
 

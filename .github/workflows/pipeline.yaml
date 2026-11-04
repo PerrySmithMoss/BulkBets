@@ -19,20 +19,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: |
             web/package-lock.json
             mobile/package-lock.json
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
       - name: Install dependencies
         run: npm --prefix web ci && npm --prefix mobile ci
+      - name: Check dependency vulnerabilities
+        run: |
+          npm --prefix web audit --omit=dev --audit-level=high
+          npm --prefix mobile audit --omit=dev --audit-level=high
+          cd server
+          go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      - name: Scan git history for secrets
+        run: |
+          git fetch --unshallow
+          docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f git /repo --redact --no-banner
       - name: Check Go API
         working-directory: server
         run: go test ./... && go vet ./...
@@ -43,6 +53,8 @@ jobs:
       - name: Type-check Node tooling
         run: npm --prefix web run typecheck:tools
       - name: Check mobile app and native exports
+        env:
+          EXPO_PUBLIC_API_URL: https://bulkbets-api.perrysmithmoss.com/api/v1
         run: npm --prefix mobile run lint && npm --prefix mobile run typecheck && npm --prefix mobile run export:native
       - name: Check deployment shell syntax
         run: sh -n deploy/migrate.sh deploy/backup.sh deploy/rollout.sh
@@ -54,10 +66,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      BULKBETS_TEST_POSTGRES_IMAGE: postgres:17.4
+      BULKBETS_TEST_POSTGRES_IMAGE: postgres:17.11-bookworm
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .node-version
           cache: npm
@@ -68,7 +80,7 @@ jobs:
         run: npm --prefix web ci && npm --prefix mobile ci
       - name: Cache Playwright browsers
         id: playwright-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('web/package-lock.json') }}
@@ -82,7 +94,7 @@ jobs:
         run: npx playwright install-deps chromium
       - name: Run browser and storage integration tests
         run: npm --prefix web run test:e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
           name: browser-failures
@@ -103,23 +115,23 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v6
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: ghcr.io/perrysmithmoss/bulkbets
           tags: |
             type=raw,value=${{ github.sha }}
             type=raw,value=latest
       - name: Build and push Go API image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: ./server
           file: ./server/Dockerfile
@@ -129,6 +141,11 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Scan release image before deployment
+        run: |
+          docker pull "ghcr.io/perrysmithmoss/bulkbets:${{ github.sha }}"
+          docker save "ghcr.io/perrysmithmoss/bulkbets:${{ github.sha }}" -o "$RUNNER_TEMP/api.tar"
+          docker run --rm -v "$RUNNER_TEMP/api.tar:/api.tar:ro" aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c image --input /api.tar --scanners vuln --severity HIGH,CRITICAL --exit-code 1
 
   deploy:
     needs: [build-and-push-image]
@@ -147,7 +164,7 @@ jobs:
       DB_PORT: ${{ vars.DB_PORT || '5432' }}
       DB_USER: ${{ vars.DB_USER || 'bulkbets' }}
       DB_NAME: ${{ vars.DB_NAME || 'bulk_bets' }}
-      DB_SSL_ENABLED: ${{ vars.DB_SSL_ENABLED || 'disable' }}
+      DB_SSL_ENABLED: verify-full
       DB_ADMIN_USER_SECRET: ${{ vars.DB_ADMIN_USER_SECRET || 'postgres_user' }}
       DB_ADMIN_PASSWORD_SECRET: ${{ vars.DB_ADMIN_PASSWORD_SECRET || 'postgres_password' }}
       SMTP_ADDR: ${{ vars.SMTP_ADDR || 'smtp.resend.com:587' }}
@@ -156,7 +173,7 @@ jobs:
       GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
       DOCKER_HOST: ssh://bulkbets-vps
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Configure VPS SSH connection
         env:
           VPS_IP: ${{ secrets.VPS_IP }}
@@ -174,11 +191,8 @@ jobs:
           install -d -m 700 "$HOME/.ssh"
           umask 077
           printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/bulkbets-deploy-key"
-          if [ -n "$VPS_KNOWN_HOSTS" ]; then
-            printf '%s\n' "$VPS_KNOWN_HOSTS" > "$RUNNER_TEMP/bulkbets-known-hosts"
-          else
-            ssh-keyscan -T 15 -p "$VPS_SSH_PORT" -H "$VPS_IP" > "$RUNNER_TEMP/bulkbets-known-hosts"
-          fi
+          : "${VPS_KNOWN_HOSTS:?Configure verified VPS_KNOWN_HOSTS; host-key discovery is not trusted}"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$RUNNER_TEMP/bulkbets-known-hosts"
           cat > "$HOME/.ssh/config" <<EOF
           Host bulkbets-vps
             HostName $VPS_IP
@@ -203,3 +217,17 @@ jobs:
         run: |
           docker logout ghcr.io || true
           rm -f "$RUNNER_TEMP/bulkbets-deploy-key" "$RUNNER_TEMP/bulkbets-known-hosts" "$HOME/.ssh/config"
+
+  promote-web:
+    # Vercel tracks this branch, so frontend production follows the tested API.
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - name: Promote the validated release to Vercel
+        run: git push origin "${GITHUB_SHA}:refs/heads/production"

@@ -23,7 +23,9 @@ type UserRepository interface {
 	SavePasswordReset(ctx context.Context, userID string, hash string) (bool, error)
 	ResetPassword(ctx context.Context, hash string, passwordHash string) error
 	Upsert(ctx context.Context, user *User) error
-	SetRefreshTokenVersion(ctx context.Context, refreshTokenVersion int64, userId string) (int64, error)
+	BeginSession(ctx context.Context, user *User) error
+	RotateRefreshToken(ctx context.Context, id string, refreshVersion, sessionVersion int64) (int64, error)
+	RevokeSessions(ctx context.Context, id string) error
 	HasPermission(userID string, resource Resource, action Action) (bool, error)
 	Builder() *UserBuilder
 }

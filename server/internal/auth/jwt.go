@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -37,7 +38,7 @@ func (a *JWTAuthenticator) ValidateToken(token string) (*jwt.Token, error) {
 	},
 		jwt.WithExpirationRequired(),
 		jwt.WithAudience(a.aud),
-		jwt.WithIssuer(a.aud),
+		jwt.WithIssuer(a.iss),
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}),
 	)
 }
@@ -62,8 +63,8 @@ func GetTypedClaim[T any](auth Authenticator, tokenString string, claimKey strin
 
 	// ! TODO: is there anyway to avoid this type masturbation?
 	// Special handling for "refreshTokenVersion" as value should be int
-	if claimKey == "refreshTokenVersion" {
-		if v, ok := value.(float64); ok {
+	if claimKey == "refreshTokenVersion" || claimKey == "sessionVersion" {
+		if v, ok := value.(float64); ok && v >= 0 && v < (1<<53) && math.Trunc(v) == v {
 			// Convert to int64 only if the target type is int64
 			if _, ok := any(zero).(int64); ok {
 				convertedValue := int64(v)

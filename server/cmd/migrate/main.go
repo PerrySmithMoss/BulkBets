@@ -75,6 +75,13 @@ func main() {
 	defer cancel()
 
 	switch *action {
+	case "runtime-grants":
+		var grantDB *sql.DB
+		grantDB, err = sql.Open("postgres", dbURL)
+		if err == nil {
+			defer grantDB.Close()
+			err = provision.GrantRuntime(ctx, grantDB, "bulkbets_runtime")
+		}
 	case "seed":
 		var seedDB *sql.DB
 		seedDB, err = sql.Open("postgres", dbURL)
