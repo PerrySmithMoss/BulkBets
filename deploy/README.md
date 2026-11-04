@@ -99,11 +99,33 @@ across untrusted networks, configure database TLS and CA trust before connecting
 
 You do not need to create the BulkBets role or database manually. Before migrations,
 `sh deploy/migrate.sh provision` runs a temporary job from the published API image.
-It uses the existing infrastructure secrets `postgres_user` and `postgres_password`
-to connect to database `postgres` on `DB_HOST`. These administrator secrets must
-already exist in the same Swarm; their values never enter GitHub Actions settings.
+By default it uses the existing infrastructure secrets `postgres_user` and
+`postgres_password` to connect to database `postgres` on `DB_HOST`. Alternatively,
+set `DB_ADMIN_USER_SECRET` and `DB_ADMIN_PASSWORD_SECRET` to the names of Docker
+secrets for a dedicated provisioning login. These secrets must already exist in
+the same Swarm; their values never enter GitHub Actions settings.
 The provisioning job alone receives them. Normal migrations and the API use the
 dedicated application login and never mount infrastructure administrator secrets.
+
+The current VPS deployment selects `bulkbets_provisioner_user` and
+`bulkbets_provisioner_password`. They authenticate `bulkbets_provisioner`, a
+dedicated LOGIN with CREATEDB and CREATEROLE, without SUPERUSER, REPLICATION or
+BYPASSRLS. The job opts into SET membership only for roles it creates, allowing
+the application role to own its database. This avoids depending on a stale shared
+administrator password and does not rotate credentials used by other apps.
+
+To configure the same arrangement on a fresh VPS, use a trusted administrator
+`psql` session to create the provisioning login, then set its password with
+`\password bulkbets_provisioner` and store the matching username/password in the
+two Docker secrets above:
+
+```sql
+CREATE ROLE bulkbets_provisioner LOGIN CREATEDB CREATEROLE NOSUPERUSER
+  NOREPLICATION NOBYPASSRLS NOINHERIT;
+```
+
+Set the two secret-name overrides as GitHub Actions repository variables. Do not
+store their credential values in GitHub variables or mount them into the API.
 
 The job creates `DB_USER` and `DB_NAME` only when missing, with the new role's
 password taken from `bulkbets_db_password`. Choose a unique password of at least
@@ -217,6 +239,7 @@ here or grant this repository access through organization secrets.
 | `CORS_ALLOWED_ORIGINS` | Defaults to `https://APP_HOST`; use comma-separated exact origins for additional frontends |
 | `DB_USER`, `DB_NAME`, `DB_PORT` | Defaults: `bulkbets`, `bulk_bets`, `5432` |
 | `DB_SSL_ENABLED` | Defaults to `disable` on the same-VPS overlay |
+| `DB_ADMIN_USER_SECRET`, `DB_ADMIN_PASSWORD_SECRET` | Defaults: `postgres_user`, `postgres_password`; current VPS overrides: `bulkbets_provisioner_user`, `bulkbets_provisioner_password` |
 | `SMTP_ADDR`, `SMTP_USERNAME` | Defaults: `smtp.resend.com:587`, `resend` |
 | `SMTP_FROM` | Defaults to `noreply@bulkbets.perrysmithmoss.com`; must be a verified sender |
 | `GOOGLE_CLIENT_ID` | Optional; enables the OAuth overlay when nonempty |
@@ -233,9 +256,17 @@ Required external Swarm secrets are `bulkbets_db_password`,
 `bulkbets_refresh_token_secret` and `bulkbets_smtp_password`. Google additionally
 requires `bulkbets_google_client_secret`. Keep database, SMTP, Google and signing
 credentials in these secrets, rather than in the runner's `.env` or GitHub vars.
-Provisioning additionally mounts the existing `postgres_user` and
-`postgres_password` secrets into its temporary job only. The job is removed when
+Provisioning additionally mounts the selected administrator/provisioner secrets
+into its temporary job only, using stable target filenames. The job is removed when
 it completes or fails. `DB_HOST` must resolve to that existing PostgreSQL instance.
+
+If provisioning fails with SQLSTATE `28P01`, the selected login/password cannot
+authenticate to that instance. PostgreSQL image variables and `_FILE` values apply
+only when initializing an empty data directory; updating them does not change a
+stored role password. Test credentials over the Swarm hostname, not localhost:
+the PostgreSQL container's loopback/socket connections may use `trust` and succeed
+even with an incorrect password. Correct the selected provisioning credentials or
+use the dedicated login above rather than resetting a shared administrator login.
 
 The workflow uses GitHub's automatic token to push images. Make the GHCR package
 public for credential-free future pulls, or configure `GHCR_READ_TOKEN` for a

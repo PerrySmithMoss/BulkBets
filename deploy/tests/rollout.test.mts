@@ -63,6 +63,8 @@ function runRollout(scenario: Scenario, overrides: NodeJS.ProcessEnv = {}) {
         SMTP_FROM: "noreply@example.test",
         CORS_ALLOWED_ORIGINS: "",
         GOOGLE_CLIENT_ID: "",
+        DB_ADMIN_USER_SECRET: "",
+        DB_ADMIN_PASSWORD_SECRET: "",
         DEPLOY_TIMEOUT_SECONDS: "2",
         ...overrides,
       },
@@ -179,8 +181,14 @@ test("only the temporary provisioning job receives infrastructure administrator 
   assert.equal(jobs.length, 3);
   for (const job of jobs) {
     const provisioning = job.at(-1) === "provision";
-    assert.equal(job.includes("postgres_user"), provisioning);
-    assert.equal(job.includes("postgres_password"), provisioning);
+    assert.equal(
+      job.includes("source=postgres_user,target=postgres_user"),
+      provisioning,
+    );
+    assert.equal(
+      job.includes("source=postgres_password,target=postgres_password"),
+      provisioning,
+    );
     assert.equal(job.includes("bulkbets_admin_password"), !provisioning);
     assert.ok(job.includes("bulkbets_db_password"));
     assert.ok(
@@ -190,5 +198,37 @@ test("only the temporary provisioning job receives infrastructure administrator 
           call.at(-1) === job[job.indexOf("--name") + 1],
       ),
     );
+  }
+});
+
+test("dedicated provisioner secrets are checked and mounted only into provisioning", () => {
+  const result = runRollout("healthy", {
+    DB_ADMIN_USER_SECRET: "bulkbets_provisioner_user",
+    DB_ADMIN_PASSWORD_SECRET: "bulkbets_provisioner_password",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(
+    result.calls.some(
+      (call) =>
+        isCommand(call, "secret", "inspect") &&
+        call.includes("bulkbets_provisioner_user") &&
+        call.includes("bulkbets_provisioner_password"),
+    ),
+  );
+  for (const job of result.calls.filter((call) =>
+    isCommand(call, "service", "create"),
+  )) {
+    const provisioning = job.at(-1) === "provision";
+    assert.equal(
+      job.includes("source=bulkbets_provisioner_user,target=postgres_user"),
+      provisioning,
+    );
+    assert.equal(
+      job.includes(
+        "source=bulkbets_provisioner_password,target=postgres_password",
+      ),
+      provisioning,
+    );
+    assert.ok(!job.includes("source=postgres_user,target=postgres_user"));
   }
 });

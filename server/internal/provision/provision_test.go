@@ -18,6 +18,7 @@ func TestOperationErrorsDoNotExposeCredentials(t *testing.T) {
 	for _, cause := range []error{
 		errors.New("postgres://secret-user:secret-password@host/database"),
 		&pq.Error{Code: "42501", Message: "SQL containing secret-password", Detail: "secret-password"},
+		&pq.Error{Code: "28P01", Message: "authentication failed for secret-user", Detail: "secret-password"},
 	} {
 		err := operationError("provision database", cause)
 		if strings.Contains(err.Error(), "secret-") {
@@ -223,5 +224,44 @@ func TestIntegrationProvisionExistingRoleAndQuotedNames(t *testing.T) {
 	result := ensure(t, *s)
 	if result.RoleCreated || !result.DatabaseCreated {
 		t.Fatal("expected only the missing database to be created")
+	}
+}
+
+func TestIntegrationProvisionWithNonSuperuserCreator(t *testing.T) {
+	s, db := integrationSettings(t)
+	creator := s.User + "_creator"
+	password := "dedicated-provisioner-test-password"
+	hash, err := passwordVerifier(password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE ROLE ` + pq.QuoteIdentifier(creator) + ` LOGIN CREATEDB CREATEROLE NOSUPERUSER NOREPLICATION NOBYPASSRLS PASSWORD ` + pq.QuoteLiteral(hash)); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		// Remove dependent test objects before their non-superuser creator.
+		for _, statement := range []string{
+			`DROP DATABASE IF EXISTS ` + pq.QuoteIdentifier(s.Database) + ` WITH (FORCE)`,
+			`DROP ROLE IF EXISTS ` + pq.QuoteIdentifier(s.User),
+			`DROP ROLE IF EXISTS ` + pq.QuoteIdentifier(creator),
+		} {
+			if _, err := db.Exec(statement); err != nil {
+				t.Error(err)
+			}
+		}
+	})
+	u, _ := url.Parse(s.AdminURL)
+	u.User = url.UserPassword(creator, password)
+	s.AdminURL = u.String()
+	first := ensure(t, *s)
+	if !first.RoleCreated || !first.DatabaseCreated {
+		t.Fatal("non-superuser creator must create the application role and database")
+	}
+	if again := ensure(t, *s); again.RoleCreated || again.DatabaseCreated {
+		t.Fatal("repeated provisioning must not change existing objects")
+	}
+	var elevated bool
+	if err := db.QueryRow(`SELECT rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls FROM pg_roles WHERE rolname=$1`, s.User).Scan(&elevated); err != nil || elevated {
+		t.Fatal("application login must not inherit the creator's privileges")
 	}
 }

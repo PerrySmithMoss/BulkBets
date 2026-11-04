@@ -148,6 +148,8 @@ jobs:
       DB_USER: ${{ vars.DB_USER || 'bulkbets' }}
       DB_NAME: ${{ vars.DB_NAME || 'bulk_bets' }}
       DB_SSL_ENABLED: ${{ vars.DB_SSL_ENABLED || 'disable' }}
+      DB_ADMIN_USER_SECRET: ${{ vars.DB_ADMIN_USER_SECRET || 'postgres_user' }}
+      DB_ADMIN_PASSWORD_SECRET: ${{ vars.DB_ADMIN_PASSWORD_SECRET || 'postgres_password' }}
       SMTP_ADDR: ${{ vars.SMTP_ADDR || 'smtp.resend.com:587' }}
       SMTP_FROM: ${{ vars.SMTP_FROM || 'noreply@bulkbets.perrysmithmoss.com' }}
       SMTP_USERNAME: ${{ vars.SMTP_USERNAME || 'resend' }}

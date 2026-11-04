@@ -56,6 +56,9 @@ func operationError(operation string, err error) error {
 	}
 	var pgErr *pq.Error
 	if errors.As(err, &pgErr) {
+		if pgErr.Code == "28P01" {
+			return fmt.Errorf("%s failed (PostgreSQL SQLSTATE 28P01): verify the selected login secret matches the initialized database role; Docker POSTGRES_PASSWORD_FILE does not update existing role passwords", operation)
+		}
 		return fmt.Errorf("%s failed (PostgreSQL SQLSTATE %s)", operation, pgErr.Code)
 	}
 	return fmt.Errorf("%s failed; check database connectivity and secret configuration", operation)
@@ -126,6 +129,11 @@ func Ensure(ctx context.Context, s Settings) (Result, error) {
 		FROM pg_roles WHERE rolname=$1`, s.User).Scan(&login, &superuser, &createDB, &createRole, &replication, &bypassRLS, &memberships)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
+		// PostgreSQL 16+ grants a non-superuser creator ADMIN on its new role,
+		// but SET is opt-in. SET allows CREATE DATABASE ... OWNER app_role.
+		if _, err := conn.ExecContext(ctx, `SET createrole_self_grant = 'set'`); err != nil {
+			return result, operationError("configure provisioning role membership", err)
+		}
 		verifier, err := passwordVerifier(s.Password)
 		if err != nil {
 			return result, err

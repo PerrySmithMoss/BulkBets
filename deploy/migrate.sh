@@ -18,7 +18,8 @@ trap 'exit 1' HUP INT TERM
 # Only the temporary provisioning job can read infrastructure administrator
 # secrets. Migrations and the long-running API use the dedicated application role.
 if [ "$action" = provision ]; then
-  set -- --secret postgres_user --secret postgres_password \
+  set -- --secret "source=${DB_ADMIN_USER_SECRET:-postgres_user},target=postgres_user" \
+    --secret "source=${DB_ADMIN_PASSWORD_SECRET:-postgres_password},target=postgres_password" \
     --env DB_ADMIN_USER_FILE=/run/secrets/postgres_user \
     --env DB_ADMIN_PASSWORD_FILE=/run/secrets/postgres_password
 else

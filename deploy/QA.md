@@ -84,3 +84,6 @@ own uniquely named roles/databases. Routine Go tests skip them when it is absent
 The E2E stack starts with only the administrator's `postgres` database, then runs
 the actual provisioning command to create `bulk_bets`. Migrations, seeds, storage
 tests and the API all connect as the resulting non-superuser `bulkbets` role.
+Provisioning tests also cover a non-superuser creator with CREATEDB/CREATEROLE,
+and rollout tests verify custom credential-secret names are checked and mounted
+only into the temporary provisioning job.

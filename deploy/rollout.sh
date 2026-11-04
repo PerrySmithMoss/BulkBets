@@ -31,7 +31,8 @@ fi
 docker network inspect portfolio_network >/dev/null
 docker secret inspect bulkbets_db_password bulkbets_admin_password \
   bulkbets_access_token_secret bulkbets_refresh_token_secret \
-  bulkbets_smtp_password postgres_user postgres_password >/dev/null
+  bulkbets_smtp_password "${DB_ADMIN_USER_SECRET:-postgres_user}" \
+  "${DB_ADMIN_PASSWORD_SECRET:-postgres_password}" >/dev/null
 
 set -- --compose-file docker-stack.yaml --compose-file deploy/docker-stack.smtp.yml
 if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
