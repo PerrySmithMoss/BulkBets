@@ -730,7 +730,11 @@ export function BetsScreen() {
     }, [userID, filter, report]),
   );
   return (
-    <ScrollView style={styles.surface} contentContainerStyle={styles.screen}>
+    <ScrollView
+      testID="bet-history"
+      style={styles.surface}
+      contentContainerStyle={styles.screen}
+    >
       <Text style={styles.title}>My bets</Text>
       <DemoIntro />
       <View style={styles.row}>

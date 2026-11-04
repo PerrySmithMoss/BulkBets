@@ -23,8 +23,11 @@ test("Expo connects guest betting, wallet transfers, results and history", async
   await page.getByRole("button", { name: "Simulate replay results" }).click();
   await expect(page.getByText(/1 bets settled/)).toBeVisible();
   await page.getByRole("tab", { name: "My Bets" }).click();
-  await expect(page.getByText("Hadi Choopan", { exact: true })).toBeVisible();
-  await expect(page.getByText(/^(WON|LOST)$/)).toBeVisible();
+  // Other tabs remain mounted, so assert against the actual history screen.
+  const history = page.getByTestId("bet-history");
+  await expect(history).toBeVisible();
+  await expect(history.getByText("Hadi Choopan", { exact: true })).toBeVisible();
+  await expect(history.getByText(/^(WON|LOST)$/)).toBeVisible();
   await page.getByRole("tab", { name: "Wallet" }).click();
   await page.getByLabel("Transfer amount").fill("50");
   await page
