@@ -78,6 +78,7 @@ func (app *application) mount() http.Handler {
 		r.Route("/shows", func(r chi.Router) {
 			r.Use(app.DeserialiseUserMiddleware)
 			r.Get("/", app.showsHandler)
+			r.Get("/directory", app.showDirectoryHandler)
 			// TODO: maybe add middleware so these routes require api key/token?
 			// That we we could monetise the API as well as using it for the platform itself.
 

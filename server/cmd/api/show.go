@@ -161,3 +161,33 @@ func (app *application) showsHandler(w http.ResponseWriter, r *http.Request) {
 		app.internalServerError(w, r, err)
 	}
 }
+
+// showDirectoryHandler assembles the market directory beside the database so
+// page rendering needs one API round trip rather than a list/detail waterfall.
+func (app *application) showDirectoryHandler(w http.ResponseWriter, r *http.Request) {
+	shows, err := app.store.ShowRepository.ListShows(r.Context())
+	if err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
+
+	directory := struct {
+		Shows   []*store.ShowDetails `json:"shows"`
+		Partial bool                 `json:"partial"`
+	}{Shows: make([]*store.ShowDetails, 0, len(shows))}
+	for _, show := range shows {
+		details, err := app.store.ShowRepository.GetShowByID(r.Context(), int(show.ID))
+		if r.Context().Err() != nil {
+			return
+		}
+		if err != nil || details == nil {
+			log.Printf("showDirectoryHandler: unable to load show %d: %v", show.ID, err)
+			directory.Partial = true
+			continue
+		}
+		directory.Shows = append(directory.Shows, details)
+	}
+	if err := app.jsonResponse(w, http.StatusOK, directory); err != nil {
+		app.internalServerError(w, r, err)
+	}
+}
