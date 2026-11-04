@@ -1,6 +1,23 @@
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
+import type { ShowDetailsResponse } from "../src/types/api/show/show-details-response";
+
+test("market directory includes complete line-ups in show-list order", async ({ request }) => {
+  const response = await request.get("/api/v1/shows/directory");
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["cache-control"]).toContain("no-store");
+  const { data }: { data: { shows: ShowDetailsResponse["data"][]; partial: boolean } } = await response.json();
+  const list = (await (await request.get("/api/v1/shows")).json()).data;
+  expect(data.partial).toBe(false);
+  expect(data.shows.map((details) => details.show.id)).toEqual(
+    list.map((show: { id: number }) => show.id),
+  );
+  for (const details of data.shows) {
+    const individual = await request.get(`/api/v1/shows/${details.show.id}`);
+    expect(details).toEqual((await individual.json()).data);
+  }
+});
 
 test("registration creates a persisted account and preserves a guest selection", async ({
   page,

@@ -109,6 +109,11 @@ test("private studio edits odds, previews results and pays automatically once", 
         s.sandbox && s.name === "Portfolio Championship",
     );
     expect((await other.get(`/api/v1/shows/${show.id}`)).status()).toBe(404);
+    const ownDirectory = (await (await page.request.get("/api/v1/shows/directory")).json()).data;
+    expect(ownDirectory.partial).toBe(false);
+    expect(ownDirectory.shows.some((details: { show: { id: number } }) => details.show.id === show.id)).toBe(true);
+    const otherDirectory = (await (await other.get("/api/v1/shows/directory")).json()).data;
+    expect(otherDirectory.shows.some((details: { show: { id: number } }) => details.show.id === show.id)).toBe(false);
     expect(
       (
         await other.patch(`/api/v1/sandbox/shows/${show.id}`, {

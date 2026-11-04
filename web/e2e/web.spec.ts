@@ -49,6 +49,10 @@ test("invalid credentials, password login, session refresh, and logout", async (
   page,
   context,
 }) => {
+  const serverActions: string[] = [];
+  page.on("request", (request) => {
+    if (request.headers()["next-action"]) serverActions.push(request.url());
+  });
   await page.goto("/customer/my-bets");
   await expect(page).toHaveURL("http://127.0.0.1:3100/");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
@@ -70,11 +74,18 @@ test("invalid credentials, password login, session refresh, and logout", async (
     .click();
   await expect(page.getByRole("alert")).toHaveText("Invalid email or password");
   await page.getByLabel("Password", { exact: true }).fill("e2e-password");
+  const userRefresh = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/v1/users/me" &&
+      response.request().method() === "GET",
+  );
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Log in", exact: true })
     .click();
+  expect((await userRefresh).ok()).toBe(true);
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(serverActions).toEqual([]);
   // Stop page prefetches before artificially expiring the access cookie.
   await page.goto("about:blank");
   await context.clearCookies({ name: "access_token" });

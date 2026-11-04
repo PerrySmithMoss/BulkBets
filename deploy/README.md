@@ -291,6 +291,18 @@ with your real API hostname, without `/api/v1`, then deploy. Add the hostname fr
 that frontend DNS record at the VPS. The API DNS record points at the VPS where
 Traefik already handles TLS.
 
+`web/vercel.json` pins Next.js functions to London (`lhr1`). A new Vercel
+deployment is required for this region setting to take effect. If the API moves,
+keep the function region close to it. The homepage loads its market directory
+through one `GET /api/v1/shows/directory` request; the original show list and
+individual show endpoints remain available to native clients. Browser balance
+updates use `GET /api/v1/users/me` through the same-origin rewrite rather than a
+Next.js server action.
+
+Deploy the API containing `/api/v1/shows/directory` before the frontend that
+uses it. With independent Git integrations, wait for the API release to finish
+before promoting the matching Vercel deployment.
+
 `API_URL` is used by both Next server requests and the external `/api/:path*`
 rewrite. Redeploy after changing it. A Vercel build fails early if the origin is
 missing, insecure, or contains a path/credentials. No database, SMTP or signing

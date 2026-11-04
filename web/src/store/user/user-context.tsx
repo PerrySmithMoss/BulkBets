@@ -9,7 +9,7 @@ import {
   useContext,
   useState,
 } from "react";
-import { fetchCurrentUser } from "@/lib/api/users/fetch-current-user";
+import { fetchCurrentUser } from "@/lib/api/users/client/fetch-current-user";
 
 import { demoRequest } from "@/lib/api/demo";
 
