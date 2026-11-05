@@ -52,6 +52,9 @@ roles own their own Prisma tables and can run migrations. The database
 administrator retains database ownership. Neither app role can connect to
 the other app database. Disposable PostgreSQL tests covered ownership and
 migrations, and live sign-in and app data reads passed for both services.
+Both roles inherit PostgreSQL's default `CONNECT` permission to `bulk_bets`
+but have no read or write privileges on its application tables. Tighten
+connection policy in the existing network isolation task.
 
 PostgreSQL now uses a versioned administrator recovery secret. Network
 probes verified the new password, verified rejection of the previous
