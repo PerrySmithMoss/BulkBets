@@ -161,6 +161,46 @@ test("keyboard selection works and reopening login clears previous errors", asyn
   await expect(page).toHaveURL(/forgot-password/);
 });
 
+test("password recovery waits for scripts before accepting an email", async ({
+  page,
+}) => {
+  const scripts = Promise.withResolvers<void>();
+  await page.route(/\/_next\/static\/.*\.js(?:\?|$)/, async (route) => {
+    await scripts.promise;
+    await route.continue();
+  });
+  const requests: { method: string; email: string }[] = [];
+  await page.route("**/api/v1/auth/forgot-password", async (route) => {
+    const request = route.request();
+    requests.push({
+      method: request.method(),
+      email: request.postDataJSON()?.email,
+    });
+    await route.fulfill({
+      json: { data: { message: "Check your inbox for a reset link." } },
+    });
+  });
+
+  try {
+    await page.goto("/forgot-password", { waitUntil: "commit" });
+    await expect(page.getByLabel("Email address")).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "Send reset link" }),
+    ).toBeDisabled();
+    await expect(page).toHaveURL("/forgot-password");
+  } finally {
+    scripts.resolve();
+  }
+
+  await page.getByLabel("Email address").fill("recovery@example.test");
+  await page.getByRole("button", { name: "Send reset link" }).click();
+  await expect(page.getByRole("main").getByRole("status")).toContainText(
+    "Check your inbox for a reset link.",
+  );
+  await expect(page).toHaveURL("/forgot-password");
+  expect(requests).toEqual([{ method: "POST", email: "recovery@example.test" }]);
+});
+
 test("password recovery redirects home after reset and rejects missing, expired or reused links", async ({
   page,
   request,
