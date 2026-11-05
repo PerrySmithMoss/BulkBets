@@ -32,7 +32,7 @@ fi
 docker network inspect bulkbets_ingress bulkbets_database >/dev/null
 docker secret inspect bulkbets_runtime_db_password bulkbets_db_ca bulkbets_edge_proxy_secret bulkbets_db_password bulkbets_admin_password \
   bulkbets_access_token_secret bulkbets_refresh_token_secret \
-  bulkbets_smtp_password >/dev/null
+  "${SMTP_PASSWORD_SECRET:-bulkbets_smtp_password}" >/dev/null
 case "${PROVISION_DATABASE:-true}" in
   true)
     docker secret inspect "${DB_ADMIN_USER_SECRET:-postgres_user}" "${DB_ADMIN_PASSWORD_SECRET:-postgres_password}" >/dev/null ;;

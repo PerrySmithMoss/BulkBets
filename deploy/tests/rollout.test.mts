@@ -128,6 +128,14 @@ test("restricted releases never inspect or mount infrastructure provisioner secr
   }
 });
 
+test("SMTP rotation checks the selected versioned secret", () => {
+  const result = runRollout("healthy", { SMTP_PASSWORD_SECRET: "bulkbets_smtp_password_v2" });
+  assert.equal(result.status, 0, result.stderr);
+  const inspected = result.calls.filter((call) => isCommand(call, "secret", "inspect")).flat();
+  assert.ok(inspected.includes("bulkbets_smtp_password_v2"));
+  assert.ok(!inspected.includes("bulkbets_smtp_password"));
+});
+
 test("Google configuration includes its secret and overlay", () => {
   const result = runRollout("healthy", { GOOGLE_CLIENT_ID: "test-client-id" });
   assert.equal(result.status, 0, result.stderr);

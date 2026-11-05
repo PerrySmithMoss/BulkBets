@@ -11,3 +11,4 @@ services:
 secrets:
   bulkbets_smtp_password:
     external: true
+    name: ${SMTP_PASSWORD_SECRET:-bulkbets_smtp_password}
