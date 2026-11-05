@@ -112,7 +112,7 @@ const Carousel = React.forwardRef<
       }
 
       // Initialize from Embla's external state before subscribing to changes.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      // oxlint-disable-next-line react/set-state-in-effect
       onSelect(api);
       api.on("reInit", onSelect);
       api.on("select", onSelect);

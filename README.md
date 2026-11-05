@@ -162,21 +162,20 @@ Browser tests of Expo web and native bundle exports do not establish native devi
 - Expo SDK 58.0.23 expects React and React DOM 19.3.0, Worklets 0.13.0
   and Safe Area Context 5.11.x. Use `npx expo install --check` in `mobile` to
   verify that the native dependencies match the SDK.
-- TypeScript 6.0 is the latest version supported by the shared ESLint parser.
-  The web lint plugins for imports, accessibility and React require ESLint 9.
-  [TypeScript 7 parser support](https://github.com/typescript-eslint/typescript-eslint/issues/10940)
+- Web and mobile use Oxlint and TypeScript 7. Run the same `npm run lint` and
+  `npm run typecheck` scripts in each app. Expo SDK 58 recommends TypeScript 6
+  by default. Mobile excludes only the compiler from Expo's dependency version
+  check and verifies TypeScript 7 with a separate type check and bundle exports.
 - The Go vulnerability scan is clean after updating `golang.org/x/crypto`
   to the first revision listed as fixed for the OpenPGP module advisory. The API
   does not import OpenPGP. [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932)
-- Full npm audits report 8 moderate entries in web and 12 in mobile, including
-  parent packages reported because of their dependency trees. The production
-  dependency audit reports zero in web and 5 moderate entries in mobile.
-  The two distinct advisories affect `glob@13.0.6` in the Expo CLI and
-  fingerprint tooling, and `minimatch@10.2.6` in that Expo tooling and the
-  TypeScript ESLint parser. The affected paths are used for builds and linting.
-  Keep the findings open until the parent packages ship supported upgrades to
-  `glob@14.0.2` and `minimatch@11.0.1` or later. The BulkBets maintainer will
-  recheck by 19 November 2026. [Glob advisory](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4),
+- The web npm audit is clean, including development dependencies. Mobile still
+  reports two distinct moderate advisories affecting `glob@13.0.6` in the Expo
+  CLI and fingerprint tooling, and `minimatch@10.2.6` in Expo tooling and the
+  retained Expo lint rules. The full mobile audit reports eight entries and the
+  production dependency audit reports five, including affected parent packages.
+  The BulkBets maintainer will recheck by 19 November 2026.
+  [Glob advisory](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4),
   [Minimatch advisory](https://github.com/advisories/GHSA-g3hv-75wg-m249),
   [Expo tracking](https://github.com/expo/expo/issues/52735),
   [Parser tracking](https://github.com/typescript-eslint/typescript-eslint/issues/13125)

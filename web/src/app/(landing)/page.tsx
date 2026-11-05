@@ -5,7 +5,7 @@ import { RetryButton } from "@/components/retry-button";
 export default async function Home({searchParams}:{searchParams:Promise<{show?:string}>}) {
  const params=await searchParams;
   const { shows, error } = await fetchShowDirectory();
-  // eslint-disable-next-line react-hooks/purity -- One request-time snapshot for hydration.
+  // One request-time snapshot for hydration.
   const asOf = Date.now();
   return (
     <main

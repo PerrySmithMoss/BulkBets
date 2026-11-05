@@ -83,7 +83,7 @@ export const PlaceBetDialog: React.FC<Props> = ({}) => {
 
   const updateStakeMultiplierCallback = useCallback((value: string) => {
     updateStakeMultiplier(value);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

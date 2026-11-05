@@ -46,7 +46,7 @@ export function CompetitorTable({
   const replay = demo && !show.sandbox && (!user || user.is_demo);
   const open = replay || isMarketOpen(show, division, now);
   function handleSelection(competitor: Competitor) {
-    // eslint-disable-next-line react-hooks/purity -- Recheck the clock when the user clicks, not during rendering.
+    // Recheck the clock when the user clicks, not during rendering.
     if (!replay && !isMarketOpen(show, division, Date.now())) return;
     startBet(show, division, competitor);
     if (!user && !demo) openDialog(Dialog.LogInToBet);
