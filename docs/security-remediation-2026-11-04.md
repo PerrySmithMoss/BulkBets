@@ -2,6 +2,8 @@
 
 This follows the [audit snapshot](security-audit-2026-11-04.md). The owner authorized remediation and explicitly declined scheduled backups because this is a portfolio website. This is a record of verified changes and remaining limitations, not a claim that every system is secure or that no compromise occurred.
 
+**Follow-up:** the [5 November status](security-follow-up-2026-11-05.md) supersedes the remaining-work list and dependency counts below. This document preserves the original release evidence.
+
 ## Changes
 
 | Audit item | Remediation and remaining limits |
