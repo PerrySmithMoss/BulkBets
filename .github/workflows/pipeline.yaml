@@ -49,7 +49,7 @@ jobs:
       - name: Check GitHub Actions workflow
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 .github/workflows/pipeline.yaml
       - name: Check web app
-        run: npm --prefix web run lint && npm --prefix web run typecheck && npm --prefix web test -- --runInBand
+        run: npm --prefix web run lint && npm --prefix web run typecheck && npm --prefix web test
       - name: Type-check Node tooling
         run: npm --prefix web run typecheck:tools
       - name: Check mobile app and native exports

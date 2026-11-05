@@ -1,4 +1,4 @@
-import { expect, test } from "@jest/globals";
+import { expect, test } from "vitest";
 import { multiplyMoney } from "./currency";
 import { calculateBetSlipTotals, calculateSingularBetReturn } from "./betting";
 import { ActiveBet, BetSlipState } from "@/types/betting";

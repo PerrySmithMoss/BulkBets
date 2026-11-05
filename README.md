@@ -124,7 +124,7 @@ npm --prefix web run lint
 npm --prefix web run typecheck
 npm --prefix web run typecheck:tools
 node --test deploy/tests/rollout.test.mts
-npm --prefix web test -- --runInBand
+npm --prefix web test
 npm --prefix mobile run lint
 npm --prefix mobile run typecheck
 cd mobile && npx expo-doctor && npm run export:native && cd ..
