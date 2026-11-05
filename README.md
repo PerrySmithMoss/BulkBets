@@ -157,21 +157,29 @@ and Expo's connected betting, wallet, results and private-event journeys. Screen
 traces are saved in `web/test-results`; open the report with `npx playwright show-report`.
 Browser tests of Expo web and native bundle exports do not establish native device E2E.
 
-## Dependency upgrade notes (2026-11-01)
+## Dependency upgrade notes (2026-11-05)
 
-- Next.js 16.4, React 19.3, Tailwind CSS 4.3, Jest 30, Expo SDK 58, React Native 0.88,
-  Go 1.27.3, and Postgres 18.6. Manifests and lockfiles include updated direct and
-  transitive dependencies.
-- Expo-managed libraries use SDK 58's supported versions, including React 19.3.0,
-  Worklets 0.13.0, and Safe Area Context 5.10.x. Independent upgrades of these packages
-  can break native compatibility; use `npx expo install --check` in `mobile`.
-- ESLint stays on the newest compatible 9.x because the React ESLint plugin's peer
-  range excludes 10. TypeScript stays on 6.0 because the TypeScript ESLint parser's
-  peer range excludes 7.
-- `npm audit --omit=dev` is clean for the web app. Latest Expo SDK tooling still
-  includes moderate `glob` / `minimatch` advisories. Full development-tool audits also
-  flag transitive packages in ESLint/Jest. Avoid `npm audit fix --force`: its proposed
-  downgrades break the current frameworks. Recheck upstream releases before deploying.
+- Expo SDK 58.0.23 expects React and React DOM 19.3.0, Worklets 0.13.0
+  and Safe Area Context 5.11.x. Use `npx expo install --check` in `mobile` to
+  verify that the native dependencies match the SDK.
+- TypeScript 6.0 is the latest version supported by the shared ESLint parser.
+  The web lint plugins for imports, accessibility and React require ESLint 9.
+  [TypeScript 7 parser support](https://github.com/typescript-eslint/typescript-eslint/issues/10940)
+- The Go vulnerability scan is clean after updating `golang.org/x/crypto`
+  to the first revision listed as fixed for the OpenPGP module advisory. The API
+  does not import OpenPGP. [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932)
+- Full npm audits report 8 moderate entries in web and 12 in mobile, including
+  parent packages reported because of their dependency trees. The production
+  dependency audit reports zero in web and 5 moderate entries in mobile.
+  The two distinct advisories affect `glob@13.0.6` in the Expo CLI and
+  fingerprint tooling, and `minimatch@10.2.6` in that Expo tooling and the
+  TypeScript ESLint parser. The affected paths are used for builds and linting.
+  Keep the findings open until the parent packages ship supported upgrades to
+  `glob@14.0.2` and `minimatch@11.0.1` or later. The BulkBets maintainer will
+  recheck by 19 November 2026. [Glob advisory](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4),
+  [Minimatch advisory](https://github.com/advisories/GHSA-g3hv-75wg-m249),
+  [Expo tracking](https://github.com/expo/expo/issues/52735),
+  [Parser tracking](https://github.com/typescript-eslint/typescript-eslint/issues/13125)
 
 Migration references: [Next.js 16](https://nextjs.org/docs/app/guides/upgrading/version-16),
 [Tailwind CSS 4](https://tailwindcss.com/docs/upgrade-guide),
