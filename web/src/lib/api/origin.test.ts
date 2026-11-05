@@ -1,4 +1,4 @@
-import { test, expect } from "@jest/globals";
+import { test, expect, vi } from "vitest";
 import { getApiOrigin } from "./origin";
 
 test("local API defaults work and a trailing slash is normalised", () => {
@@ -13,6 +13,18 @@ test("Vercel cannot silently use a missing or insecure API URL", () => {
   expect(() =>
     getApiOrigin({ VERCEL: "1", API_URL: "http://localhost:8080" }),
   ).toThrow("HTTPS");
+});
+
+test("the default origin reads the server environment", () => {
+  vi.stubEnv("VERCEL", "1");
+  vi.stubEnv("API_URL", "https://api.example.com/");
+  try {
+    expect(getApiOrigin()).toBe("https://api.example.com");
+    vi.stubEnv("API_URL", undefined);
+    expect(() => getApiOrigin()).toThrow("Set API_URL");
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });
 
 test.each([

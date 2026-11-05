@@ -30,3 +30,7 @@ This updates the [original remediation record](security-remediation-2026-11-04.m
 6. **Recovery:** the one-off encrypted recovery copy remains on the owner's Mac. It is neither an independent off-site backup nor a scheduled backup. The owner explicitly declined scheduled backups for this portfolio project.
 
 APT advisory: [Debian tracker CVE-2026-109518](https://security-tracker.debian.org/tracker/CVE-2026-109518), [Debian security announcement](https://lists.debian.org/debian-lts-announce/2026/11/msg00004.html). Mail configuration references: [Resend SMTP](https://resend.com/docs/send-with-smtp), [subdomain DMARC](https://resend.com/blog/how-dmarc-applies-to-subdomains).
+
+The [refreshed scan and restricted release evidence](security-evidence-2026-11-05.md)
+tracks work against items 4 and 5. The shared credential has been retired.
+The PostgreSQL candidate and remaining vulnerability findings are still open.
