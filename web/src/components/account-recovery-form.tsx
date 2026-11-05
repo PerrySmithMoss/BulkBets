@@ -2,10 +2,13 @@
 
 import { useSyncExternalStore, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { useDialog } from "@/store/dialog/dialog-context";
+import { useUser } from "@/store/user/user-context";
 import { Dialog } from "@/types/dialog";
 
 const subscribeToHash = (callback: () => void) => {
@@ -23,6 +26,8 @@ export function AccountRecoveryForm({ reset = false }: { reset?: boolean }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const { openDialog } = useDialog();
+  const { setUser } = useUser();
+  const router = useRouter();
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
@@ -44,6 +49,12 @@ export function AccountRecoveryForm({ reset = false }: { reset?: boolean }) {
         setError(
           result.error || "Unable to complete your request. Please try again.",
         );
+        return;
+      }
+      if (reset) {
+        setUser(null);
+        router.replace("/");
+        toast.success(result.data.message);
         return;
       }
       setMessage(result.data.message);

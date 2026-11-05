@@ -161,7 +161,7 @@ test("keyboard selection works and reopening login clears previous errors", asyn
   await expect(page).toHaveURL(/forgot-password/);
 });
 
-test("password recovery handles disabled email and rejects expired or reused reset links", async ({
+test("password recovery redirects home after reset and rejects missing, expired or reused links", async ({
   page,
   request,
 }) => {
@@ -186,7 +186,14 @@ test("password recovery handles disabled email and rejects expired or reused res
       await request.post("/api/v1/auth/login", { data: { email, password } })
     ).ok(),
   ).toBe(true);
-  await page.goto("/forgot-password");
+  await page.context().addCookies((await request.storageState()).cookies);
+  await page.goto("/reset-password");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "This link is missing its reset code",
+  );
+  await expect(page.getByLabel("New password")).toHaveCount(0);
+  await page.getByRole("link", { name: "Request a new reset link" }).click();
+  await expect(page).toHaveURL(/\/forgot-password$/);
   await page.getByLabel("Email address").fill(email);
   await page.getByRole("button", { name: "Send reset link" }).click();
   await expect(page.locator("form").getByRole("alert")).toContainText(
@@ -199,40 +206,49 @@ test("password recovery handles disabled email and rejects expired or reused res
   fixtureSQL(`INSERT INTO password_resets (user_id, token_hash, expires_at)
     SELECT id, '${digest}', NOW() + INTERVAL '30 minutes'
     FROM users WHERE email = '${email}'`);
-  const link = `http://127.0.0.1:3100/reset-password#token=${token}`;
+  const link = `/reset-password#token=${token}`;
   const adjustExpiry = (interval: string) =>
-    execFileSync("docker", [
-      "compose",
-      "-p",
-      "bulkbets-e2e",
-      "-f",
-      "../docker-compose.e2e.yaml",
-      "exec",
-      "-T",
-      "db",
-      "psql",
-      "-U",
-      "admin",
-      "-d",
-      "bulk_bets",
-      "-v",
-      "ON_ERROR_STOP=1",
-      "-c",
+    fixtureSQL(
       `UPDATE password_resets SET expires_at = NOW() + INTERVAL '${interval}' WHERE user_id = (SELECT id FROM users WHERE email = '${email}')`,
+    );
+  const submitResetForm = async () => {
+    await page.getByLabel("New password").fill(newPassword);
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/v1/auth/reset-password" &&
+          response.request().method() === "POST",
+      ),
+      page.getByRole("button", { name: "Save new password" }).click(),
     ]);
+    return response.status();
+  };
+  const expectRejectedLink = async () => {
+    await expect(page.locator("form").getByRole("alert")).toContainText(
+      "This reset link has expired or has already been used",
+    );
+  };
   adjustExpiry("-1 minute");
-  expect(
-    (
-      await request.post("/api/v1/auth/reset-password", {
-        data: { token: link.split("token=")[1], password: newPassword },
-      })
-    ).status(),
-  ).toBe(400);
-  adjustExpiry("30 minutes");
   await page.goto(link);
-  await page.getByLabel("New password").fill(newPassword);
-  await page.getByRole("button", { name: "Save new password" }).click();
-  await expect(page.getByRole("status")).toContainText("Password updated");
+  expect(await submitResetForm()).toBe(400);
+  await expectRejectedLink();
+  adjustExpiry("30 minutes");
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Account menu" }),
+  ).toBeVisible();
+  expect(await submitResetForm()).toBe(200);
+  await expect(page).toHaveURL("/");
+  await expect(
+    page.getByText("Password updated. Log in with your new password.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Log in", exact: true }),
+  ).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL("/forgot-password");
   expect((await request.get("/api/v1/auth/token/refresh")).status()).toBe(401);
   expect(
     (
@@ -246,13 +262,9 @@ test("password recovery handles disabled email and rejects expired or reused res
       })
     ).ok(),
   ).toBe(true);
-  expect(
-    (
-      await request.post("/api/v1/auth/reset-password", {
-        data: { token: link.split("token=")[1], password: newPassword },
-      })
-    ).status(),
-  ).toBe(400);
+  await page.goto(link);
+  expect(await submitResetForm()).toBe(400);
+  await expectRejectedLink();
 });
 
 function fixtureSQL(sql: string) {
