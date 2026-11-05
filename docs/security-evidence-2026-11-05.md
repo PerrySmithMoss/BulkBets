@@ -44,6 +44,58 @@ GitHub workflow and secret-name inspection confirmed Chinwag, Fleet and VitaTrac
 
 The [broker and runbook](https://github.com/PerrySmithMoss/perry-infra/pull/5) are in draft review. The workflows for [Chinwag](https://github.com/PerrySmithMoss/chinwag/pull/1), [Fleet](https://github.com/PerrySmithMoss/logistics-realtime-dashboard/pull/1), and [VitaTrack](https://github.com/PerrySmithMoss/VitaTrack/pull/1) are merged. Each environment allows only its repository's default branch. Each has its own Ed25519 credential and a pinned VPS host key. BulkBets removed its dormant shared-key fallback. The perry-infra cleanup is part of its draft PR. Go race tests exercise malformed and cross-app input, revision mismatch, lock contention, timeouts, service drift, and incorrect or rolled-back tasks. An isolated Debian fixture exercised real OpenSSH and sudo with a simulated Docker backend, including shell, Docker stdio, SFTP, forwarding and cross-app denial. A disposable Docker Swarm also converged on a different published Chinwag digest and back to the previous digest, using an inert test process rather than the app workload. The test exposed that Docker can return before Swarm publishes its final update status; the broker now checks both bounded convergence and a running task. The administrator installed all three release accounts. First production releases passed. The shared credential was retired after the rollback checks below. After cutover, legacy applications still share an overlay; track per-app network isolation in a separate high-priority infrastructure ticket.
 
+### Database credential rotation
+
+Chinwag and VitaTrack used the same PostgreSQL administrator login. Each app
+now uses a dedicated non-superuser role and a versioned Swarm secret. The
+roles own their own Prisma tables and can run migrations. The database
+administrator retains database ownership. Neither app role can connect to
+the other app database. Disposable PostgreSQL tests covered ownership and
+migrations, and live sign-in and app data reads passed for both services.
+Both roles inherit PostgreSQL's default `CONNECT` permission to `bulk_bets`
+but have no read or write privileges on its application tables. Tighten
+connection policy in the existing network isolation task.
+
+PostgreSQL now uses a versioned administrator recovery secret. Network
+probes verified the new password, verified rejection of the previous
+passwords, and closed the administrator's preexisting remote connections.
+All seven Swarm services recovered after the secret update. The VPS
+administrator installed the checksum-verified release snapshot, and
+[perry-infra PR #6](https://github.com/PerrySmithMoss/perry-infra/pull/6)
+merged the matching configuration. The retired application and administrator
+secrets were removed from Swarm.
+
+### Patched legacy API images
+
+Trivy 0.76.1 scanned the published Linux amd64 digests in the production
+workflows. The workflows retained the full reports and passed the gate for
+fixable critical findings. Counts are scanner entries.
+
+| App | Previous critical / high | Patched critical / high | Fixable high on patched image |
+| --- | ---: | ---: | ---: |
+| [Chinwag](https://github.com/PerrySmithMoss/chinwag/pull/2) | 2 / 54 | 0 / 45 | 0 |
+| [Fleet](https://github.com/PerrySmithMoss/logistics-realtime-dashboard/pull/2) | 9 / 83 | 0 / 45 | 0 |
+| [VitaTrack](https://github.com/PerrySmithMoss/VitaTrack/pull/2) | 4 / 62 | 0 / 49 | 4 |
+
+Chinwag and VitaTrack passed migrations and authenticated API flows against
+disposable databases. Fleet passed readiness and its 398 server tests.
+VitaTrack's fixable high entries are in GraphQL Tools and Prisma tooling.
+Review the unsupported Apollo Server 3 stack and the Prisma CLI separately.
+Keep reviewing Debian fixes for the remaining entries across all three apps.
+
+| API | Scanned digest | Release verification |
+| --- | --- | --- |
+| Chinwag | `sha256:70cbad834e8e7fc6b3beb9558116b8103524196fbdf283aa0eddd48cdcb624a7` | [Deployed through the restricted workflow](https://github.com/PerrySmithMoss/chinwag/actions/runs/42096328912). The live digest matched the scan, and live sign-in and messaging reads passed. |
+| Fleet | `sha256:3cb74c6a9cd29df56d231e78e6bed3bb0ea3e2fcac9be97c4c50963be58a600c` | [Deployed automatically](https://github.com/PerrySmithMoss/logistics-realtime-dashboard/actions/runs/42096338327). The live digest matched the scan and readiness returned `UP`. |
+| VitaTrack | `sha256:337ef99b8d87b33a8064489df06f553b5a0903d0a7c21bb2e9f6aa85f4154938` | [Deployed through the restricted workflow](https://github.com/PerrySmithMoss/VitaTrack/actions/runs/42096318530). The live digest matched the scan, and live sign-in, nutrition and activity reads passed. |
+
+Replacing an app's Swarm secret changes the service policy the image-only
+broker pins. During a deliberate secret rotation, review the live service
+diff, record the new policy as administrator, and retry the protected release.
+The broker rejected both changed policies before updating either image. The
+administrator recorded both reviewed policies, and the failed deploy jobs
+succeeded when retried with the already-scanned digests.
+
 The VPS administrator installed `chinwag-release` on 5 November 2026 after verifying the staged checksums. The account belongs only to its own group. Authenticated probes rejected shell and PTY access, SFTP, TCP and Unix socket forwarding, Docker stdio, arbitrary stack manifests, cross-app targets, extra arguments and an incorrect image revision. The broker accepted the currently running Chinwag image `sha256:bbffc1963639cc27a112c06d7e3114bc425f08bc120f90e9b8217b9eca170a54` at revision `d2f3de038e257d7b0ca8783920f1533463e24143` without restarting its task. All seven Swarm services reported 1/1 replicas and the Chinwag auth endpoint returned the expected 403 for an unauthenticated request. Vercel blocked the original Chinwag preview because Next.js 15.3.3 was vulnerable. The updated PR passed Vercel, frontend and API image builds, and server tests with Next.js 15.5.29 and a pinned Debian Bookworm API base. An isolated PostgreSQL smoke test verified migrations, registration, sign-in and startup without logging the database URL. The old API entrypoint logged the database URL, so treat credentials present in historical startup logs as exposed until rotated. The [protected master workflow](https://github.com/PerrySmithMoss/chinwag/actions/runs/42069263840) tracks the first production release.
 
 BulkBets verification: 17 web unit tests, 33 browser E2E cases, web and mobile lint/types, Android/iOS exports, Go tests/vet and symbol-level vulnerability checks, 17 rollout tests and three broker tests passed. In the Codex in-app browser at `http://localhost:3000`, the local Go/PostgreSQL-backed app loaded markets, created a guest session, posted a virtual deposit and receipt, and rejected a withdrawal above the available balance.

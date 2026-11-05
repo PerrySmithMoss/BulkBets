@@ -2,13 +2,26 @@
 
 ## Order for the remaining work
 
-1. Rotate the Chinwag and VitaTrack database credentials exposed in older
-   startup logs. Migrate each app to a new credential, verify health and an
-   authenticated flow, then revoke the previous credential.
+The BulkBets frontend is live at `b148be7` after a Vercel redeploy. Track
+automatic promotion and verification of the revision served by the public
+domain in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues/19).
+
+1. Replace the database credentials exposed in older Chinwag and VitaTrack
+   startup logs. Both apps used the same PostgreSQL superuser, so
+   give each app its own database role and versioned Swarm secret. Verify
+   migrations, health, authenticated flows and database access boundaries.
+   Then rotate the shared administrator password, update its recovery secret
+   and confirm that the exposed password is rejected.
+   Both apps now use the scoped roles. Production sign-in and app reads
+   passed, and PostgreSQL rejects the retired administrator password over
+   the overlay. The protected VPS snapshot and
+   [perry-infra main](https://github.com/PerrySmithMoss/perry-infra/pull/6)
+   both reference the new recovery secret.
 2. Rescan and patch the remaining API image findings per app. Prioritize
-   reachable critical issues and fixes that are available. Fleet has the most
-   outstanding entries in the current scans. Record each deployed digest,
-   scan results and release checks.
+   reachable critical issues and fixes that are available. The three patched
+   API images are deployed and had zero critical scanner entries. Track the
+   remaining high findings in the app tasks. See the [deployed digests and
+   verification](security-evidence-2026-11-05.md#patched-legacy-api-images).
 3. Finish the infrastructure workflow cleanup in perry-infra PR #5. Keep the
    owner-controlled infrastructure release and recovery path. Review the
    PostgreSQL candidate separately from the workflow change.
@@ -184,6 +197,9 @@
 - [ ] Triage the 9 critical and 83 high entries in the new release image.
   Prioritize fixes for runtime packages and test readiness, simulation,
   vehicle streaming and routing before release.
+  The API dependency change also requires a clean CI type check. Align the
+  shared package's type exports with its generated files and build the shared
+  package before checking its consumers.
 
 ## Remediate the remaining VitaTrack API image findings
 
