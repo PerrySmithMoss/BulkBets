@@ -21,8 +21,9 @@ const serverHash = () => null;
 export function AccountRecoveryForm({ reset = false }: { reset?: boolean }) {
   const hash = useSyncExternalStore(subscribeToHash, readHash, serverHash);
   const token = new URLSearchParams(hash?.slice(1) || "").get("token") || "";
-  const ready = !reset || hash !== null;
+  const ready = hash !== null;
   const [pending, setPending] = useState(false);
+  const disabled = pending || !ready;
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const { openDialog } = useDialog();
@@ -93,7 +94,7 @@ export function AccountRecoveryForm({ reset = false }: { reset?: boolean }) {
             minLength={12}
             maxLength={128}
             required
-            disabled={pending}
+            disabled={disabled}
             aria-describedby="reset-hint"
           />
           <p id="reset-hint" className="text-sm text-muted-foreground">
@@ -109,7 +110,7 @@ export function AccountRecoveryForm({ reset = false }: { reset?: boolean }) {
             type="email"
             autoComplete="email"
             required
-            disabled={pending}
+            disabled={disabled}
           />
         </div>
       )}
@@ -118,7 +119,7 @@ export function AccountRecoveryForm({ reset = false }: { reset?: boolean }) {
           {error}
         </p>
       )}
-      <Button type="submit" disabled={pending || !ready}>
+      <Button type="submit" disabled={disabled}>
         {pending
           ? "Please wait…"
           : reset
