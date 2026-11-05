@@ -229,74 +229,32 @@ a completed Swarm update and a successful public HTTPS health check. An automati
 rollback, paused update, wrong image or failed health check fails the job.
 Production runs are serialized and are not cancelled midway by later pushes.
 
-Before the first run, create the application Docker secrets from section 2 and
-configure API DNS for Traefik. The database/role are provisioned automatically using
-the existing infrastructure administrator secrets. The workflow does not recreate
-PostgreSQL or Traefik, or store application credentials in GitHub.
+Before the first run, create the application Docker secrets, provision the
+database/roles with the administrator procedure above, configure API DNS for
+Traefik, and install the [restricted release broker](restricted/README.md).
+Routine CI releases use that broker to apply application migrations and update
+the API. The host-owned policy defines the stack, PostgreSQL connection, optional
+SMTP/OAuth settings, and mounted secrets. Changes to those settings require an
+administrator to update the reviewed host snapshot.
 
-In **BulkBets → Settings → Secrets and variables → Actions**, configure:
-
-| Repository secret | Purpose |
+| GitHub setting | Purpose |
 | --- | --- |
-| `VPS_IP` | VPS IP address or SSH hostname |
-| `DEPLOY_SSH_PRIVATE_KEY` | The deploy user's SSH private key, as in your existing VPS setup |
-| `VPS_KNOWN_HOSTS` | Required verified known_hosts entry; deployment fails if absent |
-| `GHCR_READ_TOKEN` (optional) | Classic personal access token with `read:packages` for durable private-image pulls; see below |
+| Repository secret `VPS_IP` | VPS IP address or SSH hostname |
+| Repository secret `VPS_KNOWN_HOSTS` | Required verified host key |
+| Production environment secret `BULKBETS_RELEASE_KEY` | Dedicated key for the restricted `bulkbets-release` account |
+| `GHCR_READ_TOKEN` (optional) | Token with `read:packages` for durable private image pulls |
+| Repository variable `GHCR_USERNAME` | Defaults to the workflow actor; set to the owner of `GHCR_READ_TOKEN` if used |
+| Repository variable `VPS_SSH_PORT` | Defaults to 22 |
 
-The deploy user must have Docker access on the Swarm manager. Secrets configured
-only in another repository are not automatically available to BulkBets; add them
-here or grant this repository access through organization secrets.
-
-| Repository variable | Required/default |
-| --- | --- |
-| `APP_HOST` | **Required:** Vercel frontend hostname, without scheme/path |
-| `API_HOST` | **Required:** API hostname pointing at the VPS, without scheme/path |
-| `DB_HOST` | **Required:** existing PostgreSQL Swarm DNS name, e.g. `infra_postgres` |
-| `CORS_ALLOWED_ORIGINS` | Defaults to `https://APP_HOST`; use comma-separated exact origins for additional frontends |
-| `DB_USER`, `DB_NAME`, `DB_PORT` | Defaults: `bulkbets`, `bulk_bets`, `5432` |
-| `DB_SSL_ENABLED` | Production helpers enforce `verify-full`; local development can use `disable` |
-| `DB_ADMIN_USER_SECRET`, `DB_ADMIN_PASSWORD_SECRET` | Defaults: `postgres_user`, `postgres_password`; current VPS overrides: `bulkbets_provisioner_user`, `bulkbets_provisioner_password` |
-| `SMTP_ADDR`, `SMTP_USERNAME` | Defaults: `smtp.resend.com:587`, `resend` |
-| `SMTP_FROM` | Defaults to `noreply@bulkbets.perrysmithmoss.com`; must be a verified sender |
-| `GOOGLE_CLIENT_ID` | Optional; enables the OAuth overlay when nonempty |
-| `VPS_SSH_USER`, `VPS_SSH_PORT` | Defaults: `deploy`, `22` |
-| `GHCR_USERNAME` | Defaults to the workflow actor; set to the owner of `GHCR_READ_TOKEN` if using one |
-
-The SHA tag comes from `github.sha`; it is not a repository variable to set.
-The API image targets `linux/amd64`, matching the standard GitHub runner build
-used by the existing VPS deployment. Change the build platform if the target VPS
-architecture changes.
-
-Required external Swarm secrets are `bulkbets_db_password`,
-`bulkbets_admin_password`, `bulkbets_access_token_secret`,
-`bulkbets_refresh_token_secret` and `bulkbets_smtp_password`. Google additionally
-requires `bulkbets_google_client_secret`. Keep database, SMTP, Google and signing
-credentials in these secrets, rather than in the runner's `.env` or GitHub vars.
-Provisioning additionally mounts the selected administrator/provisioner secrets
-into its temporary job only, using stable target filenames. The job is removed when
-it completes or fails. `DB_HOST` must resolve to that existing PostgreSQL instance.
-
-If provisioning fails with SQLSTATE `28P01`, the selected login/password cannot
-authenticate to that instance. PostgreSQL image variables and `_FILE` values apply
-only when initializing an empty data directory; updating them does not change a
-stored role password. Test credentials over the Swarm hostname, not localhost:
-the PostgreSQL container's loopback/socket connections may use `trust` and succeed
-even with an incorrect password. Correct the selected provisioning credentials or
-use the dedicated login above rather than resetting a shared administrator login.
-
-The workflow uses GitHub's automatic token to push images. Make the GHCR package
-public for credential-free future pulls, or configure `GHCR_READ_TOKEN` for a
-private package so workers can pull again after the workflow's automatic token
-expires. Registry authentication is passed to Swarm for migrations and rollout.
-See [GitHub token lifetime](https://docs.github.com/en/actions/concepts/security/github_token)
-and [GHCR authentication](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
-for the public/private package access rules.
-
-The workflow starts deploying only after these files are committed and pushed to
-master and the settings above exist. Before an existing database is upgraded,
-use the backup procedure below. Service rollback restores the previous application
-image; it does not undo migrations. Vercel's frontend deployment remains managed
-by its Git integration.
+Restrict the `production` environment to `master`. Require passing PR checks
+on `master` so routine releases can deploy automatically after a green merge.
+The release uses the digest built by CI for the commit, targeting `linux/amd64`.
+The broker receives registry credentials on standard input; the SSH key has no
+general Docker access. Keep database, SMTP, Google and signing credentials in
+Swarm. Before upgrading an existing database, follow the one-off recovery
+procedure below. Service rollback restores the previous application image; it
+does not undo migrations. Vercel's Git integration follows the production
+branch after the API release succeeds.
 
 ### 4. Deploy Next.js on Vercel
 

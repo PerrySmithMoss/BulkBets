@@ -31,18 +31,16 @@ The revision label is consistency checking, not signed provenance.
    and `/usr/local/libexec/bulkbets-*`.
 3. Store the corresponding private key as `BULKBETS_RELEASE_KEY` in this repo's
    `production` environment. Restrict that environment to `master` and require
-   owner approval. Do not duplicate this credential at repository scope.
-   Set repository variable `RESTRICTED_DEPLOY_ENABLED=true`. Deploy the updated
-   workflow and verify a complete release and public health checks.
-4. Remove the old `DEPLOY_SSH_PRIVATE_KEY` repository secret. Do not remove the
-   shared VPS `deploy` key until its other application users have migrated.
-   That shared account remains host-privileged for those other services.
+   passing PR checks on the protected branch. Keep the key at environment scope.
+   Verify the automatic release after a green merge and check public health.
+4. Verify the retired `deploy` account remains blocked and its shared key
+   is absent from CI. Use the separate owner administrator login for recovery.
 
 Install future deployment-policy changes using administrator access after
 review. CI cannot refresh the root-owned snapshot. An application code release
-does not need a new snapshot when the deployment policy is unchanged. The
-legacy workflow path exists only for cutover; after removing its key it fails
-closed if the feature variable is accidentally unset.
+does not need a new snapshot when the deployment policy is unchanged. CI only
+uses the restricted broker. Keep the separate owner administrator login for
+recovery.
 
 No scheduled backups are installed. The owner explicitly declined them.
 

@@ -33,6 +33,17 @@ jobs:
           cache-dependency-path: server/go.sum
       - name: Install dependencies
         run: npm --prefix web ci && npm --prefix mobile ci
+      - name: Record full npm audits, including development tooling
+        run: |
+          mkdir npm-audits
+          npm --prefix web audit --audit-level=none --json > npm-audits/web.json
+          npm --prefix mobile audit --audit-level=none --json > npm-audits/mobile.json
+      - name: Upload npm audit reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: npm-vulnerabilities
+          path: npm-audits
       - name: Check dependency vulnerabilities
         run: |
           npm --prefix web audit --omit=dev --audit-level=high
@@ -147,10 +158,22 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Scan release image before deployment
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          docker pull "ghcr.io/perrysmithmoss/bulkbets:${{ github.sha }}"
-          docker save "ghcr.io/perrysmithmoss/bulkbets:${{ github.sha }}" -o "$RUNNER_TEMP/api.tar"
-          docker run --rm -v "$RUNNER_TEMP/api.tar:/api.tar:ro" aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c image --input /api.tar --scanners vuln --severity HIGH,CRITICAL --exit-code 1
+          image="ghcr.io/perrysmithmoss/bulkbets@$IMAGE_DIGEST"
+          scanner=aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+          docker pull "$image"
+          docker save "$image" -o "$RUNNER_TEMP/api.tar"
+          mkdir -p "$RUNNER_TEMP/image-scan"
+          docker run --rm -v trivy-cache:/root/.cache/trivy -v "$RUNNER_TEMP/api.tar:/api.tar:ro" -v "$RUNNER_TEMP/image-scan:/reports" "$scanner" image --input /api.tar --scanners vuln --format json --output /reports/api.json
+          docker run --rm -v trivy-cache:/root/.cache/trivy -v "$RUNNER_TEMP/api.tar:/api.tar:ro" "$scanner" image --input /api.tar --scanners vuln --severity HIGH,CRITICAL --exit-code 1
+      - name: Upload full API image scan
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: api-image-vulnerabilities
+          path: ${{ runner.temp }}/image-scan
 
   deploy:
     needs: [build-and-push-image]
