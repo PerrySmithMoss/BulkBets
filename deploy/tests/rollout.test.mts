@@ -115,6 +115,19 @@ for (const scenario of ["healthy", "new_service"] as const) {
   });
 }
 
+test("restricted releases never inspect or mount infrastructure provisioner secrets", () => {
+  const result = runRollout("healthy", { PROVISION_DATABASE: "false" });
+  assert.equal(result.status, 0, result.stderr);
+  const jobs = result.calls.filter((call) => isCommand(call, "service", "create"));
+  assert.deepEqual(jobs.map((call) => call.at(-1)), ["up", "seed", "runtime-grants"]);
+  assert.ok(!result.calls.flat().some((part) => /postgres_(user|password)|provisioner/.test(part)));
+  for (const job of jobs) {
+    assert.ok(job.includes("--read-only"));
+    assert.equal(job[job.indexOf("--user") + 1], "65532:65532");
+    assert.equal(job[job.indexOf("--cap-drop") + 1], "ALL");
+  }
+});
+
 test("Google configuration includes its secret and overlay", () => {
   const result = runRollout("healthy", { GOOGLE_CLIENT_ID: "test-client-id" });
   assert.equal(result.status, 0, result.stderr);

@@ -5,7 +5,7 @@ version: "3.9"
 # Build/push the image and run migrations before docker stack deploy.
 services:
   api:
-    image: ghcr.io/perrysmithmoss/bulkbets:${GIT_COMMIT_HASH:-latest}
+    image: ${API_IMAGE:-ghcr.io/perrysmithmoss/bulkbets:latest}
     read_only: true
     cap_drop: [ALL]
     logging:

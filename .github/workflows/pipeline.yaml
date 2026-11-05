@@ -57,7 +57,9 @@ jobs:
           EXPO_PUBLIC_API_URL: https://bulkbets-api.perrysmithmoss.com/api/v1
         run: npm --prefix mobile run lint && npm --prefix mobile run typecheck && npm --prefix mobile run export:native
       - name: Check deployment shell syntax
-        run: sh -n deploy/migrate.sh deploy/backup.sh deploy/rollout.sh
+        run: sh -n deploy/migrate.sh deploy/backup.sh deploy/rollout.sh deploy/host-maintenance.sh deploy/restricted/install.sh
+      - name: Check restricted release boundary
+        run: python3 -B -m unittest discover -s deploy/restricted -p 'test_*.py'
       - name: Check deployment ordering and failure handling
         run: node --test deploy/tests/rollout.test.mts
 
@@ -114,6 +116,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
@@ -131,6 +135,7 @@ jobs:
             type=raw,value=${{ github.sha }}
             type=raw,value=latest
       - name: Build and push Go API image
+        id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: ./server
@@ -172,14 +177,15 @@ jobs:
       SMTP_USERNAME: ${{ vars.SMTP_USERNAME || 'resend' }}
       GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
       DOCKER_HOST: ssh://bulkbets-vps
+      RESTRICTED_DEPLOY_ENABLED: ${{ vars.RESTRICTED_DEPLOY_ENABLED }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Configure VPS SSH connection
         env:
           VPS_IP: ${{ secrets.VPS_IP }}
-          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_SSH_PRIVATE_KEY: ${{ vars.RESTRICTED_DEPLOY_ENABLED == 'true' && secrets.BULKBETS_RELEASE_KEY || secrets.DEPLOY_SSH_PRIVATE_KEY }}
           VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
-          VPS_SSH_USER: ${{ vars.VPS_SSH_USER || 'deploy' }}
+          VPS_SSH_USER: ${{ vars.RESTRICTED_DEPLOY_ENABLED == 'true' && 'bulkbets-release' || vars.VPS_SSH_USER || 'deploy' }}
           VPS_SSH_PORT: ${{ vars.VPS_SSH_PORT || '22' }}
         run: |
           set -eu
@@ -206,12 +212,24 @@ jobs:
             ConnectTimeout 30
           EOF
       - name: Authenticate for GHCR image pulls
+        if: vars.RESTRICTED_DEPLOY_ENABLED != 'true'
         env:
           GHCR_USERNAME: ${{ vars.GHCR_USERNAME || github.actor }}
           GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN || secrets.GITHUB_TOKEN }}
         run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
       - name: Provision database, migrate, seed and deploy the API stack
+        if: vars.RESTRICTED_DEPLOY_ENABLED != 'true'
         run: sh deploy/rollout.sh
+      - name: Deploy through the restricted host broker
+        if: vars.RESTRICTED_DEPLOY_ENABLED == 'true'
+        env:
+          RELEASE_DIGEST: ${{ needs.build-and-push-image.outputs.digest }}
+          GHCR_USERNAME: ${{ vars.GHCR_USERNAME || github.actor }}
+          GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          node -e 'process.stdout.write(JSON.stringify({username:process.env.GHCR_USERNAME,token:process.env.GHCR_TOKEN})+"\n")' |
+            ssh bulkbets-vps "release $GIT_COMMIT_HASH $RELEASE_DIGEST"
       - name: Clean up runner credentials
         if: always()
         run: |

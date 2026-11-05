@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 # Uses a service, not docker run, so the overlay need not be attachable.
 action=${1:-up}
 case "$action" in provision|up|seed|status|runtime-grants) ;; *) echo "Usage: sh deploy/migrate.sh [provision|up|seed|status]" >&2; exit 2 ;; esac
-api_image="ghcr.io/perrysmithmoss/bulkbets:${GIT_COMMIT_HASH:-latest}"
+api_image="${API_IMAGE:-ghcr.io/perrysmithmoss/bulkbets:${GIT_COMMIT_HASH:-latest}}"
 : "${DB_HOST:?Set DB_HOST to the existing PostgreSQL service}"
 job="${STACK_NAME:-bulkbets}-migrate-$(date -u +%Y%m%d%H%M%S)-$$"
 # Invoked indirectly by the EXIT trap, including failed provisioning jobs.
@@ -29,6 +29,9 @@ fi
 
 docker service create --detach --with-registry-auth --name "$job" \
   --restart-condition none \
+  --read-only --cap-drop ALL --user 65532:65532 \
+  --limit-memory 256M --limit-cpu 0.5 --limit-pids 64 \
+  --log-driver json-file --log-opt max-size=10m --log-opt max-file=2 \
   --network bulkbets_database \
   --secret bulkbets_db_ca \
   --secret bulkbets_db_password \

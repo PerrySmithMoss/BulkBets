@@ -20,6 +20,7 @@ for hostname in "$APP_HOST" "$API_HOST"; do
 done
 
 export STACK_NAME="${STACK_NAME:-bulkbets}"
+export API_IMAGE="${API_IMAGE:-ghcr.io/perrysmithmoss/bulkbets:${GIT_COMMIT_HASH}}"
 export CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-https://${APP_HOST}}"
 timeout="${DEPLOY_TIMEOUT_SECONDS:-600}"
 case "$timeout" in ''|*[!0-9]*|0) echo "DEPLOY_TIMEOUT_SECONDS must be positive." >&2; exit 2 ;; esac
@@ -31,8 +32,13 @@ fi
 docker network inspect bulkbets_ingress bulkbets_database >/dev/null
 docker secret inspect bulkbets_runtime_db_password bulkbets_db_ca bulkbets_edge_proxy_secret bulkbets_db_password bulkbets_admin_password \
   bulkbets_access_token_secret bulkbets_refresh_token_secret \
-  bulkbets_smtp_password "${DB_ADMIN_USER_SECRET:-postgres_user}" \
-  "${DB_ADMIN_PASSWORD_SECRET:-postgres_password}" >/dev/null
+  bulkbets_smtp_password >/dev/null
+case "${PROVISION_DATABASE:-true}" in
+  true)
+    docker secret inspect "${DB_ADMIN_USER_SECRET:-postgres_user}" "${DB_ADMIN_PASSWORD_SECRET:-postgres_password}" >/dev/null ;;
+  false) ;;
+  *) echo 'PROVISION_DATABASE must be true or false.' >&2; exit 2 ;;
+esac
 
 set -- --compose-file docker-stack.yaml --compose-file deploy/docker-stack.smtp.yml
 if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
@@ -41,14 +47,14 @@ if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
 fi
 # Resolve and validate every required setting before touching the database.
 docker stack config "$@" >/dev/null
-sh deploy/migrate.sh provision
+if [ "${PROVISION_DATABASE:-true}" = true ]; then sh deploy/migrate.sh provision; fi
 sh deploy/migrate.sh up
 sh deploy/migrate.sh seed
 sh deploy/migrate.sh runtime-grants
 docker stack deploy --with-registry-auth --resolve-image always --detach=true "$@" "$STACK_NAME"
 
 service="${STACK_NAME}_api"
-expected_image="ghcr.io/perrysmithmoss/bulkbets:${GIT_COMMIT_HASH}"
+expected_image="${API_IMAGE:-ghcr.io/perrysmithmoss/bulkbets:${GIT_COMMIT_HASH}}"
 deadline=$(( $(date +%s) + timeout ))
 while [ "$(date +%s)" -lt "$deadline" ]; do
   image=$(docker service inspect --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' "$service")
