@@ -59,17 +59,19 @@ connection policy in the existing network isolation task.
 PostgreSQL now uses a versioned administrator recovery secret. Network
 probes verified the new password, verified rejection of the previous
 passwords, and closed the administrator's preexisting remote connections.
-All seven Swarm services recovered after the secret update. The old app
-secrets were removed. The matching protected release configuration is in
-[perry-infra PR #6](https://github.com/PerrySmithMoss/perry-infra/pull/6).
+All seven Swarm services recovered after the secret update. The VPS
+administrator installed the checksum-verified release snapshot, and
+[perry-infra PR #6](https://github.com/PerrySmithMoss/perry-infra/pull/6)
+merged the matching configuration. The retired application and administrator
+secrets were removed from Swarm.
 
-### Patched legacy API image candidates
+### Patched legacy API images
 
-Trivy 0.76.1 scanned the Linux amd64 images built from the three patch
-branches. Counts are scanner entries. The production workflows will scan
-their published digests again before deploying and archive the full reports.
+Trivy 0.76.1 scanned the published Linux amd64 digests in the production
+workflows. The workflows retained the full reports and passed the gate for
+fixable critical findings. Counts are scanner entries.
 
-| App | Current critical / high | Candidate critical / high | Fixable high on candidate |
+| App | Previous critical / high | Patched critical / high | Fixable high on patched image |
 | --- | ---: | ---: | ---: |
 | [Chinwag](https://github.com/PerrySmithMoss/chinwag/pull/2) | 2 / 54 | 0 / 45 | 0 |
 | [Fleet](https://github.com/PerrySmithMoss/logistics-realtime-dashboard/pull/2) | 9 / 83 | 0 / 45 | 0 |
@@ -80,6 +82,19 @@ disposable databases. Fleet passed readiness and its 398 server tests.
 VitaTrack's fixable high entries are in GraphQL Tools and Prisma tooling.
 Review the unsupported Apollo Server 3 stack and the Prisma CLI separately.
 Keep reviewing Debian fixes for the remaining entries across all three apps.
+
+| API | Scanned digest | Release verification |
+| --- | --- | --- |
+| Chinwag | `sha256:70cbad834e8e7fc6b3beb9558116b8103524196fbdf283aa0eddd48cdcb624a7` | [Deployed through the restricted workflow](https://github.com/PerrySmithMoss/chinwag/actions/runs/42096328912). The live digest matched the scan, and live sign-in and messaging reads passed. |
+| Fleet | `sha256:3cb74c6a9cd29df56d231e78e6bed3bb0ea3e2fcac9be97c4c50963be58a600c` | [Deployed automatically](https://github.com/PerrySmithMoss/logistics-realtime-dashboard/actions/runs/42096338327). The live digest matched the scan and readiness returned `UP`. |
+| VitaTrack | `sha256:337ef99b8d87b33a8064489df06f553b5a0903d0a7c21bb2e9f6aa85f4154938` | [Deployed through the restricted workflow](https://github.com/PerrySmithMoss/VitaTrack/actions/runs/42096318530). The live digest matched the scan, and live sign-in, nutrition and activity reads passed. |
+
+Replacing an app's Swarm secret changes the service policy the image-only
+broker pins. During a deliberate secret rotation, review the live service
+diff, record the new policy as administrator, and retry the protected release.
+The broker rejected both changed policies before updating either image. The
+administrator recorded both reviewed policies, and the failed deploy jobs
+succeeded when retried with the already-scanned digests.
 
 The VPS administrator installed `chinwag-release` on 5 November 2026 after verifying the staged checksums. The account belongs only to its own group. Authenticated probes rejected shell and PTY access, SFTP, TCP and Unix socket forwarding, Docker stdio, arbitrary stack manifests, cross-app targets, extra arguments and an incorrect image revision. The broker accepted the currently running Chinwag image `sha256:bbffc1963639cc27a112c06d7e3114bc425f08bc120f90e9b8217b9eca170a54` at revision `d2f3de038e257d7b0ca8783920f1533463e24143` without restarting its task. All seven Swarm services reported 1/1 replicas and the Chinwag auth endpoint returned the expected 403 for an unauthenticated request. Vercel blocked the original Chinwag preview because Next.js 15.3.3 was vulnerable. The updated PR passed Vercel, frontend and API image builds, and server tests with Next.js 15.5.29 and a pinned Debian Bookworm API base. An isolated PostgreSQL smoke test verified migrations, registration, sign-in and startup without logging the database URL. The old API entrypoint logged the database URL, so treat credentials present in historical startup logs as exposed until rotated. The [protected master workflow](https://github.com/PerrySmithMoss/chinwag/actions/runs/42069263840) tracks the first production release.
 

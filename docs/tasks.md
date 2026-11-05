@@ -13,13 +13,15 @@ domain in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues
    Then rotate the shared administrator password, update its recovery secret
    and confirm that the exposed password is rejected.
    Both apps now use the scoped roles. Production sign-in and app reads
-   passed, and the old administrator password failed over the overlay.
-   [perry-infra PR #6](https://github.com/PerrySmithMoss/perry-infra/pull/6)
-   tracks the configuration for the new recovery secret.
+   passed, and PostgreSQL rejects the retired administrator password over
+   the overlay. The protected VPS snapshot and
+   [perry-infra main](https://github.com/PerrySmithMoss/perry-infra/pull/6)
+   both reference the new recovery secret.
 2. Rescan and patch the remaining API image findings per app. Prioritize
-   reachable critical issues and fixes that are available. Fleet has the most
-   outstanding entries in the current scans. Record each deployed digest,
-   scan results and release checks.
+   reachable critical issues and fixes that are available. The three patched
+   API images are deployed and had zero critical scanner entries. Track the
+   remaining high findings in the app tasks. See the [deployed digests and
+   verification](security-evidence-2026-11-05.md#patched-legacy-api-images).
 3. Finish the infrastructure workflow cleanup in perry-infra PR #5. Keep the
    owner-controlled infrastructure release and recovery path. Review the
    PostgreSQL candidate separately from the workflow change.
