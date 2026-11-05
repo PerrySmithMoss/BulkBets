@@ -228,6 +228,8 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -eu
+          # Expand the immutable release identifiers on the runner; the broker validates them.
+          # shellcheck disable=SC2029
           node -e 'process.stdout.write(JSON.stringify({username:process.env.GHCR_USERNAME,token:process.env.GHCR_TOKEN})+"\n")' |
             ssh bulkbets-vps "release $GIT_COMMIT_HASH $RELEASE_DIGEST"
       - name: Clean up runner credentials
