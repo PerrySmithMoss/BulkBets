@@ -35,7 +35,7 @@ export default async function Page({
   const name = names[division];
   if (!name) notFound();
   const { shows, error } = await fetchShowDirectory();
-  // eslint-disable-next-line react-hooks/purity -- Snapshot request time on the server for consistent hydration.
+  // Snapshot request time on the server for consistent hydration.
   const asOf = Date.now();
   const markets = shows.flatMap((details) =>
     (details.divisions || [])
