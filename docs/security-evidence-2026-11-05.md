@@ -34,9 +34,69 @@ Counts are scanner entries, including repeat findings across packages. They are 
 ### PostgreSQL assessment
 
 - Live checks verified UID 999 and `postgres` as PID 1. Gosu 1.19 (built with Go 1.24.6) is present but not invoked by that startup path. The 26 high/critical Go entries are scanner matches; the [gosu maintainer recommends checking whether vulnerable functions are called](https://github.com/tianon/gosu/blob/master/SECURITY.md).
-- The [perry-infra candidate](https://github.com/PerrySmithMoss/perry-infra/pull/5) uses the exact current official base and removes gosu from its runtime filesystem. On an isolated stock-initialized volume, the read-only candidate (UID 999, no capabilities) read and wrote data with matching PostgreSQL version, encoding, locale and collation metadata. The refreshed candidate scan found zero gosu entries and the same 3 critical/47 high Debian entries, with no fixed high/critical entries in the existing gate. Gosu remains on the live image. Review by 12 November 2026, owner: infrastructure maintainer; test the reviewed, pinned candidate on a one-off recovery copy and verify every consumer before any cutover.
-- The same-day official Bookworm tag resolves to the deployed digest. The same PostgreSQL 17.11 Trixie variant (`748a18a54d38`) had 1 critical/63 high OS entries plus the same gosu findings. This is not an unambiguous improvement or a drop-in change. Catalog checks found UTF-8/libc `en_US.utf8` with stored and actual glibc collation version 2.36 in all live databases; installed extensions include `plpgsql`, `citext` and `uuid-ossp`. A distribution change needs a recovery-copy rehearsal, extension/locale checks and an assessment of rebuilding affected indexes before updating collation versions. No production-copy restore or migration was attempted. Scheduled backups remain out of scope by owner decision.
-- The critical Debian entries are [CVE-2025-7458](https://security-tracker.debian.org/tracker/CVE-2025-7458) (SQLite; SQLite is not linked into the PostgreSQL executable), [CVE-2023-45853](https://security-tracker.debian.org/tracker/CVE-2023-45853) (MiniZip component of zlib; the standalone MiniZip packages are absent and the ordinary zlib library is linked), and [CVE-2026-6653](https://security-tracker.debian.org/tracker/CVE-2026-6653) (linked libxml2; a path from application input to the affected parser was not established). Debian reports no Bookworm fix for these in the scanned versions. The linked XML, LDAP and zlib libraries merit continued review; checking what a process links does not prove specific functions are reachable or unreachable. Retain private database access, UID 999, read-only root filesystem and dropped capabilities. Owner: infrastructure maintainer; review upstream fixes and residual reachability by 12 November 2026. Keep entries in full reports.
+- The [perry-infra candidate](https://github.com/PerrySmithMoss/perry-infra/pull/7) uses the same pinned official base and removes gosu from the runtime filesystem. The test and follow-up findings are recorded below.
+- At baseline, the official Bookworm tag resolved to the deployed digest. The PostgreSQL 17.11 Trixie variant (`748a18a54d38`) had 1 critical/63 high OS entries plus the same gosu findings. Catalog checks found UTF-8/libc `en_US.utf8` with stored and actual glibc collation version 2.36 in all live databases. Installed extensions included `plpgsql`, `citext` and `uuid-ossp`. A distribution change still needs extension and locale checks and an assessment of index rebuilds before updating collation versions. The owner accepts starting with an empty database if needed.
+
+### PostgreSQL candidate verification
+
+On 5 November 2026, the Linux/amd64 build of PR #7 at `2059d54` passed the
+stock-volume smoke test and initialized a separate empty cluster. The fresh
+cluster ran as UID 999 with a read-only root filesystem, all capabilities
+dropped, a disposable TLS certificate and the repository's `pg_hba.conf`.
+All three databases used UTF-8 and libc `en_US.utf8`. Stored and actual collation
+versions matched at 2.36, and a sample sort passed. `plpgsql`, `citext` and
+`uuid-ossp` were installed by initialization or migrations. Case-insensitive
+comparison and UUID generation worked.
+
+- BulkBets provisioned its database, applied and seeded migrations, and used
+  its scoped runtime role over certificate-verified TLS. The health check and
+  an API demo session write passed.
+- Chinwag and VitaTrack applied Prisma migrations with their own roles and
+  passed registration and sign-in over TLS. Chinwag read messages. VitaTrack
+  read nutrition and activity data. Fleet uses in-memory storage and has no
+  PostgreSQL dependency.
+- Each legacy role was denied access to the other's database and to BulkBets
+  tables. BulkBets' runtime role was denied a plaintext connection, access to
+  Chinwag, and permission to create tables.
+
+The local Trivy 0.76.1 scan matched the
+[full CI reports](https://github.com/PerrySmithMoss/perry-infra/actions/runs/42103219789).
+Removing `gosu` reduced the count from 4 critical and 72 high entries to 3
+critical and 47 high. The 50 remaining Debian entries cover 22 distinct CVEs.
+The fixable high/critical gate passed. Cross-checking all 22 IDs with the Debian
+tracker found no fixed Bookworm version for the scanned source packages.
+
+| Finding | Assessment and follow-up |
+| --- | --- |
+| [libxml2 CVE-2026-6653](https://security-tracker.debian.org/tracker/CVE-2026-6653) and six other high libxml2 entries | **High priority.** PostgreSQL links libxml2. No database XML calls were found in the app source and migrations searched, but that does not establish exploitability. Debian lists this CVE as open in Bookworm and Trixie. Check how application input could reach XML parsing and compare a maintained image with a fixed library. |
+| [SQLite CVE-2025-7458](https://security-tracker.debian.org/tracker/CVE-2025-7458) and three high SQLite entries | **Lower demonstrated exposure.** SQLite is installed but absent from PostgreSQL's observed linked libraries. Check other installed consumers before closing the findings. |
+| [MiniZip CVE-2023-45853](https://security-tracker.debian.org/tracker/CVE-2023-45853) | **Affected code absent.** Debian confirms Bookworm's zlib build excludes MiniZip. The standalone MiniZip package was also absent from the candidate. Keep the scanner entry and record this disposition. |
+| Other high entries | **Follow-up.** Review OpenLDAP, zlib, utilities and supporting libraries for upstream fixes and reachable code. LDAP is linked, while the tested host authentication uses SCRAM. Verify the zlib association for CVE-2026-76844 because the scanner title names webpack-dev-middleware. |
+
+The infrastructure maintainer owns the remaining review, due 12 November
+2026. Keep the full findings visible, preserve the database's private network
+and runtime restrictions, and record the disposition of each remaining entry
+before closing the remediation task.
+
+### PostgreSQL production rollout
+
+On 5 November 2026, [PR #7](https://github.com/PerrySmithMoss/perry-infra/pull/7)
+merged the candidate and publishing workflow. The workflow published the
+image that passed the smoke test and scan. [PR #8](https://github.com/PerrySmithMoss/perry-infra/pull/8)
+pinned `ghcr.io/perrysmithmoss/perry-infra-postgres` at
+`sha256:99a844ae84b960c15e29a8d5e85c1a56b9d451a5d5a7be98e79e923f03d1ec0b`.
+The owner installed the reviewed manifest and approved the
+[protected production run](https://github.com/PerrySmithMoss/perry-infra/actions/runs/42111008727).
+The rollout reused the existing volume and database system identifier. The
+owner authorized skipping the backup. PostgreSQL accepted connections as UID
+999, and `gosu` was absent.
+
+BulkBets returned its health response and a populated market directory.
+Chinwag and VitaTrack returned the expected invalid-credential responses from
+their login lookups. PostgreSQL showed active TLS connections from all three
+scoped application roles. All seven Swarm services reported 1/1 replicas.
+The production scan reported 3 critical and 47 high Debian entries and passed
+the gate for findings with fixes. The review owner and date above still apply.
 
 ## Shared credential cutover
 

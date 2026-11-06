@@ -2,41 +2,47 @@
 
 ## Order for the remaining work
 
-The BulkBets frontend is live at `b148be7` after a Vercel redeploy. Track
-automatic promotion and verification of the revision served by the public
-domain in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues/19).
+Track automatic verification of the revision served by the public Vercel domain
+in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues/19).
 
-1. Replace the database credentials exposed in older Chinwag and VitaTrack
-   startup logs. Both apps used the same PostgreSQL superuser, so
-   give each app its own database role and versioned Swarm secret. Verify
-   migrations, health, authenticated flows and database access boundaries.
-   Then rotate the shared administrator password, update its recovery secret
-   and confirm that the exposed password is rejected.
-   Both apps now use the scoped roles. Production sign-in and app reads
-   passed, and PostgreSQL rejects the retired administrator password over
-   the overlay. The protected VPS snapshot and
-   [perry-infra main](https://github.com/PerrySmithMoss/perry-infra/pull/6)
-   both reference the new recovery secret.
-2. Rescan and patch the remaining API image findings per app. Prioritize
-   reachable critical issues and fixes that are available. The three patched
-   API images are deployed and had zero critical scanner entries. Track the
-   remaining high findings in the app tasks. See the [deployed digests and
-   verification](security-evidence-2026-11-05.md#patched-legacy-api-images).
-3. Finish the infrastructure workflow cleanup in perry-infra PR #5. Keep the
-   owner-controlled infrastructure release and recovery path. Review the
-   PostgreSQL candidate separately from the workflow change.
-4. Rehearse PostgreSQL restore and rollback on a one-off recovery copy.
-   Verify extensions, locale and collation, access from each app, and the
-   candidate's scan before scheduling a database change. Review the remaining
-   Debian findings with an owner and review date.
-5. Isolate each legacy app's Swarm network one at a time. Verify ingress,
+1. On 12 November 2026, check for a new official PostgreSQL 17 Bookworm image
+   and [prepare the switch](#switch-to-the-official-postgresql-17-image) if it
+   passes verification. Review the remaining Debian findings with the
+   infrastructure maintainer on the same date.
+2. Address the remaining high findings in the app API images. Prioritize
+   available runtime fixes. See the
+   [patched image scans](security-evidence-2026-11-05.md#patched-legacy-api-images).
+3. Isolate each legacy app's Swarm network one at a time. Verify ingress,
    database access and rollback before removing its shared network attachment.
-6. Recheck Expo and TypeScript ESLint for compatible fixes. Run mobile
+4. Recheck Expo and TypeScript ESLint for compatible fixes. Run mobile
    exports, lint, type checks and browser coverage before updating the lockfiles.
-7. Finish the controlled production password-reset walkthrough. Verify the
-   redirect and single-use link before changing the email template.
-8. Migrate the existing BulkBets and perry-infra Python brokers to Go after
+5. Confirm the homepage redirect after a successful production password reset
+   before changing the email template.
+6. Migrate the existing BulkBets and perry-infra Python brokers to Go after
    the release and recovery paths are stable. Roll them out separately.
+
+## Switch to the official PostgreSQL 17 image
+
+- [ ] Check Docker Hub for a newer official `postgres:17-bookworm` image on
+  12 November 2026. Confirm the PostgreSQL release and resolve the exact digest
+  for the VPS architecture. If the image has not been published, record that
+  result and wait for the upstream build.
+- [ ] Scan the digest and retain the full report. Test startup on disposable
+  data initialized by PostgreSQL 17 and on an empty volume. Verify extensions,
+  UTF-8, locale, collation, TLS and access with each app's role. The official
+  image includes `gosu`, which the stack skips by starting as UID 999. Keep
+  any reported `gosu` entries visible and document their applicability.
+- [ ] If checks pass, pin the digest in `perry-infra` and deploy through the
+  administrator-installed snapshot and protected production workflow. Reuse
+  the current data volume. Verify the running digest and database identity,
+  the BulkBets market directory, Chinwag and VitaTrack login lookups, and TLS
+  connections for all three app roles. The owner accepts a fresh start if the
+  existing data becomes unusable.
+- [ ] Review the remaining Debian findings separately from the image switch.
+  Start with the linked `libxml2` library and check for upstream fixes and app
+  paths to the affected XML parser. Owner: infrastructure maintainer. Review
+  date: 12 November 2026. See the
+  [production scan and findings](security-evidence-2026-11-05.md#postgresql-production-rollout).
 
 ## Replace Python deployment tooling with Go
 
@@ -85,128 +91,55 @@ domain in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues
   restrictions and production releases are verified, and no maintained Python
   code remains in this deployment-tooling scope.
 
-## Resolve remaining vulnerabilities and shared deployment privileges
+## Resolve remaining vulnerabilities
 
-- [ ] Address the upstream vulnerability findings and retire the other apps'
-  shared privileged deployment account identified in items 4–5 of the
+- [ ] Address the upstream vulnerability findings identified in the
   [security follow-up report](security-follow-up-2026-11-05.md#open-items-and-accepted-limits).
 
   Coordinate changes across BulkBets, `perry-infra` and the other applications
   on the VPS. Use the report as a dated baseline; refresh the evidence before
   choosing upgrades or deciding that a finding still has no upstream fix.
 
-  Implementation: migrate the web's pure TypeScript unit tests off Jest to
-  remove its affected dependency chains. Keep Expo and TypeScript linting
-  intact while verifying their upstream fixes.
-
-  Track the shared deployment work in the dedicated
-  [release account task](#create-separate-release-accounts-for-chinwag-fleet-and-vitatrack).
-
-  The refreshed host-wide scan also covers the three legacy application images.
-  Their application dependency and base-image upgrades are separate follow-up
-  work per repository: each needs its own compatibility and business-flow tests.
-  Track those findings here until the follow-up work has an owner; they do not
-  justify retaining the shared Docker credential.
-
-  **Vulnerabilities**
-
-  - [ ] Rescan the deployed image digests and current web/mobile dependency
-    trees, including development tooling. Record advisory IDs, affected versions,
-    fixed versions, dependency paths and available vendor guidance. Distinguish
-    scanner entries from demonstrated reachability and exploitability.
+  - [ ] Refresh scans when evaluating fixes for the findings in the
+    [security evidence](security-evidence-2026-11-05.md). Record advisory IDs,
+    affected and fixed versions, dependency paths and vendor guidance.
+    Distinguish scanner entries from demonstrated reachability and exploitability.
   - [ ] Resolve the remaining glob/minimatch and other npm findings through
     compatible upstream updates or deliberately tested dependency migrations.
     Avoid forced downgrades or overrides that merely make the audit count lower.
     Validate web/mobile lint, types, unit tests, browser tests and native exports
     for the affected dependency changes.
-  - [ ] Assess the PostgreSQL image's remaining Debian-package and gosu findings.
-    Verify which components are present and reachable, and retain direct UID 999
-    startup so gosu is not invoked. Evaluate patched official images or a
-    maintainable image that excludes unnecessary affected components; do not
-    hide findings with blanket scan exclusions.
-  - [ ] If remediation requires a PostgreSQL or base-distribution migration,
-    assess database compatibility, extensions, locale/collation changes and any
-    reindex requirement. Rehearse recovery and migration using a one-off recovery
-    copy, plan the maintenance window and rollback, and verify every application
-    sharing the database. Respect the owner's decision against scheduled backups.
+  - [ ] Track the [PostgreSQL image update and Debian findings](#switch-to-the-official-postgresql-17-image).
+    If a later change requires a different base distribution, check for
+    collation changes and any index rebuilds on disposable data before rollout.
   - [ ] Keep existing vulnerability gates and full scan artifacts. For findings
     without a safe fix, document affected versions, reachability, mitigation,
     upstream tracking, an owner and a review date. Obtain explicit acceptance of
     any residual risk; leave unresolved findings visibly tracked until patched
     or accepted, rather than treating a passing gate as a clean full report.
 
-  Done when the release account task is complete and every refreshed
-  vulnerability finding is either remediated or explicitly accepted with
-  evidence, mitigation and a review date. Keep unresolved findings visible in
-  scan reports and tracking.
-
-## Create separate release accounts for Chinwag, Fleet and VitaTrack
-
-- [ ] Replace the shared privileged VPS `deploy` account with one restricted
-  release account and SSH credential per application.
-
-  The broker passed an isolated Swarm release and rollback, and each repository
-  has a production environment restricted to its default branch, with a
-  dedicated key. All three accounts are installed and passed live SSH
-  restriction checks. All four apps released automatically. Chinwag, Fleet
-  and VitaTrack also passed their live rollback drills. BulkBets uses its own
-  restricted account, which also handles application migrations. The shared
-  GitHub credential was removed, and the VPS rejected the old SSH key after
-  the administrator retired the account. See the
-  [broker PR](https://github.com/PerrySmithMoss/perry-infra/pull/5)
-  and [security evidence](security-evidence-2026-11-05.md#shared-credential-cutover).
-
-  - [x] Install and verify `chinwag-release` for `chinwag_chinwag-api`.
-  - [x] Install and verify `fleet-release` for `fleet_fleet-api`.
-  - [x] Install and verify `vita-track-release` for `vita-track_vita-track-api`.
-  - [x] Require passing PR checks before merging into each app's default
-    branch. Deploy routine releases automatically from that branch and keep
-    rollback dispatch deliberate.
-  - [x] Verify the first automatic releases and the live Chinwag, Fleet and
-    VitaTrack rollback drills.
-  - [ ] Migrate one app at a time. The administrator installs the broker and
-    records the reviewed service policy. Each protected production workflow
-    can update only its own service image by immutable digest. Verify rejection
-    of shell access, SFTP, forwarding, Docker socket access, arbitrary commands
-    and manifests, and cross-application targets. Verify a real release and
-    rollback, the application's core workflows and shared service health.
-  - [x] Remove the dormant shared-key CI fallback from BulkBets.
-  - [ ] Merge the perry-infra cleanup for its dormant fallback through
-    [PR #5](https://github.com/PerrySmithMoss/perry-infra/pull/5).
-  - [x] Confirm all remaining consumers of the old key, including administrator
-    automation, CI secret scopes and emergency procedures. After every
-    consumer has migrated, remove shared-key copies, revoke its VPS
-    authorization, and disable the obsolete account's Docker and sudo access.
-    Preserve the owner-controlled administrator recovery path. Verify the old
-    key is rejected and routine releases work through the dedicated accounts.
-  - [x] Record production releases, image digests, rollback and access-denial
-    results in the runbook and security report.
-
-  Done when all three applications release and roll back through their own
-  restricted production accounts and the shared credential can no longer deploy.
+  Done when every refreshed vulnerability finding is remediated or explicitly
+  accepted with evidence, mitigation and a review date. Keep unresolved findings
+  visible in scan reports and tracking.
 
 ## Remediate the remaining Chinwag API image findings
 
-- [ ] Triage the 2 critical and 54 high entries from the refreshed Bookworm
-  image scan. Identify affected runtime paths, update supported dependencies,
-  and verify image scanning, migrations, sign-in and messaging before release.
-  Rotate the database credential that the old entrypoint wrote to startup logs.
+- [ ] Review the 45 high findings from the patched image scan for Debian fixes
+  and reachable runtime issues. Verify image scanning, migrations, sign-in and
+  messaging for any update.
 
 ## Remediate the remaining Fleet API image findings
 
-- [ ] Triage the 9 critical and 83 high entries in the new release image.
-  Prioritize fixes for runtime packages and test readiness, simulation,
-  vehicle streaming and routing before release.
-  The API dependency change also requires a clean CI type check. Align the
-  shared package's type exports with its generated files and build the shared
-  package before checking its consumers.
+- [ ] Review the 45 high findings from the patched image scan for Debian fixes
+  and reachable runtime issues. Verify readiness, simulation, vehicle streaming
+  and routing for any update.
 
 ## Remediate the remaining VitaTrack API image findings
 
-- [ ] Triage the 4 critical and 62 high entries from the refreshed Bookworm
-  image scan. Prioritize runtime fixes and test GraphQL, authentication, and
-  nutrition and activity queries before release. Rotate the database credential
-  that the old entrypoint wrote to startup logs.
+- [ ] Review the 49 high findings from the patched image scan, starting with
+  the four fixable findings in GraphQL Tools and Prisma tooling. Review the
+  unsupported Apollo Server 3 stack and the Prisma CLI separately. Verify
+  GraphQL, authentication, and nutrition and activity queries for any update.
 
 ## Isolate the portfolio apps on separate Swarm networks
 
@@ -214,84 +147,17 @@ domain in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues
   ingress and database access per app, then verify proxy routing, database
   access and service health before removing the shared attachment.
 
-## Verify production password-recovery delivery
+## Verify the production password-reset redirect
 
-- [ ] Verify production email delivery and the complete password-reset flow.
+- [ ] Complete a reset on the deployed site with a dedicated account and
+  controlled inbox. Verify that a successful reset returns the signed-out user
+  to the homepage, shows a confirmation, and clears the reset token from the
+  URL and browser history. Obtain the owner's authorization before sending a
+  test email. Record the result without storing credentials or tokens.
 
-  Production SMTP configuration is complete. The live API uses the rotated,
-  domain-restricted Resend key in `bulkbets_smtp_password_v2`, and verified
-  STARTTLS, authentication and sender checks passed on 5 November 2026. No
-  recipient or message was sent during that initial verification. See the
-  [security follow-up report](security-follow-up-2026-11-05.md#open-items-and-accepted-limits).
-
-  On 5 November 2026, the owner authorized a request from
-  `https://bulkbets.vercel.app` and reported an email with a localhost link.
-  Investigating the link origin is in scope because a localhost link prevents
-  recovery from the email. The running production API had
-  `APP_ENV=production` and `APP_CLIENT_URL=https://bulkbets.vercel.app`.
-  The requested address had no production account or reset record, and
-  Resend showed no matching send. After the owner registered the test account
-  and authorized a retry, Resend reported **Delivered**. The link in that
-  provider record used `https://bulkbets.vercel.app/reset-password` and opened
-  the deployed reset form. The API logged a successful reset at 14:03 GMT,
-  and a read-only check confirmed the reset record had been consumed. The
-  owner confirmed inbox receipt, successful sign-in with the new password,
-  rejection of the old password, and rejection of link reuse.
-
-  The production walkthrough showed that a successful reset leaves the user
-  on the reset page. Include an automatic return to the signed-out homepage
-  with a success confirmation. Replace the reset page's history entry so
-  Back skips the consumed link. Keep the token in the URL fragment, which
-  browsers omit from the page request. The destination is always the homepage.
-
-  The release smoke test also found that the browser can submit the
-  forgot-password form before its JavaScript is ready. The browser reloads the
-  page with the email in the URL and sends no reset email. Keep recovery inputs
-  and submit buttons disabled until the form is ready to handle submissions.
-
-  - Obtain the owner's authorization for a test email and identify the controlled
-    recipient inbox before sending.
-  - Use a dedicated test account and controlled inbox to request a reset through
-    the deployed website. Confirm Resend reports delivery, the email arrives,
-    and the reset link uses the public HTTPS origin and opens the deployed application.
-  - Verify the reset succeeds, the new password works, the old password fails,
-    and the reset link cannot be reused.
-  - Verify that success returns the user to the homepage with a confirmation
-    and no reset token in the URL. Errors stay on the reset form.
-  - Delay the browser scripts and verify the recovery form stays disabled.
-    Once scripts load, verify it sends one POST and keeps the email out of
-    the URL.
-  - Document the verification result without recording API keys, passwords,
-    or reset tokens.
-  - Run `go test ./...` in `server` for the in-process SMTP checks and
-    `npm --prefix web run test:e2e -- --project=web-desktop --grep 'password recovery'`
-    for the reset journey. Keep browser fixtures isolated with outbound email
-    disabled. Use the Codex in-app browser at `http://localhost:3000` to
-    check the recovery screens.
-
-  Local verification passed. The Go suite covered SMTP using a local fixture.
-  The isolated browser test covered disabled mail, missing and expired links,
-  a successful reset, the signed-out homepage and its success confirmation,
-  and Back skipping the consumed URL. It also verified the old and new
-  passwords and rejected link reuse. The Codex browser confirmed fragment-link
-  and missing-code behavior at `http://localhost:3000`.
-
-  The redirect shipped on 5 November 2026 in
-  [PR #15](https://github.com/PerrySmithMoss/BulkBets/pull/15).
-  The [production workflow](https://github.com/PerrySmithMoss/BulkBets/actions/runs/42044660854)
-  passed, and the public reset page served the updated bundle. Resend marked
-  one fresh reset email for the dedicated test account **Delivered**. The
-  owner will submit the reset to verify the homepage redirect in production.
-
-  The early-submit fix shipped on 5 November 2026 in
-  [PR #16](https://github.com/PerrySmithMoss/BulkBets/pull/16).
-  The [production workflow](https://github.com/PerrySmithMoss/BulkBets/actions/runs/42068410808)
-  passed. Both public recovery pages served disabled inputs and submit
-  buttons in their initial HTML. The isolated delayed-script test verified
-  that the form then enabled and sent one POST without changing the URL.
-
-  Done when production password recovery passes the delivery and reset checks
-  above, with credentials stored securely outside version control.
+  The redirect passed local browser tests and shipped in
+  [PR #15](https://github.com/PerrySmithMoss/BulkBets/pull/15). The remaining
+  check is the redirect after submitting the form in production.
 
 ## Redesign BulkBets transactional emails
 
@@ -308,8 +174,7 @@ domain in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues
     branded footer with guidance for people who did not request the reset.
   - Send HTML and plain-text versions in the same message through the existing
     Resend SMTP integration. Include a copyable reset link and explain that it
-    expires in 30 minutes and can be used once. Use the public HTTPS link
-    tracked in the production password-recovery task above.
+    expires in 30 minutes and can be used once. Use the public HTTPS reset link.
   - Use accessible contrast and meaningful text so the email works in dark mode
     and with images blocked. Share the header, footer and layout so future
     transactional emails can reuse them.
