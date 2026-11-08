@@ -68,6 +68,7 @@ services:
         order: stop-first
       labels:
         - "traefik.enable=true"
+        - "traefik.swarm.lbswarm=true"
         - "traefik.swarm.network=bulkbets_ingress"
         - "traefik.http.routers.bulkbets-api.rule=Host(`${API_HOST}`) && PathPrefix(`/api/v1`)"
         - "traefik.http.routers.bulkbets-api.entrypoints=websecure"
