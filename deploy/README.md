@@ -259,7 +259,7 @@ branch after the API release succeeds.
 ### 4. Deploy Next.js on Vercel
 
 Import this repository, choose **Root Directory: `web`**, the Next.js preset and
-Node.js 24. Set the server-side environment variable `API_URL=https://API_HOST`
+Node.js 26. Set the server-side environment variable `API_URL=https://API_HOST`
 with your real API hostname, without `/api/v1`, then deploy. Add the hostname from
 `APP_HOST` to the Vercel project and follow Vercel's DNS instructions. Do not point
 that frontend DNS record at the VPS. The API DNS record points at the VPS where
