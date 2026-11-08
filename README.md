@@ -4,7 +4,7 @@ Next.js web app (`web`), Expo / React Native app (`mobile`), and a Go API (`serv
 
 ## Fresh clone setup
 
-Install Node.js 24 (see `.node-version`) and Docker Desktop, and start Docker.
+Install Node.js 26 (see `.node-version`) and Docker Desktop, and start Docker.
 Go is provided by the API's Docker build; a local Go installation is optional.
 
 From the repository root:
