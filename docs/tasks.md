@@ -9,17 +9,14 @@ in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues/19).
    and [prepare the switch](#switch-to-the-official-postgresql-17-image) if it
    passes verification. Review the remaining Debian findings with the
    infrastructure maintainer on the same date.
-2. Address the remaining high findings in the app API images. Prioritize
-   available runtime fixes. See the
-   [patched image scans](security-evidence-2026-11-05.md#patched-legacy-api-images).
+2. Review the remaining high Debian findings in the VitaTrack API image
+   for upstream fixes and reachable runtime issues.
 3. Isolate each legacy app's Swarm network one at a time. Verify ingress,
    database access and rollback before removing its shared network attachment.
-4. Recheck Expo and TypeScript ESLint for compatible fixes. Run mobile
-   exports, lint, type checks and browser coverage before updating the lockfiles.
+4. Track compatible Expo and TypeScript ESLint updates for the remaining
+   mobile Minimatch advisory.
 5. Confirm the homepage redirect after a successful production password reset
    before changing the email template.
-6. Migrate the existing BulkBets and perry-infra Python brokers to Go after
-   the release and recovery paths are stable. Roll them out separately.
 
 ## Switch to the official PostgreSQL 17 image
 
@@ -44,57 +41,6 @@ in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues/19).
   date: 12 November 2026. See the
   [production scan and findings](security-evidence-2026-11-05.md#postgresql-production-rollout).
 
-## Replace Python deployment tooling with Go
-
-- [ ] Migrate the restricted deployment tooling to Go while preserving its
-  security boundaries and production behaviour.
-
-  Use Go for the privileged brokers, SSH command validation and their tests,
-  aligning with the existing backend stack. Keep existing TypeScript development
-  and test tooling; this task does not require rewriting unrelated shell scripts.
-  The purpose is language consistency and maintainability, not a claim that a
-  language change alone improves security.
-
-  - Replace `deploy/restricted/release.py`, `ssh-command.py` and
-    `test_release.py` with Go commands and tests.
-  - Coordinate the equivalent migration in `perry-infra`: `deploy/broker.py`,
-    `ssh-command.py`, `fingerprint.py`, `test_broker.py`, and inline Python in
-    the installer. Preserve the exact fingerprint format and file ordering so
-    CI and the host agree on the administrator-reviewed infrastructure snapshot.
-  - Preserve strict command/argument validation, immutable image references and
-    revision checks, bounded credential input, input/process timeouts, exclusive
-    release locking, a clean subprocess environment, private temporary registry
-    credentials and cleanup on failure. Never log credentials or accept
-    CI-supplied shell commands, paths or deployment manifests.
-  - Preserve root ownership of installed binaries and deployment snapshots,
-    narrowly scoped sudo rules, SSH forced commands, disabled forwarding and
-    the separation between application migrations and infrastructure provisioning.
-  - Build Linux/amd64 executables using a pinned Go toolchain in a trusted build
-    environment. Install reviewed artifacts as administrator; do not give CI
-    permission to replace its own broker or host-owned configuration. Document
-    artifact verification and rollback to the previous installed version.
-  - Update both repositories' installers, CI checks, fingerprint invocation and
-    deployment documentation. Remove obsolete Python files and deployment-tool
-    runtime requirements after successful cutover; do not uninstall the VPS's
-    system Python or affect unrelated services.
-  - Port the existing boundary tests and cover malformed/oversized credentials,
-    extra arguments, shell injection, timeouts, concurrent releases, failed
-    subprocess cleanup and fingerprint compatibility. Verify Go binaries reject
-    shell commands, Docker socket tunnelling, SFTP and forwarding under the real
-    restricted SSH accounts.
-  - Roll out one broker at a time with an administrator-installed snapshot and
-    a rollback plan. Complete a real application release and infrastructure
-    deployment through their protected workflows, then verify service health,
-    SMTP secret mapping and frontend promotion without weakening existing gates.
-
-  The Go ports, CI checks and administrator install instructions are ready for
-  review. Production cutover remains open until each broker is installed
-  separately and verified through its protected deployment workflow.
-
-  Done when both deployment paths use tested Go executables, their security
-  restrictions and production releases are verified, and no maintained Python
-  code remains in this deployment-tooling scope.
-
 ## Resolve remaining vulnerabilities
 
 - [ ] Address the upstream vulnerability findings identified in the
@@ -108,11 +54,15 @@ in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues/19).
     [security evidence](security-evidence-2026-11-05.md). Record advisory IDs,
     affected and fixed versions, dependency paths and vendor guidance.
     Distinguish scanner entries from demonstrated reachability and exploitability.
-  - [ ] Resolve the remaining glob/minimatch and other npm findings through
-    compatible upstream updates or deliberately tested dependency migrations.
-    Avoid forced downgrades or overrides that merely make the audit count lower.
-    Validate web/mobile lint, types, unit tests, browser tests and native exports
-    for the affected dependency changes.
+  - [ ] Resolve the mobile Minimatch advisory through compatible Expo and
+    TypeScript ESLint updates. The 9 November 2026 audit found zero web entries
+    and eight moderate mobile package entries. The mobile Glob cancellation
+    fix shipped in 13.0.7, and the audit still lists it under the broader
+    advisory range. The separate Minimatch advisory still applies. Validate
+    lint, types, unit tests, browser tests and native exports when updating
+    the dependencies.
+    [Audit artifacts](https://github.com/PerrySmithMoss/BulkBets/actions/runs/42703544447#artifacts) ·
+    [Glob backport PR](https://github.com/PerrySmithMoss/BulkBets/pull/23)
   - [ ] Track the [PostgreSQL image update and Debian findings](#switch-to-the-official-postgresql-17-image).
     If a later change requires a different base distribution, check for
     collation changes and any index rebuilds on disposable data before rollout.
@@ -126,30 +76,21 @@ in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues/19).
   accepted with evidence, mitigation and a review date. Keep unresolved findings
   visible in scan reports and tracking.
 
-## Remediate the remaining Chinwag API image findings
-
-- [ ] Review the 45 high findings from the patched image scan for Debian fixes
-  and reachable runtime issues. Verify image scanning, migrations, sign-in and
-  messaging for any update.
-
-## Remediate the remaining Fleet API image findings
-
-- [ ] Review the 45 high findings from the patched image scan for Debian fixes
-  and reachable runtime issues. Verify readiness, simulation, vehicle streaming
-  and routing for any update.
-
 ## Remediate the remaining VitaTrack API image findings
 
-- [ ] Review the 49 high findings from the patched image scan, starting with
-  the four fixable findings in GraphQL Tools and Prisma tooling. Review the
-  unsupported Apollo Server 3 stack and the Prisma CLI separately. Verify
-  GraphQL, authentication, and nutrition and activity queries for any update.
+- [ ] Review the 46 high Debian entries in the current production image scan
+  for upstream fixes and reachable runtime issues. The scan reports no fixed
+  versions for those entries and zero high or critical Node package entries.
+  The deployed release uses Apollo Server 5 and Prisma 7. Verify GraphQL,
+  authentication, and nutrition and activity queries for any update.
+  [Production scan](https://github.com/PerrySmithMoss/VitaTrack/actions/runs/42699835207)
 
 ## Isolate the portfolio apps on separate Swarm networks
 
-- [ ] Inventory the legacy apps' shared overlay connections. Plan isolated
-  ingress and database access per app, then verify proxy routing, database
-  access and service health before removing the shared attachment.
+- [ ] Plan isolated ingress and database access per app, then verify proxy
+  routing, database access and service health before removing the shared
+  attachment. The 9 November 2026 VPS inventory confirmed that Chinwag, Fleet
+  and VitaTrack still share `portfolio_network`.
 
 ## Verify the production password-reset redirect
 
@@ -190,3 +131,29 @@ in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues/19).
   Done when the redesigned reset email is recognisably BulkBets, the reset action
   is easy to find and use across the tested clients, and the shared template is
   ready for future app emails.
+
+## Completed
+
+- [x] Migrate the BulkBets release broker and SSH forced command to Go.
+  The administrator installed both binaries and verified the restricted account
+  and sudo path on 9 November 2026. The production deployment and frontend
+  promotion passed, and both public endpoints returned HTTP 200.
+  [BulkBets PR #29](https://github.com/PerrySmithMoss/BulkBets/pull/29) ·
+  [Production run](https://github.com/PerrySmithMoss/BulkBets/actions/runs/42703544447) ·
+  [Installation and rollback runbook](../deploy/restricted/README.md#installation-and-cutover)
+- [x] Migrate the `perry-infra` broker to Go. The merged port preserves the
+  snapshot fingerprint format and includes boundary tests. On 9 November 2026
+  the protected deployment passed through the Go broker, which was confirmed
+  installed on the VPS.
+  [perry-infra PR #12](https://github.com/PerrySmithMoss/perry-infra/pull/12) ·
+  [Production run](https://github.com/PerrySmithMoss/perry-infra/actions/runs/42700548806)
+- [x] Remediate the high findings tracked for the Chinwag API image. The scan
+  matches the image running on the VPS and reports zero high or critical
+  entries.
+  [Dependency and messaging verification](https://github.com/PerrySmithMoss/chinwag/pull/3) ·
+  [Production scan](https://github.com/PerrySmithMoss/chinwag/actions/runs/42511980699)
+- [x] Remediate the high findings tracked for the Fleet API image. The scan
+  matches the image running on the VPS and reports zero high or critical
+  entries.
+  [Dependency and streaming verification](https://github.com/PerrySmithMoss/logistics-realtime-dashboard/pull/7) ·
+  [Production scan](https://github.com/PerrySmithMoss/logistics-realtime-dashboard/actions/runs/42703262104)
