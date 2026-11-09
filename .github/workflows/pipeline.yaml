@@ -70,7 +70,8 @@ jobs:
       - name: Check deployment shell syntax
         run: sh -n deploy/migrate.sh deploy/backup.sh deploy/rollout.sh deploy/host-maintenance.sh deploy/restricted/install.sh
       - name: Check restricted release boundary
-        run: python3 -B -m unittest discover -s deploy/restricted -p 'test_*.py'
+        working-directory: deploy/restricted
+        run: go test -race ./... && go vet ./...
       - name: Check deployment ordering and failure handling
         run: node --test deploy/tests/rollout.test.mts
 

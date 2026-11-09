@@ -23,18 +23,49 @@ The revision label is consistency checking, not signed provenance.
 
 ## Installation and cutover
 
-1. Review and copy the deployment snapshot and a new dedicated Ed25519 **public**
-   key to the VPS. Run `sudo sh deploy/restricted/install.sh ./release.pub` from
-   that snapshot. The install does not alter the existing `deploy` account.
-2. Verify that the new account rejects `id`, `docker system dial-stdio`, SFTP,
-   extra arguments and forwarding. Confirm root ownership of `/opt/bulkbets-release`
-   and `/usr/local/libexec/bulkbets-*`.
-3. Store the corresponding private key as `BULKBETS_RELEASE_KEY` in this repo's
-   `production` environment. Restrict that environment to `master` and require
-   passing PR checks on the protected branch. Keep the key at environment scope.
-   Verify the automatic release after a green merge and check public health.
-4. Verify the retired `deploy` account remains blocked and its shared key
-   is absent from CI. Use the separate owner administrator login for recovery.
+Build the two host executables from a clean, reviewed checkout in a trusted
+build environment. Use the Go version pinned in `deploy/restricted/go.mod`
+(Go 1.27.3). From the repository root:
+
+```sh
+artifacts=$(mktemp -d)
+GOTOOLCHAIN=local GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
+  go -C deploy/restricted build -trimpath -buildvcs=true -o "$artifacts/" ./cmd/...
+go version -m "$artifacts/bulkbets-release" "$artifacts/bulkbets-ssh-command"
+(cd "$artifacts" && sha256sum bulkbets-release bulkbets-ssh-command > SHA256SUMS)
+```
+
+Check the recorded revision, clean build state, and target architecture in
+the Go build metadata. Record the checksums in the trusted build environment.
+Copy the binaries and reviewed checkout to an administrator-controlled location
+on the VPS, then verify the binaries with `sha256sum -c SHA256SUMS` against the
+trusted checksums before running the installer.
+
+1. For an upgrade, keep a root-only copy of `/opt/bulkbets-release` and the
+   current `/usr/local/libexec/bulkbets-release` and `bulkbets-ssh-command`
+   executables. Install while no release is running. The installer uses the same
+   lock as the broker. From the reviewed checkout, run
+   `sudo sh deploy/restricted/install.sh /path/to/release.pub /path/to/artifacts`.
+   Reuse the existing dedicated CI public key when upgrading. For a new
+   installation, create a dedicated Ed25519 key and keep its private key in
+   the `production` environment as `BULKBETS_RELEASE_KEY`.
+2. Verify that the release account rejects `id`, `docker system dial-stdio`,
+   SFTP, extra arguments and forwarding. Confirm root ownership of
+   `/opt/bulkbets-release` and both executables in `/usr/local/libexec`.
+3. Keep the protected production workflow restricted to `master` with passing
+   PR checks. Verify a real release through it, including public API health,
+   the selected SMTP secret mapping and frontend promotion after the API.
+4. Verify that the retired `deploy` account remains blocked and that its
+   shared key is absent from CI. Use the separate owner administrator login
+   for recovery.
+
+For rollback, use the owner login during a quiet deployment window. Hold
+`/run/lock/bulkbets-release.lock` with `flock`, restore the saved snapshot
+with its original ownership and permissions, and replace both saved
+executables at the same paths using a staged copy and rename. The SSH command
+and sudo target are identical across versions. Repeat the restricted SSH checks
+and verify a protected release after restoring. Keep system Python available
+while the saved Python version is a rollback option.
 
 Install future deployment-policy changes using administrator access after
 review. CI cannot refresh the root-owned snapshot. An application code release
