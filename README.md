@@ -169,18 +169,13 @@ Browser tests of Expo web and native bundle exports do not establish native devi
 - The Go vulnerability scan is clean after updating `golang.org/x/crypto`
   to the first revision listed as fixed for the OpenPGP module advisory. The API
   does not import OpenPGP. [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932)
-- The web npm audit is clean, including development dependencies. Mobile uses
-  `glob@13.0.7`, which backports the cancellation fix for CVE-2026-118773.
-  npm audit and Dependabot still flag that release because the advisory lists
-  only the 14.x fix. [Glob advisory](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4)
-  · [Maintainer confirmation](https://github.com/isaacs/node-glob/issues/664#issuecomment-6676454904)
-- CVE-2026-118764 still affects `minimatch@10.2.6` in Expo's build tooling and
-  lint dependencies. The published Glob 13 bundle also embeds Minimatch 10,
-  so updating the separately installed copy alone leaves that path affected.
-  The BulkBets maintainer will recheck by 19 November 2026.
-  [Minimatch advisory](https://github.com/advisories/GHSA-g3hv-75wg-m249)
-  · [Expo tracking](https://github.com/expo/expo/issues/52735)
-  · [Parser update](https://github.com/typescript-eslint/typescript-eslint/pull/13145)
+- Web and mobile npm audits are clean, including development dependencies.
+  Mobile pins `glob@14.0.4` and `minimatch@11.0.5` through overrides scoped to
+  the locked Expo CLI, Expo Fingerprint and TypeScript ESLint parser versions.
+  Recheck these overrides when updating their parent packages and remove them
+  once the resolved tree is clean without them.
+  [Glob advisory](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4)
+  · [Minimatch advisory](https://github.com/advisories/GHSA-g3hv-75wg-m249)
 
 Migration references: [Next.js 16](https://nextjs.org/docs/app/guides/upgrading/version-16),
 [Tailwind CSS 4](https://tailwindcss.com/docs/upgrade-guide),
