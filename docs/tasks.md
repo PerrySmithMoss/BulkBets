@@ -87,6 +87,10 @@ in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues/19).
     deployment through their protected workflows, then verify service health,
     SMTP secret mapping and frontend promotion without weakening existing gates.
 
+  The Go ports, CI checks and administrator install instructions are ready for
+  review. Production cutover remains open until each broker is installed
+  separately and verified through its protected deployment workflow.
+
   Done when both deployment paths use tested Go executables, their security
   restrictions and production releases are verified, and no maintained Python
   code remains in this deployment-tooling scope.
