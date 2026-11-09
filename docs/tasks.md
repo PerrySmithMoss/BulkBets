@@ -13,9 +13,7 @@ in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues/19).
    for upstream fixes and reachable runtime issues.
 3. Isolate each legacy app's Swarm network one at a time. Verify ingress,
    database access and rollback before removing its shared network attachment.
-4. Track compatible Expo and TypeScript ESLint updates for the remaining
-   mobile Minimatch advisory.
-5. Confirm the homepage redirect after a successful production password reset
+4. Confirm the homepage redirect after a successful production password reset
    before changing the email template.
 
 ## Switch to the official PostgreSQL 17 image
@@ -54,15 +52,10 @@ in [BulkBets issue #19](https://github.com/PerrySmithMoss/BulkBets/issues/19).
     [security evidence](security-evidence-2026-11-05.md). Record advisory IDs,
     affected and fixed versions, dependency paths and vendor guidance.
     Distinguish scanner entries from demonstrated reachability and exploitability.
-  - [ ] Resolve the mobile Minimatch advisory through compatible Expo and
-    TypeScript ESLint updates. The 9 November 2026 audit found zero web entries
-    and eight moderate mobile package entries. The mobile Glob cancellation
-    fix shipped in 13.0.7, and the audit still lists it under the broader
-    advisory range. The separate Minimatch advisory still applies. Validate
-    lint, types, unit tests, browser tests and native exports when updating
-    the dependencies.
-    [Audit artifacts](https://github.com/PerrySmithMoss/BulkBets/actions/runs/42703544447#artifacts) ·
-    [Glob backport PR](https://github.com/PerrySmithMoss/BulkBets/pull/23)
+  - [x] Resolve the mobile Glob and Minimatch advisories with scoped overrides
+    to Glob 14.0.4 and Minimatch 11.0.5. Full mobile and web npm audits report
+    zero vulnerabilities. Recheck the overrides when updating their parent
+    packages. [Fix and verification](https://github.com/PerrySmithMoss/BulkBets/pull/31)
   - [ ] Track the [PostgreSQL image update and Debian findings](#switch-to-the-official-postgresql-17-image).
     If a later change requires a different base distribution, check for
     collation changes and any index rebuilds on disposable data before rollout.

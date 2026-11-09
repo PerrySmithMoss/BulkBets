@@ -42,6 +42,18 @@
     "oxlint": "^1.91.0",
     "typescript": "^7.0.2"
   },
+  "overrides": {
+    "@expo/cli@58.1.19": {
+      "glob": "14.0.4"
+    },
+    "@expo/fingerprint@0.21.9": {
+      "glob": "14.0.4",
+      "minimatch": "11.0.5"
+    },
+    "@typescript-eslint/typescript-estree@8.72.1": {
+      "minimatch": "11.0.5"
+    }
+  },
   "engines": {
     "node": "26.x"
   },
