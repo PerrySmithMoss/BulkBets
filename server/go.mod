@@ -1,6 +1,6 @@
 module github.com/PerrySmithMoss/BulkBets/server
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/alexedwards/argon2id v1.0.0
