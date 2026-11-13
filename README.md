@@ -130,7 +130,7 @@ npm --prefix mobile run typecheck
 cd mobile && npx expo-doctor && npm run export:native && cd ..
 ```
 
-With a local Go 1.27.3 installation, run `go test ./...` and `go vet ./...` in `server`.
+With a local Go 1.27.4 installation, run `go test ./...` and `go vet ./...` in `server`.
 The Go checks run API/security tests and compile every package. Storage integration
 tests run against the isolated database in the browser suite.
 
