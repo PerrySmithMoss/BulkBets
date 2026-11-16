@@ -6,7 +6,7 @@ COPY . .
 RUN CGO_ENABLED=0 go build -o /out/api ./cmd/api && \
     CGO_ENABLED=0 go build -o /out/migrate ./cmd/migrate
 
-FROM alpine:3.24@sha256:ce9e1e6d23f04a0b7593445a062a9fc73ed52f8260b9396f77a958295ad18ee7
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
 RUN apk add --no-cache ca-certificates
 WORKDIR /app/cmd/migrate
 COPY --from=build /out/ /app/
