@@ -40,7 +40,7 @@
     "@types/react": "^19.3.0",
     "eslint-plugin-expo": "^1.2.1",
     "expo-dev-client": "~58.0.18",
-    "oxlint": "^1.91.0",
+    "oxlint": "^1.93.0",
     "typescript": "^7.0.2"
   },
   "overrides": {
