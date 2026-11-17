@@ -4,6 +4,7 @@
   "main": "node_modules/expo/AppEntry.js",
   "private": true,
   "scripts": {
+    "postinstall": "node ../security/picomatch.mjs patch .",
     "build": "expo prebuild --clean",
     "start": "expo start",
     "dev": "expo start --dev-client",
